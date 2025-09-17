@@ -1,11 +1,11 @@
 import { StyleSheet, Text, View } from 'react-native';
 import global from '../../styles/global';
 
-export default function HomeScreen() {
+export default function MenuScreen() {
   return (
-    <View style={[global.screen, styles.center]}> 
-      <Text style={styles.title}>Home</Text>
-      <Text>Welcome to Kitchen One!</Text>
+    <View style={[global.screen, styles.center]}>
+      <Text style={styles.title}>Menu</Text>
+      <Text>Browse pizzas and sides.</Text>
     </View>
   );
 }

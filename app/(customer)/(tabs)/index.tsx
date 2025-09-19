@@ -1,34 +1,32 @@
-import { MaterialCommunityIcons, MaterialIcons } from '@expo/vector-icons';
+import { MaterialIcons } from '@expo/vector-icons';
+import { useFocusEffect } from '@react-navigation/native';
 import { useRouter } from 'expo-router';
-import React, { useState } from 'react';
-import { Image, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import React, { useCallback, useState } from 'react';
+import { Image, ScrollView, StyleSheet, TextInput, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import ProductCard from '../../../components/ui/ProductCard';
+import { ResponsiveText } from '../../../components/ui/ResponsiveText';
+import { ResponsiveView } from '../../../components/ui/ResponsiveView';
 import Colors from '../../../constants/Colors';
 import Layout from '../../../constants/Layout';
+import Responsive from '../../../constants/Responsive';
 import { useAuth } from '../../../contexts/AuthContext';
 
-const categories = [
-  { id: '1', name: 'All', icon: 'food' },
-  { id: '2', name: 'Pizza', icon: 'pizza' },
-  { id: '3', name: 'Burger', icon: 'hamburger' },
-  { id: '4', name: 'Sushi', icon: 'food-variant' },
-  { id: '5', name: 'Drinks', icon: 'cup' },
-];
 
 const popularItems = [
   {
     id: '1',
     name: 'Pepperoni Pizza',
     price: 12.99,
-    rating: 4.8,
     image: 'https://images.unsplash.com/photo-1628840042765-356cda07504e?w=500&auto=format&fit=crop&q=60&ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxzZWFyY2h8Mnx8cGVwcGVyb25pJTIwcGl6emF8ZW58MHx8MHx8fDA%3D',
+    tags: ['Popular'],
   },
   {
     id: '2',
     name: 'Cheese Burger',
     price: 8.99,
-    rating: 4.5,
     image: 'https://images.unsplash.com/photo-1568901346375-23c9450c58cd?w=500&auto=format&fit=crop&q=60&ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxzZWFyY2h8Mnx8Y2hlZXNlJTIwYnVyZ2VyfGVufDB8fDB8fHww',
+    tags: ['Popular'],
   },
 ];
 
@@ -37,29 +35,29 @@ const recommendedItems = [
     id: '3',
     name: 'Margherita Pizza',
     price: 11.99,
-    rating: 4.7,
     image: 'https://images.unsplash.com/photo-1604382354936-07c5d9983bd3?w=500&auto=format&fit=crop&q=60&ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxzZWFyY2h8Mnx8bWFyZ2hlcml0YSUyMHBpenphfGVufDB8fDB8fHww',
+    tags: ['Recommended'],
   },
   {
     id: '4',
     name: 'Chicken Wings',
     price: 9.99,
-    rating: 4.6,
     image: 'https://images.unsplash.com/photo-1567620905732-2d1ec7ab7445?w=500&auto=format&fit=crop&q=60&ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxzZWFyY2h8Mnx8Y2hpY2tlbiUyMHdpbmdzfGVufDB8fDB8fHww',
+    tags: ['Recommended'],
   },
   {
     id: '5',
     name: 'Caesar Salad',
     price: 7.99,
-    rating: 4.4,
     image: 'https://images.unsplash.com/photo-1546793665-c74683f339c1?w=500&auto=format&fit=crop&q=60&ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxzZWFyY2h8Mnx8Y2Flc2FyJTIwc2FsYWR8ZW58MHx8MHx8fDA%3D',
+    tags: ['Recommended'],
   },
   {
     id: '6',
     name: 'Chocolate Cake',
     price: 6.99,
-    rating: 4.9,
     image: 'https://images.unsplash.com/photo-1578985545062-69928b1d9587?w=500&auto=format&fit=crop&q=60&ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxzZWFyY2h8Mnx8Y2hvY29sYXRlJTIwY2FrZXxlbnwwfHwwfHx8MA%3D%3D',
+    tags: ['Popular'],
   },
 ];
 
@@ -67,7 +65,6 @@ export default function HomeScreen() {
   const { user } = useAuth();
   const router = useRouter();
   const userName = user?.user_metadata?.name || 'Guest';
-  const [selectedCategory, setSelectedCategory] = useState('1');
   const [searchQuery, setSearchQuery] = useState('');
   
   // Get current time of day for greeting
@@ -78,6 +75,13 @@ export default function HomeScreen() {
     return 'Good Evening';
   };
 
+  // Reset search query when returning to home page
+  useFocusEffect(
+    useCallback(() => {
+      setSearchQuery('');
+    }, [])
+  );
+
   // Handle search
   const handleSearch = () => {
     if (searchQuery.trim()) {
@@ -85,29 +89,73 @@ export default function HomeScreen() {
     }
   };
 
+  // Handle clear search
+  const handleClearSearch = () => {
+    setSearchQuery('');
+  };
+
   return (
     <SafeAreaView style={styles.container}>
       <ScrollView showsVerticalScrollIndicator={false}>
         {/* Header */}
-        <View style={styles.header}>
-          <View>
-            <Text style={styles.greeting}>{getGreeting()}</Text>
-            <Text style={styles.userName}>{userName}</Text>
-          </View>
+        <ResponsiveView 
+          flexDirection="row" 
+          justifyContent="space-between" 
+          alignItems="center"
+          paddingHorizontal="lg"
+          paddingTop="sm"
+          paddingBottom="sm"
+        >
+          <ResponsiveView>
+            <ResponsiveView marginBottom="xs">
+              <ResponsiveText 
+                size="sm" 
+                color="#666" 
+                weight="regular"
+              >
+                {getGreeting()}
+              </ResponsiveText>
+            </ResponsiveView>
+            <ResponsiveText 
+              size="xxxl" 
+              weight="bold" 
+              color="#333"
+            >
+              {userName}
+            </ResponsiveText>
+          </ResponsiveView>
           <TouchableOpacity 
             style={styles.notificationButton}
             onPress={() => router.push('/(customer)/notification')}
           >
-            <MaterialIcons name="notifications-none" size={28} color="#333" />
+            <MaterialIcons 
+              name="notifications-none" 
+              size={Responsive.responsiveValue(24, 26, 28, 32)} 
+              color="#333" 
+            />
             <View style={styles.notificationBadge} />
           </TouchableOpacity>
-        </View>
+        </ResponsiveView>
 
         {/* Search Bar */}
-        <View style={styles.searchContainer}>
-          <MaterialIcons name="search" size={24} color="#999" style={styles.searchIcon} />
+        <ResponsiveView 
+          flexDirection="row" 
+          alignItems="center" 
+          backgroundColor="#f5f5f5"
+          borderRadius="md"
+          marginHorizontal="lg"
+          marginVertical="md"
+          paddingHorizontal="md"
+          height={Responsive.InputSizes.medium.height}
+        >
+          <MaterialIcons 
+            name="search" 
+            size={Responsive.responsiveValue(20, 22, 24, 28)} 
+            color="#999" 
+            style={{ marginRight: Responsive.ResponsiveSpacing.sm }}
+          />
           <TextInput
-            style={styles.searchInput}
+            style={[styles.searchInput, { fontSize: Responsive.InputSizes.medium.fontSize }]}
             placeholder="Search for food or restaurant"
             placeholderTextColor="#999"
             value={searchQuery}
@@ -115,124 +163,174 @@ export default function HomeScreen() {
             onSubmitEditing={handleSearch}
             returnKeyType="search"
           />
-        </View>
-
-        {/* Categories */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Categories</Text>
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.categoriesContainer}
-          >
-            {categories.map((category) => {
-              const isActive = selectedCategory === category.id;
-              return (
-                <TouchableOpacity 
-                  key={category.id} 
-                  style={styles.categoryItem}
-                  onPress={() => setSelectedCategory(category.id)}
-                >
-                  <View style={[
-                    styles.categoryIcon,
-                    isActive && styles.categoryIconActive
-                  ]}>
-                    <MaterialCommunityIcons 
-                      name={category.icon as any} 
-                      size={24} 
-                      color={isActive ? Colors.primaryLight : Colors.black} 
-                    />
-                  </View>
-                  <Text style={[
-                    styles.categoryName,
-                    isActive && styles.categoryNameActive
-                  ]}>
-                    {category.name}
-                  </Text>
-                </TouchableOpacity>
-              );
-            })}
-          </ScrollView>
-        </View>
-
-        {/* Popular Items */}
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Popular Now</Text>
-            <TouchableOpacity onPress={() => router.push('/(customer)/menu?category=Popular')}>
-              <Text style={styles.seeAllText}>View All</Text>
+          {searchQuery.length > 0 && (
+            <TouchableOpacity 
+              onPress={handleClearSearch}
+              style={styles.clearButton}
+            >
+              <MaterialIcons 
+                name="clear" 
+                size={Responsive.responsiveValue(18, 20, 22, 24)} 
+                color="#999" 
+              />
             </TouchableOpacity>
-          </View>
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.popularItemsContainer}
-          >
-            {popularItems.map((item) => (
-              <TouchableOpacity key={item.id} style={styles.popularItem}>
-                <Image source={{ uri: item.image }} style={styles.popularItemImage} />
-                <View style={styles.popularItemInfo}>
-                  <Text style={styles.popularItemName}>{item.name}</Text>
-                  <View style={styles.ratingContainer}>
-                    <MaterialIcons name="star" size={16} color={Colors.primaryLight} />
-                    <Text style={styles.ratingText}>{item.rating}</Text>
-                  </View>
-                  <Text style={styles.popularItemPrice}>${item.price.toFixed(2)}</Text>
-                </View>
-              </TouchableOpacity>
-            ))}
-          </ScrollView>
-        </View>
-
-        {/* Recommended For You */}
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Recommended For You</Text>
-            <TouchableOpacity onPress={() => router.push('/(customer)/menu?category=Recommended')}>
-              <Text style={styles.seeAllText}>View All</Text>
-            </TouchableOpacity>
-          </View>
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.popularItemsContainer}
-          >
-            {recommendedItems.map((item) => (
-              <TouchableOpacity key={item.id} style={styles.popularItem}>
-                <Image source={{ uri: item.image }} style={styles.popularItemImage} />
-                <View style={styles.popularItemInfo}>
-                  <Text style={styles.popularItemName}>{item.name}</Text>
-                  <View style={styles.ratingContainer}>
-                    <MaterialIcons name="star" size={16} color={Colors.primaryLight} />
-                    <Text style={styles.ratingText}>{item.rating}</Text>
-                  </View>
-                  <Text style={styles.popularItemPrice}>${item.price.toFixed(2)}</Text>
-                </View>
-              </TouchableOpacity>
-            ))}
-          </ScrollView>
-        </View>
+          )}
+        </ResponsiveView>
 
         {/* Special Offers */}
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Special Offers</Text>
+        <ResponsiveView marginTop="sm" paddingHorizontal="lg" marginBottom="lg">
+          <ResponsiveView 
+            flexDirection="row" 
+            justifyContent="space-between" 
+            alignItems="center"
+            marginBottom="md"
+          >
+            <ResponsiveText size="xl" weight="bold" color="#333">
+              Special Offers
+            </ResponsiveText>
             <TouchableOpacity>
-              <Text style={styles.seeAllText}>View All</Text>
+              <ResponsiveText size="sm" weight="bold" color={Colors.black}>
+                View All
+              </ResponsiveText>
             </TouchableOpacity>
-          </View>
-          <View style={styles.specialOfferCard}>
-            <View style={styles.specialOfferContent}>
-              <Text style={styles.specialOfferTitle}>30% OFF</Text>
-              <Text style={styles.specialOfferSubtitle}>On your first order</Text>
-              <Text style={styles.specialOfferCode}>Use code: WELCOME30</Text>
-            </View>
+          </ResponsiveView>
+          <ResponsiveView 
+            backgroundColor={Colors.primaryLight + '10'}
+            borderRadius="lg"
+            padding="lg"
+            flexDirection="row"
+            alignItems="center"
+            style={{ overflow: 'hidden' }}
+          >
+            <ResponsiveView flex={1}>
+              <ResponsiveView marginBottom="xs">
+                <ResponsiveText 
+                  size="xxl" 
+                  weight="bold" 
+                  color={Colors.primaryLight}
+                >
+                  30% OFF
+                </ResponsiveText>
+              </ResponsiveView>
+              <ResponsiveView marginBottom="sm">
+                <ResponsiveText 
+                  size="md" 
+                  color="#666"
+                >
+                  On your first order
+                </ResponsiveText>
+              </ResponsiveView>
+              <ResponsiveView 
+                backgroundColor={Colors.primaryLight + '20'}
+                paddingHorizontal="sm"
+                paddingVertical="xs"
+                borderRadius="pill"
+                alignSelf="flex-start"
+              >
+                <ResponsiveText 
+                  size="sm" 
+                  color={Colors.primaryLight}
+                >
+                  Use code: WELCOME30
+                </ResponsiveText>
+              </ResponsiveView>
+            </ResponsiveView>
             <Image 
               source={{ uri: 'https://images.unsplash.com/photo-1565299624946-b28f40a0ae38?w=500&auto=format&fit=crop&q=60&ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxzZWFyY2h8Mnx8Zm9vZCUyMGRlbGl2ZXJ5fGVufDB8fDB8fHww' }} 
-              style={styles.specialOfferImage}
+              style={[
+                styles.specialOfferImage,
+                { 
+                  width: Responsive.responsiveValue(100, 110, 120, 140),
+                  height: Responsive.responsiveValue(80, 90, 100, 120),
+                  marginLeft: Responsive.ResponsiveSpacing.sm
+                }
+              ]}
             />
-          </View>
-        </View>
+          </ResponsiveView>
+        </ResponsiveView>
+
+        {/* Popular Items */}
+        <ResponsiveView marginTop="sm" paddingHorizontal="lg" marginBottom="lg">
+          <ResponsiveView 
+            flexDirection="row" 
+            justifyContent="space-between" 
+            alignItems="center"
+            marginBottom="md"
+          >
+            <ResponsiveText size="xl" weight="bold" color="#333">
+              Popular Now
+            </ResponsiveText>
+            <TouchableOpacity onPress={() => router.push('/(customer)/menu?category=Popular')}>
+              <ResponsiveText size="sm" weight="bold" color={Colors.black}>
+                View All
+              </ResponsiveText>
+            </TouchableOpacity>
+          </ResponsiveView>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={{ paddingVertical: Responsive.ResponsiveSpacing.xs }}
+          >
+            {popularItems.map((item) => (
+              <ProductCard
+                key={item.id}
+                id={item.id}
+                name={item.name}
+                price={item.price}
+                image={item.image}
+                tags={item.tags}
+                variant="horizontal"
+                width={Responsive.responsiveValue(160, 170, 180, 200)}
+                onPress={() => router.push({
+                  pathname: '/(customer)/product/[id]',
+                  params: { id: item.id }
+                } as any)}
+              />
+            ))}
+          </ScrollView>
+        </ResponsiveView>
+
+        {/* Recommended For You */}
+        <ResponsiveView marginTop="sm" paddingHorizontal="lg" marginBottom="lg">
+          <ResponsiveView 
+            flexDirection="row" 
+            justifyContent="space-between" 
+            alignItems="center"
+            marginBottom="md"
+          >
+            <ResponsiveText size="xl" weight="bold" color="#333">
+              Recommended For You
+            </ResponsiveText>
+            <TouchableOpacity onPress={() => router.push('/(customer)/menu?category=Recommended')}>
+              <ResponsiveText size="sm" weight="bold" color={Colors.black}>
+                View All
+              </ResponsiveText>
+            </TouchableOpacity>
+          </ResponsiveView>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={{ paddingVertical: Responsive.ResponsiveSpacing.xs }}
+          >
+            {recommendedItems.map((item) => (
+              <ProductCard
+                key={item.id}
+                id={item.id}
+                name={item.name}
+                price={item.price}
+                image={item.image}
+                tags={item.tags}
+                variant="horizontal"
+                width={Responsive.responsiveValue(160, 170, 180, 200)}
+                onPress={() => router.push({
+                  pathname: '/(customer)/product/[id]',
+                  params: { id: item.id }
+                } as any)}
+              />
+            ))}
+          </ScrollView>
+        </ResponsiveView>
+
       </ScrollView>
     </SafeAreaView>
   );
@@ -294,6 +392,10 @@ const styles = StyleSheet.create({
     height: '100%',
     fontSize: 16,
     color: '#333',
+  },
+  clearButton: {
+    padding: Responsive.ResponsiveSpacing.xs,
+    marginLeft: Responsive.ResponsiveSpacing.xs,
   },
   section: {
     marginTop: 10,

@@ -5,6 +5,9 @@ export default function CustomerLayout() {
     <Stack>
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
       <Stack.Screen name="product/[id]" options={{ headerShown: false }} />
+      <Stack.Screen name="menu/index" options={{ headerShown: false }} />
+      <Stack.Screen name="menu/[category]" options={{ headerShown: false }} />
+      <Stack.Screen name="notification" options={{ headerShown: false }} />
     </Stack>
   );
 }

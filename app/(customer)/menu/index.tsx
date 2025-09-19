@@ -1,20 +1,24 @@
-import { MaterialCommunityIcons, MaterialIcons } from '@expo/vector-icons';
+import { MaterialIcons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { FlatList, Image, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { FlatList, StyleSheet, TextInput, TouchableOpacity } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import ProductCard from '../../../components/ui/ProductCard';
+import ResponsiveText from '../../../components/ui/ResponsiveText';
+import ResponsiveView from '../../../components/ui/ResponsiveView';
 import Colors from '../../../constants/Colors';
+import Responsive from '../../../constants/Responsive';
 import { useTheme } from '../../../contexts/ThemeContext';
 
 const categories = [
   { id: '1', name: 'All', icon: 'food' },
+  { id: '7', name: 'Popular', icon: 'star' },
+  { id: '8', name: 'Recommended', icon: 'thumb-up' },
   { id: '2', name: 'Pizza', icon: 'pizza' },
   { id: '3', name: 'Burger', icon: 'hamburger' },
   { id: '4', name: 'Sushi', icon: 'sushi' },
   { id: '5', name: 'Drinks', icon: 'cup' },
   { id: '6', name: 'Desserts', icon: 'cupcake' },
-  { id: '7', name: 'Popular', icon: 'star' },
-  { id: '8', name: 'Recommended', icon: 'thumb-up' },
 ];
 
 const menuItems = [
@@ -23,7 +27,6 @@ const menuItems = [
     name: 'Pepperoni Pizza',
     category: 'Pizza',
     price: 12.99,
-    rating: 4.8,
     image: 'https://images.unsplash.com/photo-1628840042765-356cda07504e?w=500&auto=format&fit=crop&q=60&ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxzZWFyY2h8Mnx8cGVwcGVyb25pJTIwcGl6emF8ZW58MHx8MHx8fDA%3D',
     tags: ['Popular'],
   },
@@ -32,7 +35,6 @@ const menuItems = [
     name: 'Cheese Burger',
     category: 'Burger',
     price: 8.99,
-    rating: 4.5,
     image: 'https://images.unsplash.com/photo-1568901346375-23c9450c58cd?w=500&auto=format&fit=crop&q=60&ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxzZWFyY2h8Mnx8Y2hlZXNlJTIwYnVyZ2VyfGVufDB8fDB8fHww',
     tags: ['Popular'],
   },
@@ -41,7 +43,6 @@ const menuItems = [
     name: 'Margherita Pizza',
     category: 'Pizza',
     price: 11.99,
-    rating: 4.7,
     image: 'https://images.unsplash.com/photo-1604382354936-07c5d9983bd3?w=500&auto=format&fit=crop&q=60&ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxzZWFyY2h8Mnx8bWFyZ2hlcml0YSUyMHBpenphfGVufDB8fDB8fHww',
     tags: ['Recommended'],
   },
@@ -50,7 +51,6 @@ const menuItems = [
     name: 'Chicken Wings',
     category: 'Burger',
     price: 9.99,
-    rating: 4.6,
     image: 'https://images.unsplash.com/photo-1567620905732-2d1ec7ab7445?w=500&auto=format&fit=crop&q=60&ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxzZWFyY2h8Mnx8Y2hpY2tlbiUyMHdpbmdzfGVufDB8fDB8fHww',
     tags: ['Recommended'],
   },
@@ -59,7 +59,6 @@ const menuItems = [
     name: 'Caesar Salad',
     category: 'Desserts',
     price: 7.99,
-    rating: 4.4,
     image: 'https://images.unsplash.com/photo-1546793665-c74683f339c1?w=500&auto=format&fit=crop&q=60&ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxzZWFyY2h8Mnx8Y2Flc2FyJTIwc2FsYWR8ZW58MHx8MHx8fDA%3D',
     tags: ['Recommended'],
   },
@@ -68,7 +67,6 @@ const menuItems = [
     name: 'Chocolate Cake',
     category: 'Desserts',
     price: 6.99,
-    rating: 4.9,
     image: 'https://images.unsplash.com/photo-1578985545062-69928b1d9587?w=500&auto=format&fit=crop&q=60&ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxzZWFyY2h8Mnx8Y2hvY29sYXRlJTIwY2FrZXxlbnwwfHwwfHx8MA%3D%3D',
     tags: ['Popular'],
   },
@@ -116,81 +114,98 @@ export default function MenuScreen() {
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
-
       {/* Search Bar */}
-      <View style={[styles.searchContainer, { backgroundColor: colors.card }]}>
-        <MaterialIcons name="search" size={24} color={colors.textSecondary} style={styles.searchIcon} />
+      <ResponsiveView 
+        flexDirection="row" 
+        alignItems="center" 
+        backgroundColor={colors.card}
+        marginHorizontal="lg"
+        marginVertical="md"
+        borderRadius="md"
+        paddingHorizontal="md"
+        height={Responsive.InputSizes.medium.height}
+      >
+        <MaterialIcons 
+          name="search" 
+          size={Responsive.responsiveValue(20, 22, 24, 28)} 
+          color={colors.textSecondary} 
+          style={{ marginRight: Responsive.ResponsiveSpacing.sm }}
+        />
         <TextInput
-          style={[styles.searchInput, { color: colors.text }]}
+          style={[
+            styles.searchInput, 
+            { 
+              color: colors.text,
+              fontSize: Responsive.InputSizes.medium.fontSize
+            }
+          ]}
           placeholder="Search for food or restaurant"
           placeholderTextColor={colors.textSecondary}
           value={searchQuery}
           onChangeText={setSearchQuery}
         />
-      </View>
+      </ResponsiveView>
 
       {/* Categories */}
-      <View style={styles.categoriesContainer}>
+      <ResponsiveView marginBottom="sm">
         <FlatList
           data={categories}
           horizontal
           showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.categoriesList}
+          contentContainerStyle={{ paddingHorizontal: Responsive.ResponsiveSpacing.md }}
           renderItem={({ item }) => (
             <TouchableOpacity
               style={[
                 styles.categoryItem,
-                selectedCategory === item.id && { backgroundColor: colors.primary },
+                selectedCategory === item.id && styles.categoryItemActive,
               ]}
               onPress={() => setSelectedCategory(item.id)}
             >
-              <MaterialCommunityIcons
-                name={item.icon as any}
-                size={24}
-                color={selectedCategory === item.id ? Colors.brown : colors.primary}
-              />
-              <Text
-                style={[
-                  styles.categoryName,
-                  { color: selectedCategory === item.id ? Colors.brown : colors.text },
-                ]}
+              <ResponsiveText
+                size="sm"
+                color={selectedCategory === item.id ? '#FFFFFF' : colors.text}
+                weight={selectedCategory === item.id ? 'semiBold' : 'regular'}
               >
                 {item.name}
-              </Text>
+              </ResponsiveText>
             </TouchableOpacity>
           )}
           keyExtractor={item => item.id}
         />
-      </View>
+      </ResponsiveView>
 
       {/* Menu Items */}
       <FlatList
         data={filteredItems}
-        contentContainerStyle={styles.menuItemsContainer}
         numColumns={2}
-        columnWrapperStyle={styles.menuItemsRow}
+        keyExtractor={(item) => item.id}
+        contentContainerStyle={{ 
+          padding: Responsive.ResponsiveSpacing.md,
+          paddingBottom: Responsive.ResponsiveSpacing.xl
+        }}
+        columnWrapperStyle={{ 
+          justifyContent: 'space-between',
+          marginBottom: Responsive.ResponsiveSpacing.md,
+          paddingHorizontal: Responsive.ResponsiveSpacing.xs,
+          gap: Responsive.ResponsiveSpacing.sm
+        }}
         renderItem={({ item }) => (
-          <TouchableOpacity
-            style={[styles.menuItem, { backgroundColor: colors.card }]}
+          <ProductCard
+            id={item.id}
+            name={item.name}
+            price={item.price}
+            image={item.image}
+            tags={item.tags}
+            variant="vertical"
+            backgroundColor={colors.card}
+            textColor={colors.text}
+            priceColor={Colors.brown}
             onPress={() => router.push({
               pathname: '/(customer)/product/[id]',
               params: { id: item.id }
             } as any)}
-          >
-            <Image source={{ uri: item.image }} style={styles.menuItemImage} />
-            <View style={styles.menuItemInfo}>
-              <Text style={[styles.menuItemName, { color: colors.text }]}>{item.name}</Text>
-              <View style={styles.ratingContainer}>
-                <MaterialIcons name="star" size={16} color="#FFD700" />
-                <Text style={[styles.ratingText, { color: colors.textSecondary }]}>{item.rating}</Text>
-              </View>
-              <Text style={[styles.menuItemPrice, { color: colors.primary }]}>
-                ${item.price.toFixed(2)}
-              </Text>
-            </View>
-          </TouchableOpacity>
+          />
         )}
-        keyExtractor={item => item.id}
       />
     </SafeAreaView>
   );
@@ -224,12 +239,22 @@ const styles = StyleSheet.create({
     paddingHorizontal: 15,
   },
   categoryItem: {
-    flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 15,
-    paddingVertical: 8,
-    borderRadius: 20,
-    marginRight: 10,
+    justifyContent: 'center',
+    paddingHorizontal: Responsive.responsiveValue(16, 18, 20, 24),
+    paddingVertical: Responsive.responsiveValue(8, 10, 12, 14),
+    borderRadius: Responsive.responsiveValue(20, 22, 24, 28),
+    marginRight: Responsive.responsiveValue(8, 10, 12, 14),
+    backgroundColor: '#F5F5F5',
+    minWidth: Responsive.responsiveValue(60, 70, 80, 90),
+  },
+  categoryItemActive: {
+    backgroundColor: '#FF6B35',
+    shadowColor: '#FF6B35',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 4,
   },
   categoryName: {
     marginLeft: 8,
@@ -244,23 +269,43 @@ const styles = StyleSheet.create({
     marginBottom: 15,
   },
   menuItem: {
-    width: '48%',
-    borderRadius: 15,
+    borderRadius: Responsive.responsiveValue(16, 18, 20, 24),
     overflow: 'hidden',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 5,
-    elevation: 3,
-    marginBottom: 15,
+    shadowOffset: { width: 0, height: Responsive.responsiveValue(2, 3, 4, 6) },
+    shadowOpacity: 0.15,
+    shadowRadius: Responsive.responsiveValue(6, 8, 10, 12),
+    elevation: Responsive.responsiveValue(4, 5, 6, 8),
+    marginBottom: Responsive.responsiveValue(12, 14, 16, 20),
+  },
+  menuItemImageContainer: {
+    position: 'relative',
+    width: '100%',
   },
   menuItemImage: {
     width: '100%',
-    height: 120,
     resizeMode: 'cover',
   },
+  popularBadge: {
+    position: 'absolute',
+    top: Responsive.responsiveValue(8, 10, 12, 14),
+    left: Responsive.responsiveValue(8, 10, 12, 14),
+    backgroundColor: '#FF6B35',
+    paddingHorizontal: Responsive.responsiveValue(6, 8, 10, 12),
+    paddingVertical: Responsive.responsiveValue(4, 5, 6, 8),
+    borderRadius: Responsive.responsiveValue(12, 14, 16, 20),
+  },
+  recommendedBadge: {
+    position: 'absolute',
+    top: Responsive.responsiveValue(8, 10, 12, 14),
+    left: Responsive.responsiveValue(8, 10, 12, 14),
+    backgroundColor: '#4CAF50',
+    paddingHorizontal: Responsive.responsiveValue(6, 8, 10, 12),
+    paddingVertical: Responsive.responsiveValue(4, 5, 6, 8),
+    borderRadius: Responsive.responsiveValue(12, 14, 16, 20),
+  },
   menuItemInfo: {
-    padding: 10,
+    padding: Responsive.responsiveValue(12, 14, 16, 20),
   },
   menuItemName: {
     fontSize: 16,

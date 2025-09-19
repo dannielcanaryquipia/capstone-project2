@@ -1,44 +1,45 @@
 import { Dimensions } from 'react-native';
+import Responsive from './Responsive';
 
 const { width, height } = Dimensions.get('window');
 
-// Standard spacing scale
+// Standard spacing scale (now responsive)
 export const Spacing = {
   none: 0,
-  xxs: 2,
-  xs: 4,
-  sm: 8,
-  md: 16,
-  lg: 24,
-  xl: 32,
-  xxl: 48,
-  xxxl: 64,
+  xxs: Responsive.ResponsiveSpacing.xxs,
+  xs: Responsive.ResponsiveSpacing.xs,
+  sm: Responsive.ResponsiveSpacing.sm,
+  md: Responsive.ResponsiveSpacing.md,
+  lg: Responsive.ResponsiveSpacing.lg,
+  xl: Responsive.ResponsiveSpacing.xl,
+  xxl: Responsive.ResponsiveSpacing.xxl,
+  xxxl: Responsive.ResponsiveSpacing.xxxl,
 } as const;
 
-// Border radius scale
+// Border radius scale (now responsive)
 export const BorderRadius = {
   none: 0,
-  xs: 4,
-  sm: 8,
-  md: 12,
-  lg: 16,
-  xl: 24,
-  xxl: 32,
-  round: 50,
-  pill: 999,
+  xs: Responsive.ResponsiveBorderRadius.xs,
+  sm: Responsive.ResponsiveBorderRadius.sm,
+  md: Responsive.ResponsiveBorderRadius.md,
+  lg: Responsive.ResponsiveBorderRadius.lg,
+  xl: Responsive.ResponsiveBorderRadius.xl,
+  xxl: Responsive.ResponsiveBorderRadius.xxl,
+  round: Responsive.ResponsiveBorderRadius.round,
+  pill: Responsive.ResponsiveBorderRadius.pill,
 } as const;
 
-// Font sizes
+// Font sizes (now responsive)
 export const FontSize = {
-  xxs: 10,
-  xs: 12,
-  sm: 14,
-  md: 16,
-  lg: 18,
-  xl: 20,
-  xxl: 24,
-  xxxl: 32,
-  display: 40,
+  xxs: Responsive.TextSizes.xxs,
+  xs: Responsive.TextSizes.xs,
+  sm: Responsive.TextSizes.sm,
+  md: Responsive.TextSizes.md,
+  lg: Responsive.TextSizes.lg,
+  xl: Responsive.TextSizes.xl,
+  xxl: Responsive.TextSizes.xxl,
+  xxxl: Responsive.TextSizes.xxxl,
+  display: Responsive.TextSizes.display,
 } as const;
 
 // Line heights
@@ -68,27 +69,27 @@ export const FontFamily = {
   display: 'PlayfairDisplay', // For titles and headings
 } as const;
 
-// Component sizes
+// Component sizes (now responsive)
 export const Sizes = {
   // Screen
   screenWidth: width,
   screenHeight: height,
   
   // Header
-  headerHeight: 60,
+  headerHeight: Responsive.responsiveValue(50, 55, 60, 70),
   headerPaddingHorizontal: Spacing.md,
   
   // Tab bar
-  tabBarHeight: 60,
+  tabBarHeight: Responsive.responsiveValue(50, 55, 60, 70),
   
   // Buttons
-  buttonHeight: 48,
-  buttonSmallHeight: 36,
-  buttonLargeHeight: 56,
+  buttonHeight: Responsive.ButtonSizes.medium.height,
+  buttonSmallHeight: Responsive.ButtonSizes.small.height,
+  buttonLargeHeight: Responsive.ButtonSizes.large.height,
   buttonBorderRadius: BorderRadius.md,
   
   // Inputs
-  inputHeight: 48,
+  inputHeight: Responsive.InputSizes.medium.height,
   inputBorderRadius: BorderRadius.sm,
   inputPaddingHorizontal: Spacing.md,
   
@@ -97,17 +98,17 @@ export const Sizes = {
   cardPadding: Spacing.md,
   
   // Icons
-  iconSmall: 16,
-  iconMedium: 24,
-  iconLarge: 32,
+  iconSmall: Responsive.responsiveValue(14, 16, 18, 20),
+  iconMedium: Responsive.responsiveValue(20, 22, 24, 28),
+  iconLarge: Responsive.responsiveValue(28, 30, 32, 36),
   
   // Avatar
-  avatarSmall: 32,
-  avatarMedium: 48,
-  avatarLarge: 64,
+  avatarSmall: Responsive.ImageSizes.avatar.small,
+  avatarMedium: Responsive.ImageSizes.avatar.medium,
+  avatarLarge: Responsive.ImageSizes.avatar.large,
   
   // Badge
-  badgeHeight: 24,
+  badgeHeight: Responsive.responsiveValue(20, 22, 24, 28),
   badgePaddingHorizontal: Spacing.sm,
   
   // Divider

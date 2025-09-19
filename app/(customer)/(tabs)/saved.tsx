@@ -1,11 +1,11 @@
 import { StyleSheet, Text, View } from 'react-native';
-import global from '../../styles/global';
+import global from '../../../styles/global';
 
-export default function CartScreen() {
+export default function SavedScreen() {
   return (
     <View style={[global.screen, styles.center]}>
-      <Text style={styles.title}>Cart</Text>
-      <Text>Your selected items will appear here.</Text>
+      <Text style={styles.title}>Saved</Text>
+      <Text>Your saved items will appear here.</Text>
     </View>
   );
 }

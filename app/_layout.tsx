@@ -16,6 +16,7 @@ import {
   Provider as PaperProvider
 } from 'react-native-paper';
 import 'react-native-reanimated';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { useColorScheme } from '../components/useColorScheme';
 import { AuthProvider, useAuth } from '../contexts/AuthContext';
@@ -47,7 +48,7 @@ const AuthGuard = ({ children }: { children: React.ReactNode }) => {
         router.replace('/(auth)/sign-in');
       } else if (user && inAuthGroup) {
         // @ts-ignore - Workaround for expo-router type issue
-        router.replace('/(tabs)');
+        router.replace('/(customer)');
       }
     }
   }, [user, isLoading, segments]);
@@ -101,7 +102,7 @@ function RootLayoutNav() {
     if (!user) return '/(auth)/sign-in';
     if (isAdmin) return '/(admin)';
     if (isDelivery) return '/(delivery)';
-    return '/(tabs)';
+    return '/(customer)';
   };
 
   return (
@@ -109,7 +110,7 @@ function RootLayoutNav() {
       <ThemeProvider value={theme}>
         <Stack>
           <Stack.Screen name="(auth)" options={{ headerShown: false }} />
-          <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+          <Stack.Screen name="(customer)" options={{ headerShown: false }} />
           <Stack.Screen name="(admin)" options={{ headerShown: false }} />
           <Stack.Screen name="(delivery)" options={{ headerShown: false }} />
           <Stack.Screen name="modal" options={{ presentation: 'modal' }} />
@@ -153,9 +154,11 @@ export default function RootLayout() {
   return (
     <AuthProvider>
       <AppThemeProvider>
-        <AuthGuard>
-          <AppContent />
-        </AuthGuard>
+        <SafeAreaProvider>
+          <AuthGuard>
+            <AppContent />
+          </AuthGuard>
+        </SafeAreaProvider>
       </AppThemeProvider>
     </AuthProvider>
   );

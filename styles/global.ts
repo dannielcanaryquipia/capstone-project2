@@ -73,25 +73,37 @@ const global = StyleSheet.create({
   h1: {
     fontSize: Layout.fontSize.xxxl,
     fontWeight: Layout.fontWeight.bold,
+    fontFamily: Layout.fontFamily.bold,
     color: Colors.text,
   },
   h2: {
     fontSize: Layout.fontSize.xxl,
     fontWeight: Layout.fontWeight.bold,
+    fontFamily: Layout.fontFamily.bold,
     color: Colors.text,
   },
   title: {
     fontSize: Layout.fontSize.xl,
     fontWeight: Layout.fontWeight.semiBold,
+    fontFamily: Layout.fontFamily.semiBold,
     color: Colors.text,
   },
   body: {
     fontSize: Layout.fontSize.md,
+    fontFamily: Layout.fontFamily.regular,
     color: Colors.text,
   },
   caption: {
     fontSize: Layout.fontSize.sm,
+    fontFamily: Layout.fontFamily.regular,
     color: Colors.textSecondary,
+  },
+  // App title with PlayfairDisplay
+  appTitle: {
+    fontSize: Layout.fontSize.display,
+    fontFamily: Layout.fontFamily.display,
+    fontWeight: Layout.fontWeight.bold,
+    color: Colors.text,
   },
 
   // Utility

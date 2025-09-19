@@ -1,11 +1,11 @@
 import { StyleSheet, Text, View } from 'react-native';
-import global from '../../styles/global';
+import global from '../../../styles/global';
 
-export default function HomeScreen() {
+export default function CartScreen() {
   return (
-    <View style={[global.screen, styles.center]}> 
-      <Text style={styles.title}>Home</Text>
-      <Text>Welcome to Kitchen One!</Text>
+    <View style={[global.screen, styles.center]}>
+      <Text style={styles.title}>Cart</Text>
+      <Text>Your selected items will appear here.</Text>
     </View>
   );
 }

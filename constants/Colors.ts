@@ -3,7 +3,7 @@ export const Colors = {
   // Base Colors
   tint: '#FEDC00',
   text: '#333333',
-  background: '#F1EFEC',
+  background: '#F7F7F7',
   card: '#FFFFFF',
   border: '#E0E0E0',
   notification: '#F44336',
@@ -13,7 +13,7 @@ export const Colors = {
   borderDark: '#CCCCCC',
   
   // Primary Colors - Kitchen One Brand
-  primary: '#F7F7F7', // Figma white - main brand color
+  primary: '#FFE44D', // Figma yellow - main brand color
   primaryLight: '#FFE44D',
   primaryDark: '#E6C600',
   
@@ -69,6 +69,11 @@ export const Colors = {
   black: '#000000',
   transparent: 'transparent',
   overlay: 'rgba(0, 0, 0, 0.5)',
+  
+  // Brown Colors
+  brown: '#8B4513', // Saddle Brown
+  brownLight: '#D2B48C', // Tan
+  brownDark: '#654321', // Dark Brown
   
   // Shadow Colors
   shadow: 'rgba(0, 0, 0, 0.1)',

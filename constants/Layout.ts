@@ -57,6 +57,17 @@ export const FontWeight = {
   extraBold: '800',
 } as const;
 
+// Font families
+export const FontFamily = {
+  regular: 'PoppinsRegular',
+  medium: 'PoppinsMedium',
+  semiBold: 'PoppinsSemiBold',
+  bold: 'PoppinsBold',
+  light: 'PoppinsLight',
+  black: 'PoppinsBlack',
+  display: 'PlayfairDisplay', // For titles and headings
+} as const;
+
 // Component sizes
 export const Sizes = {
   // Screen
@@ -177,6 +188,7 @@ export const Layout = {
   fontSize: FontSize,
   lineHeight: LineHeight,
   fontWeight: FontWeight,
+  fontFamily: FontFamily,
   sizes: Sizes,
   shadows: Shadows,
   animation: Animation,

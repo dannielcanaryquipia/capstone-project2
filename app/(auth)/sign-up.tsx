@@ -1,14 +1,17 @@
-import { MaterialIcons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { useState } from 'react';
-import { Image, ScrollView, StyleSheet, View } from 'react-native';
+import { Image, ScrollView, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import AuthFooter from '../../components/auth/AuthFooter';
+import AuthForm from '../../components/auth/AuthForm';
+import AuthHeader from '../../components/auth/AuthHeader';
 import Button from '../../components/ui/Button';
 import Input from '../../components/ui/Input';
-import Text from '../../components/ui/Text';
 import { Strings } from '../../constants/Strings';
+import { useTheme } from '../../contexts/ThemeContext';
 import { useAuth } from '../../hooks/useAuth';
 import global from '../../styles/global';
+import { commonRules, validateForm, ValidationErrors } from '../../utils/validation';
 
 const styles = StyleSheet.create({
   container: {
@@ -151,6 +154,7 @@ const styles = StyleSheet.create({
 });
 
 export default function SignUpScreen() {
+  const { colors } = useTheme();
   const [formData, setFormData] = useState({
     email: '',
     password: '',
@@ -158,32 +162,27 @@ export default function SignUpScreen() {
     fullName: '',
     phone: ''
   });
-  const [formErrors, setFormErrors] = useState<Record<string, string>>({});
+  const [formErrors, setFormErrors] = useState<ValidationErrors>({});
   const { signUp, isLoading, error } = useAuth();
 
-  const validateForm = () => {
-    const errors: Record<string, string> = {};
-    
-    if (!formData.fullName.trim()) {
-      errors.fullName = 'Full name is required';
-    }
-    
-    if (!formData.email) {
-      errors.email = 'Email is required';
-    } else if (!/\S+@\S+\.\S+/.test(formData.email)) {
-      errors.email = 'Please enter a valid email';
-    }
-    
-    if (!formData.password) {
-      errors.password = 'Password is required';
-    } else if (formData.password.length < 6) {
-      errors.password = 'Password must be at least 6 characters';
-    }
-    
-    if (formData.password !== formData.confirmPassword) {
-      errors.confirmPassword = 'Passwords do not match';
-    }
-    
+  const validationRules = {
+    fullName: commonRules.fullName,
+    email: commonRules.email,
+    password: commonRules.password,
+    confirmPassword: {
+      ...commonRules.confirmPassword,
+      custom: (value: string) => {
+        if (formData.password && value !== formData.password) {
+          return 'Passwords do not match';
+        }
+        return null;
+      },
+    },
+    phone: commonRules.phone,
+  };
+
+  const validateFormData = () => {
+    const errors = validateForm(formData, validationRules);
     setFormErrors(errors);
     return Object.keys(errors).length === 0;
   };
@@ -204,7 +203,7 @@ export default function SignUpScreen() {
   };
 
   const handleSignUp = async () => {
-    if (!validateForm()) return;
+    if (!validateFormData()) return;
     
     try {
       await signUp(formData.email, formData.password, formData.fullName, formData.phone);
@@ -217,106 +216,90 @@ export default function SignUpScreen() {
   return (
     <SafeAreaView style={styles.container}>
       <ScrollView contentContainerStyle={styles.scrollContainer} keyboardShouldPersistTaps="handled">
-        <View style={styles.logoContainer}>
-          <Image source={require('../../assets/images/logo.png')} style={styles.logo} resizeMode="contain" />
-          <Text variant="h2" align="center">{Strings.appName.toUpperCase()}</Text>
-          <Text align="center" color="#6B7280">{Strings.appTagline}</Text>
-        </View>
+        <AuthHeader />
 
         {/* Decorative/banner image in the form area */}
         <Image source={require('../../assets/images/checkmark-circle.png')} style={global.heroIllustration} resizeMode="contain" />
 
-        <View style={[styles.form, global.card]}> 
-          {error ? (
-            <View style={styles.errorContainer}>
-              <Text color="#DC2626">{error}</Text>
-            </View>
-          ) : null}
-
+        <AuthForm error={error} style={[styles.form, global.card]}>
           <Input
             label={Strings.fullNameLabel}
             value={formData.fullName}
-            onChangeText={(t) => handleInputChange('fullName', t)}
+            onChangeText={(value) => handleInputChange('fullName', value)}
             placeholder="Enter your full name"
             autoCapitalize="words"
-            leftIcon={<MaterialIcons name="person-outline" size={20} color="#9CA3AF" />}
             error={formErrors.fullName}
             fullWidth
+            iconType="person"
           />
 
           <Input
             label={Strings.emailLabel}
             value={formData.email}
-            onChangeText={(t) => handleInputChange('email', t)}
+            onChangeText={(value) => handleInputChange('email', value)}
             placeholder="Enter your email"
             keyboardType="email-address"
             autoCapitalize="none"
             autoComplete="email"
-            leftIcon={<MaterialIcons name="alternate-email" size={20} color="#9CA3AF" />}
             error={formErrors.email}
             fullWidth
+            iconType="email"
           />
 
           <Input
             label={Strings.passwordLabel}
             value={formData.password}
-            onChangeText={(t) => handleInputChange('password', t)}
+            onChangeText={(value) => handleInputChange('password', value)}
             placeholder="Create a password (min 6 characters)"
-            secureTextEntry
             autoCapitalize="none"
             autoComplete="new-password"
-            leftIcon={<MaterialIcons name="lock-outline" size={20} color="#9CA3AF" />}
             error={formErrors.password}
             fullWidth
+            iconType="password"
+            showPasswordToggle
           />
 
           <Input
             label={Strings.confirmPasswordLabel}
             value={formData.confirmPassword}
-            onChangeText={(t) => handleInputChange('confirmPassword', t)}
+            onChangeText={(value) => handleInputChange('confirmPassword', value)}
             placeholder="Confirm your password"
-            secureTextEntry
             autoCapitalize="none"
             autoComplete="new-password"
-            leftIcon={<MaterialIcons name="lock" size={20} color="#9CA3AF" />}
             error={formErrors.confirmPassword}
             fullWidth
+            iconType="password"
+            showPasswordToggle
           />
 
           <Input
             label={`${Strings.phoneLabel} ${Strings.optional}`}
             value={formData.phone}
-            onChangeText={(t) => handleInputChange('phone', t)}
+            onChangeText={(value) => handleInputChange('phone', value)}
             placeholder="Enter your phone number"
             keyboardType="phone-pad"
-            leftIcon={<MaterialIcons name="phone" size={20} color="#9CA3AF" />}
+            error={formErrors.phone}
             fullWidth
+            iconType="phone"
           />
 
           <Button
             title={Strings.signUpCta}
             onPress={handleSignUp}
             loading={isLoading}
-            disabled={!formData.email || !formData.password || !formData.confirmPassword || !formData.fullName}
+            disabled={!formData.email || !formData.password || !formData.confirmPassword || !formData.fullName || isLoading}
             style={[global.button, (!formData.email || !formData.password || !formData.confirmPassword || !formData.fullName) && global.buttonDisabled]}
             fullWidth
           />
 
-          <View style={styles.divider}>
-            <View style={styles.dividerLine} />
-            <Text style={styles.dividerText}>OR</Text>
-            <View style={styles.dividerLine} />
-          </View>
 
-          <View style={styles.loginContainer}>
-            <Text style={styles.loginText}>
-              {Strings.alreadyHaveAccount}{' '}
-              <Text style={styles.loginLink} onPress={() => !isLoading && router.replace('/(auth)/sign-in')}>
-                {Strings.signInTitle}
-              </Text>
-            </Text>
-          </View>
-        </View>
+          <AuthFooter
+            primaryText={Strings.alreadyHaveAccount}
+            linkText={Strings.signInTitle}
+            onLinkPress={() => !isLoading && router.replace('/(auth)/sign-in')}
+            disabled={isLoading}
+          />
+        </AuthForm>
       </ScrollView>
     </SafeAreaView>
   );

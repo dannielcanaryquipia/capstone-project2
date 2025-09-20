@@ -1,6 +1,7 @@
 import React from 'react';
 import { ActivityIndicator, StyleProp, StyleSheet, Text, TextStyle, TouchableOpacity, ViewStyle } from 'react-native';
-import { useTheme } from '../../hooks/useTheme';
+import Layout from '../../constants/Layout';
+import { useTheme } from '../../contexts/ThemeContext';
 
 type ButtonVariant = 'primary' | 'secondary' | 'outline' | 'text' | 'danger';
 type ButtonSize = 'small' | 'medium' | 'large';
@@ -34,7 +35,7 @@ const Button: React.FC<ButtonProps> = ({
   
   const getButtonStyle = (): ViewStyle => {
     const baseStyle: ViewStyle = {
-      borderRadius: theme.borderRadius.md,
+      borderRadius: Layout.borderRadius.md,
       flexDirection: 'row',
       justifyContent: 'center',
       alignItems: 'center',
@@ -44,16 +45,16 @@ const Button: React.FC<ButtonProps> = ({
 
     const sizeStyles: Record<ButtonSize, ViewStyle> = {
       small: {
-        paddingVertical: theme.spacing.xs,
-        paddingHorizontal: theme.spacing.sm,
+        paddingVertical: Layout.spacing.xs,
+        paddingHorizontal: Layout.spacing.sm,
       },
       medium: {
-        paddingVertical: theme.spacing.sm,
-        paddingHorizontal: theme.spacing.md,
+        paddingVertical: Layout.spacing.sm,
+        paddingHorizontal: Layout.spacing.md,
       },
       large: {
-        paddingVertical: theme.spacing.md,
-        paddingHorizontal: theme.spacing.lg,
+        paddingVertical: Layout.spacing.md,
+        paddingHorizontal: Layout.spacing.lg,
       },
     };
 
@@ -86,17 +87,18 @@ const Button: React.FC<ButtonProps> = ({
 
   const getTextStyle = (): TextStyle => {
     const baseStyle: TextStyle = {
-      fontSize: theme.fontSize.md,
-      fontWeight: theme.fontWeight.semiBold,
+      fontSize: Layout.fontSize.md,
+      fontWeight: 'normal',
+      fontFamily: Layout.fontFamily.regular,
       textAlign: 'center',
     };
 
     const variantTextStyles: Record<ButtonVariant, TextStyle> = {
       primary: {
-        color: theme.colors.white,
+        color: theme.colors.textInverse,
       },
       secondary: {
-        color: theme.colors.white,
+        color: theme.colors.textInverse,
       },
       outline: {
         color: theme.colors.primary,
@@ -105,7 +107,7 @@ const Button: React.FC<ButtonProps> = ({
         color: theme.colors.primary,
       },
       danger: {
-        color: theme.colors.white,
+        color: theme.colors.textInverse,
       },
     };
 
@@ -125,7 +127,7 @@ const Button: React.FC<ButtonProps> = ({
       {loading ? (
         <ActivityIndicator 
           color={variant === 'primary' || variant === 'secondary' || variant === 'danger' 
-            ? theme.colors.white 
+            ? theme.colors.textInverse 
             : theme.colors.primary} 
           size="small" 
         />

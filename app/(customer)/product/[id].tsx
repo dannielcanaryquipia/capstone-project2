@@ -1,8 +1,9 @@
-import { useState } from 'react';
-import { StyleSheet, View, Text, ScrollView, Image, TouchableOpacity, Dimensions } from 'react-native';
-import { MaterialIcons, MaterialCommunityIcons, Ionicons } from '@expo/vector-icons';
-import { useTheme } from '../../../contexts/ThemeContext';
+import { Ionicons, MaterialIcons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useState } from 'react';
+import { Dimensions, Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import Layout from '../../../constants/Layout';
+import { useTheme } from '../../../contexts/ThemeContext';
 
 const { width } = Dimensions.get('window');
 
@@ -79,7 +80,7 @@ export default function ProductScreen() {
                 </Text>
               </View>
             </View>
-            <Text style={[styles.price, { color: colors.primary }]}>${product.price.toFixed(2)}</Text>
+            <Text style={[styles.price, { color: colors.themedPrice }]}>${product.price.toFixed(2)}</Text>
           </View>
 
           <Text style={[styles.description, { color: colors.textSecondary }]}>
@@ -129,7 +130,7 @@ export default function ProductScreen() {
                     style={[
                       styles.crustText,
                       { color: colors.text },
-                      selectedCrust === crust && { color: colors.primary, fontWeight: '600' },
+                      selectedCrust === crust && { color: colors.primary, fontWeight: Layout.fontWeight.semiBold, fontFamily: Layout.fontFamily.semiBold },
                     ]}
                   >
                     {crust.charAt(0).toUpperCase() + crust.slice(1)}
@@ -189,7 +190,7 @@ export default function ProductScreen() {
               >
                 <Image source={{ uri: item.image }} style={styles.relatedItemImage} />
                 <Text style={[styles.relatedItemName, { color: colors.text }]}>{item.name}</Text>
-                <Text style={[styles.relatedItemPrice, { color: colors.primary }]}>
+                <Text style={[styles.relatedItemPrice, { color: colors.themedPrice }]}>
                   ${item.price.toFixed(2)}
                 </Text>
               </TouchableOpacity>
@@ -299,7 +300,8 @@ const styles = StyleSheet.create({
   },
   sectionTitle: {
     fontSize: 18,
-    fontWeight: '600',
+    fontWeight: Layout.fontWeight.semiBold,
+    fontFamily: Layout.fontFamily.semiBold,
     marginBottom: 15,
   },
   sizeContainer: {
@@ -317,7 +319,8 @@ const styles = StyleSheet.create({
   },
   sizeText: {
     fontSize: 14,
-    fontWeight: '500',
+    fontWeight: Layout.fontWeight.medium,
+    fontFamily: Layout.fontFamily.medium,
   },
   crustContainer: {
     flexDirection: 'row',
@@ -396,7 +399,8 @@ const styles = StyleSheet.create({
   },
   relatedItemName: {
     fontSize: 14,
-    fontWeight: '600',
+    fontWeight: Layout.fontWeight.semiBold,
+    fontFamily: Layout.fontFamily.semiBold,
     marginBottom: 5,
   },
   relatedItemPrice: {
@@ -430,7 +434,8 @@ const styles = StyleSheet.create({
   },
   quantityText: {
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: Layout.fontWeight.semiBold,
+    fontFamily: Layout.fontFamily.semiBold,
     marginHorizontal: 10,
     minWidth: 20,
     textAlign: 'center',
@@ -445,6 +450,7 @@ const styles = StyleSheet.create({
   addToCartText: {
     color: '#fff',
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: Layout.fontWeight.semiBold,
+    fontFamily: Layout.fontFamily.semiBold,
   },
 });

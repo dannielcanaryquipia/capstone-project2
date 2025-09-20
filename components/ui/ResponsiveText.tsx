@@ -1,6 +1,7 @@
 import React from 'react';
 import { StyleSheet, Text, TextProps } from 'react-native';
 import Responsive from '../../constants/Responsive';
+import { useTheme } from '../../contexts/ThemeContext';
 
 interface ResponsiveTextProps extends TextProps {
   children: React.ReactNode;
@@ -61,6 +62,7 @@ export const ResponsiveText: React.FC<ResponsiveTextProps> = ({
   style,
   ...props
 }) => {
+  const { colors } = useTheme();
   // Check if component should be hidden based on screen size
   const deviceSize = Responsive.getDeviceSize();
   const shouldHide = 
@@ -88,6 +90,17 @@ export const ResponsiveText: React.FC<ResponsiveTextProps> = ({
     }
   };
 
+  const getFontFamily = (weight: string) => {
+    switch (weight) {
+      case 'regular': return 'PoppinsRegular';
+      case 'medium': return 'PoppinsMedium';
+      case 'semiBold': return 'PoppinsSemiBold';
+      case 'bold': return 'PoppinsBold';
+      case 'extraBold': return 'PoppinsExtraBold';
+      default: return 'PoppinsRegular';
+    }
+  };
+
   const getLineHeight = (lineHeight: string | number) => {
     if (typeof lineHeight === 'number') return lineHeight;
     
@@ -103,7 +116,8 @@ export const ResponsiveText: React.FC<ResponsiveTextProps> = ({
     text: {
       fontSize: Responsive.TextSizes[size],
       fontWeight: getFontWeight(weight),
-      ...(color && { color }),
+      fontFamily: getFontFamily(weight),
+      color: color || colors.text,
       ...(align && { textAlign: align }),
       lineHeight: Responsive.TextSizes[size] * getLineHeight(lineHeight),
       ...(transform && { textTransform: transform }),

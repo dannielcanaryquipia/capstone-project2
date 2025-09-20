@@ -1,5 +1,6 @@
 import React from 'react';
 import { Text as RNText, TextProps as RNTextProps, StyleSheet } from 'react-native';
+import Layout from '../../constants/Layout';
 import { useTheme } from '../../contexts/ThemeContext';
 
 type TextVariant = 'h1' | 'h2' | 'h3' | 'h4' | 'body' | 'body2' | 'caption' | 'button' | 'label';
@@ -14,48 +15,57 @@ type TextProps = RNTextProps & {
 
 const variantStyles = {
   h1: {
-    fontSize: 32,
-    fontWeight: 'bold',
-    lineHeight: 40,
+    fontSize: Layout.fontSize.xxxl,
+    fontWeight: Layout.fontWeight.bold,
+    lineHeight: Layout.fontSize.xxxl * 1.2,
+    fontFamily: Layout.fontFamily.bold,
   },
   h2: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    lineHeight: 36,
+    fontSize: Layout.fontSize.xxl,
+    fontWeight: Layout.fontWeight.bold,
+    lineHeight: Layout.fontSize.xxl * 1.2,
+    fontFamily: Layout.fontFamily.bold,
   },
   h3: {
-    fontSize: 24,
-    fontWeight: '600',
-    lineHeight: 32,
+    fontSize: Layout.fontSize.xl,
+    fontWeight: Layout.fontWeight.semiBold,
+    lineHeight: Layout.fontSize.xl * 1.2,
+    fontFamily: Layout.fontFamily.semiBold,
   },
   h4: {
-    fontSize: 20,
-    fontWeight: '600',
-    lineHeight: 28,
+    fontSize: Layout.fontSize.lg,
+    fontWeight: Layout.fontWeight.semiBold,
+    lineHeight: Layout.fontSize.lg * 1.2,
+    fontFamily: Layout.fontFamily.semiBold,
   },
   body: {
-    fontSize: 16,
-    lineHeight: 24,
+    fontSize: Layout.fontSize.md,
+    lineHeight: Layout.fontSize.md * Layout.lineHeight.normal,
+    fontFamily: Layout.fontFamily.regular,
   },
   body2: {
-    fontSize: 14,
-    lineHeight: 20,
+    fontSize: Layout.fontSize.sm,
+    lineHeight: Layout.fontSize.sm * Layout.lineHeight.normal,
+    fontFamily: Layout.fontFamily.regular,
   },
   caption: {
-    fontSize: 12,
-    lineHeight: 16,
+    fontSize: Layout.fontSize.xs,
+    lineHeight: Layout.fontSize.xs * Layout.lineHeight.normal,
+    fontFamily: Layout.fontFamily.regular,
   },
   button: {
-    fontSize: 16,
-    fontWeight: '600',
-    lineHeight: 24,
+    fontSize: Layout.fontSize.md,
+    fontWeight: Layout.fontWeight.semiBold,
+    lineHeight: Layout.fontSize.md * Layout.lineHeight.normal,
     textTransform: 'uppercase',
+    fontFamily: Layout.fontFamily.semiBold,
   },
   label: {
-    fontSize: 14,
-    fontWeight: '500',
-    lineHeight: 20,
+    fontSize: Layout.fontSize.sm,
+    fontWeight: Layout.fontWeight.medium,
+    lineHeight: Layout.fontSize.sm * Layout.lineHeight.normal,
     marginBottom: 4,
+    fontFamily: Layout.fontFamily.medium,
   },
 } as const;
 
@@ -88,10 +98,10 @@ export const Text: React.FC<TextProps> = ({
 
 const styles = StyleSheet.create({
   base: {
-    color: '#000', // Default color, will be overridden by theme
+    fontFamily: Layout.fontFamily.regular, // Default font family
   },
   bold: {
-    fontWeight: 'bold',
+    fontWeight: Layout.fontWeight.bold,
   },
 });
 

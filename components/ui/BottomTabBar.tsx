@@ -2,8 +2,8 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { BottomTabBarProps } from '@react-navigation/bottom-tabs';
 import React from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import Colors from '../../constants/Colors';
 import Layout from '../../constants/Layout';
+import { useTheme } from '../../contexts/ThemeContext';
 
 const ICON_MAP: Record<string, { focused: React.ComponentProps<typeof MaterialCommunityIcons>['name']; unfocused: React.ComponentProps<typeof MaterialCommunityIcons>['name']; label: string }> = {
   index: { focused: 'home', unfocused: 'home-outline', label: 'Home' },
@@ -13,8 +13,10 @@ const ICON_MAP: Record<string, { focused: React.ComponentProps<typeof MaterialCo
 };
 
 const BottomTabBar: React.FC<BottomTabBarProps> = ({ state, descriptors, navigation }) => {
+  const { colors } = useTheme();
+  
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: colors.surface, borderTopColor: colors.border }]}>
       {state.routes.map((route, index) => {
         const isFocused = state.index === index;
         const options = descriptors[route.key].options;
@@ -52,10 +54,10 @@ const BottomTabBar: React.FC<BottomTabBarProps> = ({ state, descriptors, navigat
           >
             <MaterialCommunityIcons
               name={isFocused ? iconConf.focused : iconConf.unfocused}
-              color={isFocused ? Colors.black : '#7A7A7A'}
+              color={isFocused ? colors.primary : colors.textTertiary}
               size={28}
             />
-            <Text style={[styles.label, { color: isFocused ? Colors.black : '#7A7A7A' }]}>
+            <Text style={[styles.label, { color: isFocused ? colors.primary : colors.textTertiary }]}>
               {iconConf.label}
             </Text>
           </TouchableOpacity>
@@ -73,8 +75,6 @@ const styles = StyleSheet.create({
     height: 120,
     paddingBottom: 60,
     paddingTop: 30,
-    backgroundColor: Colors.white,
-    borderTopColor: Colors.border,
     borderTopWidth: 1,
   },
   tab: {

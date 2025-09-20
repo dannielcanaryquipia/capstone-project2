@@ -40,7 +40,7 @@ export const ProtectedRoute = ({
       (requiredRole === 'customer' && !isAdmin && !isDelivery);
 
     if (!hasRole) {
-      return <Redirect href={unauthorizedRedirect} />;
+      return <Redirect href={unauthorizedRedirect as any} />;
     }
   }
 

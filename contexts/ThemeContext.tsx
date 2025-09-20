@@ -1,6 +1,7 @@
-import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import React, { createContext, ReactNode, useContext, useEffect, useState } from 'react';
 import { useColorScheme } from 'react-native';
-import { lightColors, darkColors, ColorsType } from '../constants/Colors';
+import { darkColors, lightColors } from '../constants/Colors';
 import { Layout } from '../constants/Layout';
 import * as Styles from '../constants/Styles';
 
@@ -27,6 +28,25 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({
 }) => {
   const systemColorScheme = useColorScheme();
   const [mode, setMode] = useState<ThemeMode>(initialTheme);
+  const [isInitialized, setIsInitialized] = useState(false);
+  
+  // Load saved theme preference on mount
+  useEffect(() => {
+    const loadThemePreference = async () => {
+      try {
+        const savedTheme = await AsyncStorage.getItem('theme_mode');
+        if (savedTheme && ['light', 'dark', 'system'].includes(savedTheme)) {
+          setMode(savedTheme as ThemeMode);
+        }
+      } catch (error) {
+        console.warn('Failed to load theme preference:', error);
+      } finally {
+        setIsInitialized(true);
+      }
+    };
+    
+    loadThemePreference();
+  }, []);
   
   // Determine the actual theme to use (accounting for system preference)
   const isDark = mode === 'system' 
@@ -36,26 +56,33 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({
   // Get the appropriate colors based on the current theme
   const colors = isDark ? darkColors : lightColors;
   
-  // Set the theme mode
-  const setTheme = (newMode: ThemeMode) => {
+  // Set the theme mode and save preference
+  const setTheme = async (newMode: ThemeMode) => {
     setMode(newMode);
-    // Here you could save the preference to AsyncStorage or your state management
+    try {
+      await AsyncStorage.setItem('theme_mode', newMode);
+    } catch (error) {
+      console.warn('Failed to save theme preference:', error);
+    }
   };
   
   // Toggle between light and dark theme
   const toggleTheme = () => {
-    setMode(prevMode => {
-      if (prevMode === 'system') {
-        return systemColorScheme === 'dark' ? 'light' : 'dark';
-      }
-      return prevMode === 'dark' ? 'light' : 'dark';
-    });
+    const newMode = mode === 'system' 
+      ? (systemColorScheme === 'dark' ? 'light' : 'dark')
+      : (mode === 'dark' ? 'light' : 'dark');
+    setTheme(newMode);
   };
   
   // Apply theme-specific styles or preferences
   useEffect(() => {
     // Here you could apply any theme-specific logic, like status bar color
   }, [isDark]);
+  
+  // Don't render until theme is initialized
+  if (!isInitialized) {
+    return null;
+  }
   
   const value = {
     mode,

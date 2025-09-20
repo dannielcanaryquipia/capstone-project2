@@ -14,8 +14,8 @@ export const Colors = {
   
   // Primary Colors - Kitchen One Brand
   primary: '#FFE44D', // Figma yellow - main brand color
-  primaryLight: '#FFE44D',
-  primaryDark: '#E6C600',
+  primaryLight: '#FFF176', // Lighter yellow for backgrounds
+  primaryDark: '#F9A825', // Darker yellow for pressed states
   
   // Secondary Colors
   secondary: '#4CAF50', // Green - success, delivery
@@ -40,6 +40,18 @@ export const Colors = {
   textSecondary: '#666666',
   textTertiary: '#999999',
   textInverse: '#FFFFFF',
+  
+  // Themed Text Colors for specific elements
+  themedText: '#000000', // Black for light mode
+  themedPrice: '#000000', // Black for light mode
+  themedDiscount: '#000000', // Black for light mode
+  themedViewAll: '#000000', // Black for light mode
+  
+  // Category Button Colors
+  categoryButtonText: '#000000', // Black for light mode
+  categoryButtonBorder: '#000000', // Black for light mode
+  categoryButtonActiveFill: '#FFE44D', // Yellow for active state
+  categoryButtonActiveText: '#000000', // Black text when active
   
   // Status Colors
   success: '#4CAF50',
@@ -94,14 +106,70 @@ export const lightColors = {
 
 export const darkColors = {
   ...Colors,
-  // Override any dark-specific colors here
+  // Override dark-specific colors
   background: '#121212',
+  backgroundLight: '#1E1E1E',
+  backgroundDark: '#0A0A0A',
+  
+  // Surface Colors
   surface: '#1E1E1E',
   surfaceVariant: '#2D2D2D',
+  surfaceInverse: '#FFFFFF',
+  
+  // Text Colors
   text: '#FFFFFF',
   textSecondary: '#B0B0B0',
   textTertiary: '#7A7A7A',
+  textInverse: '#000000',
+  
+  // Themed Text Colors for specific elements (yellow in dark mode)
+  themedText: '#FFE44D', // Yellow for dark mode
+  themedPrice: '#FFE44D', // Yellow for dark mode
+  themedDiscount: '#FFE44D', // Yellow for dark mode
+  themedViewAll: '#FFE44D', // Yellow for dark mode
+  
+  // Category Button Colors (dark mode)
+  categoryButtonText: '#FFFFFF', // White for dark mode
+  categoryButtonBorder: '#FFFFFF', // White for dark mode
+  categoryButtonActiveFill: '#FFE44D', // Yellow for active state (same in both modes)
+  categoryButtonActiveText: '#000000', // Black text when active (same in both modes)
+  
+  // Border Colors
   border: '#333333',
   borderLight: '#2A2A2A',
   borderDark: '#444444',
+  
+  // Card Colors
+  card: '#1E1E1E',
+  
+  // Status Colors (keep same for accessibility)
+  success: '#4CAF50',
+  warning: '#FF9800',
+  error: '#F44336',
+  info: '#2196F3',
+  
+  // Primary Colors (keep brand colors)
+  primary: '#FFE44D',
+  primaryLight: '#FFF176',
+  primaryDark: '#F9A825',
+  
+  // Secondary Colors
+  secondary: '#66BB6A',
+  secondaryLight: '#81C784',
+  secondaryDark: '#388E3C',
+  
+  // Accent Colors
+  accent: '#64B5F6',
+  accentLight: '#90CAF9',
+  accentDark: '#1976D2',
+  
+  // Utility Colors
+  white: '#FFFFFF',
+  black: '#000000',
+  transparent: 'transparent',
+  overlay: 'rgba(0, 0, 0, 0.7)',
+  
+  // Shadow Colors (darker for dark theme)
+  shadow: 'rgba(0, 0, 0, 0.3)',
+  shadowDark: 'rgba(0, 0, 0, 0.5)',
 };

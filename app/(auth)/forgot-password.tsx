@@ -1,40 +1,46 @@
 import { router } from 'expo-router';
 import { useState } from 'react';
-import { View, StyleSheet, TextInput, TouchableOpacity, Image, ActivityIndicator } from 'react-native';
+import { Image, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import AuthForm from '../../components/auth/AuthForm';
+import AuthHeader from '../../components/auth/AuthHeader';
+import Button from '../../components/ui/Button';
+import Input from '../../components/ui/Input';
+import { Colors } from '../../constants/Colors';
 import { useAuth } from '../../hooks/useAuth';
-import { Text } from '../../components/ui/Text';
+import { commonRules, validateForm, ValidationErrors } from '../../utils/validation';
 
 export default function ForgotPasswordScreen() {
-  const [email, setEmail] = useState('');
-  const [emailError, setEmailError] = useState('');
+  const [formData, setFormData] = useState({
+    email: '',
+  });
+  const [formErrors, setFormErrors] = useState<ValidationErrors>({});
   const [isSubmitted, setIsSubmitted] = useState(false);
-  const { resetPassword, isLoading } = useAuth();
+  const { resetPassword, isLoading, error } = useAuth();
 
-  const validateEmail = (email: string) => {
-    if (!email) {
-      setEmailError('Email is required');
-      return false;
-    } else if (!/\S+@\S+\.\S+/.test(email)) {
-      setEmailError('Please enter a valid email');
-      return false;
-    }
-    setEmailError('');
-    return true;
+  const validationRules = {
+    email: commonRules.email,
   };
 
-  const handleEmailChange = (text: string) => {
-    setEmail(text);
-    if (emailError) {
-      validateEmail(text);
+  const validateFormData = () => {
+    const errors = validateForm(formData, validationRules);
+    setFormErrors(errors);
+    return Object.keys(errors).length === 0;
+  };
+
+  const handleInputChange = (field: string, value: string) => {
+    setFormData(prev => ({ ...prev, [field]: value }));
+    // Clear error when user starts typing
+    if (formErrors[field]) {
+      setFormErrors(prev => ({ ...prev, [field]: '' }));
     }
   };
 
   const handleResetPassword = async () => {
-    if (!validateEmail(email)) return;
+    if (!validateFormData()) return;
     
     try {
-      await resetPassword(email);
+      await resetPassword(formData.email);
       setIsSubmitted(true);
     } catch (error) {
       // Error is handled by the useAuth hook
@@ -55,7 +61,7 @@ export default function ForgotPasswordScreen() {
           <Text style={styles.title}>Check Your Email</Text>
           <Text style={styles.subtitle}>
             We've sent a password reset link to {'\n'}
-            <Text style={styles.emailText}>{email}</Text>
+            <Text style={styles.emailText}>{formData.email}</Text>
           </Text>
           <Text style={styles.instructionText}>
             If you don't see the email, check your spam folder or try again.
@@ -74,62 +80,39 @@ export default function ForgotPasswordScreen() {
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.contentContainer}>
-        <View style={styles.logoContainer}>
-          <Image
-            source={require('../../assets/images/logo.png')}
-            style={styles.logo}
-            resizeMode="contain"
+        <AuthHeader />
+
+        <AuthForm error={error} style={styles.form}>
+          <Input
+            label="Email Address"
+            value={formData.email}
+            onChangeText={(value: string) => handleInputChange('email', value)}
+            placeholder="Enter your email"
+            keyboardType="email-address"
+            autoCapitalize="none"
+            autoComplete="email"
+            error={formErrors.email}
+            fullWidth
+            iconType="email"
           />
-          <Text style={styles.title}>Forgot Password?</Text>
-          <Text style={styles.subtitle}>
-            Enter your email and we'll send you a link to reset your password
-          </Text>
-        </View>
 
-        <View style={styles.form}>
-          <View style={styles.inputContainer}>
-            <Text style={styles.label}>Email Address</Text>
-            <TextInput
-              style={[styles.input, emailError ? styles.inputError : null]}
-              value={email}
-              onChangeText={handleEmailChange}
-              placeholder="Enter your email"
-              placeholderTextColor="#9CA3AF"
-              keyboardType="email-address"
-              autoCapitalize="none"
-              autoCorrect={false}
-              autoComplete="email"
-              editable={!isLoading}
-              onBlur={() => validateEmail(email)}
-            />
-            {emailError ? (
-              <Text style={styles.errorText}>{emailError}</Text>
-            ) : null}
-          </View>
-
-          <TouchableOpacity
-            style={[styles.button, (isLoading || !email) && styles.buttonDisabled]}
+          <Button
+            title="Send Reset Link"
             onPress={handleResetPassword}
-            disabled={isLoading || !email}
-          >
-            {isLoading ? (
-              <ActivityIndicator color="#fff" />
-            ) : (
-              <Text style={styles.buttonText}>Send Reset Link</Text>
-            )}
-          </TouchableOpacity>
+            loading={isLoading}
+            disabled={!formData.email || isLoading}
+            fullWidth
+          />
 
-          <TouchableOpacity
-            style={styles.backButton}
-            onPress={() => !isLoading && router.back()}
-            disabled={isLoading}
-          >
+          <View style={styles.backButton}>
             <Text style={styles.backButtonText}>
               <Text>Back to </Text>
-              <Text style={styles.backButtonLink}>Sign In</Text>
+              <Text style={[styles.backButtonLink, { color: Colors.black }]} onPress={() => !isLoading && router.back()}>
+                Sign In
+              </Text>
             </Text>
-          </TouchableOpacity>
-        </View>
+          </View>
+        </AuthForm>
       </View>
     </SafeAreaView>
   );

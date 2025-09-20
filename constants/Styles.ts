@@ -2,10 +2,8 @@ import { StyleSheet } from 'react-native';
 import Colors from './Colors';
 import Layout from './Layout';
 
-type NamedStyles<T> = { [P in keyof T]: Record<string, any> };
-
 // Helper function to create type-safe styles
-function createStyles<T extends NamedStyles<T> | NamedStyles<any>>(styles: T | NamedStyles<T>): T {
+function createStyles<T extends Record<string, any>>(styles: T): T {
   return StyleSheet.create(styles);
 }
 

@@ -1,6 +1,7 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { Tabs } from 'expo-router';
 import BottomTabBar from '../../../components/ui/BottomTabBar';
+import Layout from '../../../constants/Layout';
 import { useTheme } from '../../../contexts/ThemeContext';
 
 export default function TabLayout() {
@@ -21,7 +22,8 @@ export default function TabLayout() {
         },
         tabBarLabelStyle: {
           fontSize: 12,
-          fontWeight: '500',
+          fontWeight: Layout.fontWeight.medium,
+          fontFamily: Layout.fontFamily.medium,
           marginBottom: 4,
         },
         headerShown: false,

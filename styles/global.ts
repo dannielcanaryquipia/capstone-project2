@@ -1,12 +1,11 @@
 import { StyleSheet } from 'react-native';
-import Colors from '../constants/Colors';
 import Layout from '../constants/Layout';
 
 const global = StyleSheet.create({
   // Containers
   screen: {
     flex: 1,
-    backgroundColor: Colors.background,
+    // backgroundColor will be set dynamically by theme
   },
   container: {
     flex: 1,
@@ -23,7 +22,7 @@ const global = StyleSheet.create({
 
   // Cards
   card: {
-    backgroundColor: Colors.card,
+    // backgroundColor will be set dynamically by theme
     borderRadius: Layout.sizes.cardRadius,
     padding: Layout.sizes.cardPadding,
     ...Layout.shadows.sm,
@@ -41,10 +40,10 @@ const global = StyleSheet.create({
     borderRadius: Layout.sizes.buttonBorderRadius,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: Colors.tint,
+    // backgroundColor will be set dynamically by theme
   },
   buttonText: {
-    color: Colors.black,
+    // color will be set dynamically by theme
     fontSize: Layout.fontSize.md,
     fontWeight: Layout.fontWeight.semiBold,
   },
@@ -54,18 +53,17 @@ const global = StyleSheet.create({
 
   // Inputs
   input: {
-    height: Layout.sizes.inputHeight,
+    height: 45, // Fixed height for consistent form appearance
     borderWidth: Layout.sizes.borderWidth,
-    borderColor: Colors.border,
+    // borderColor will be set dynamically by theme
     borderRadius: Layout.sizes.inputBorderRadius,
     paddingHorizontal: Layout.sizes.inputPaddingHorizontal,
-    backgroundColor: Colors.white,
-    color: Colors.text,
+    // backgroundColor and color will be set dynamically by theme
     fontSize: Layout.fontSize.md,
   },
   label: {
     marginBottom: Layout.spacing.xs,
-    color: Colors.textSecondary,
+    // color will be set dynamically by theme
     fontSize: Layout.fontSize.sm,
   },
 
@@ -74,42 +72,42 @@ const global = StyleSheet.create({
     fontSize: Layout.fontSize.xxxl,
     fontWeight: Layout.fontWeight.bold,
     fontFamily: Layout.fontFamily.bold,
-    color: Colors.text,
+    // color will be set dynamically by theme
   },
   h2: {
     fontSize: Layout.fontSize.xxl,
     fontWeight: Layout.fontWeight.bold,
     fontFamily: Layout.fontFamily.bold,
-    color: Colors.text,
+    // color will be set dynamically by theme
   },
   title: {
     fontSize: Layout.fontSize.xl,
     fontWeight: Layout.fontWeight.semiBold,
     fontFamily: Layout.fontFamily.semiBold,
-    color: Colors.text,
+    // color will be set dynamically by theme
   },
   body: {
     fontSize: Layout.fontSize.md,
     fontFamily: Layout.fontFamily.regular,
-    color: Colors.text,
+    // color will be set dynamically by theme
   },
   caption: {
     fontSize: Layout.fontSize.sm,
     fontFamily: Layout.fontFamily.regular,
-    color: Colors.textSecondary,
+    // color will be set dynamically by theme
   },
   // App title with PlayfairDisplay
   appTitle: {
     fontSize: Layout.fontSize.display,
     fontFamily: Layout.fontFamily.display,
     fontWeight: Layout.fontWeight.bold,
-    color: Colors.text,
+    // color will be set dynamically by theme
   },
 
   // Utility
   divider: {
     height: 1,
-    backgroundColor: Colors.border,
+    // backgroundColor will be set dynamically by theme
     marginVertical: Layout.spacing.md,
   },
 });

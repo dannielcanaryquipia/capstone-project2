@@ -1,7 +1,7 @@
 import React from 'react';
 import { Image, StyleSheet, TouchableOpacity } from 'react-native';
-import Colors from '../../constants/Colors';
 import Responsive from '../../constants/Responsive';
+import { useTheme } from '../../contexts/ThemeContext';
 import { ResponsiveText } from './ResponsiveText';
 import { ResponsiveView } from './ResponsiveView';
 
@@ -30,18 +30,19 @@ export const ProductCard: React.FC<ProductCardProps> = ({
   onPress,
   variant = 'vertical',
   showBadges = true,
-  backgroundColor = '#FFFFFF',
-  textColor = '#333',
-  priceColor = Colors.brown,
+  backgroundColor,
+  textColor,
+  priceColor,
   width,
   height,
 }) => {
+  const { colors } = useTheme();
   const isHorizontal = variant === 'horizontal';
   
   const cardStyle = [
     styles.card,
     isHorizontal ? styles.horizontalCard : styles.verticalCard,
-    { backgroundColor },
+    { backgroundColor: backgroundColor || colors.surface },
     ...(width ? [{ width }] : [{ flex: 1 }]),
     ...(height ? [{ height }] : []),
   ];
@@ -91,7 +92,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({
           <ResponsiveText 
             size={isHorizontal ? "sm" : "md"}
             weight="semiBold" 
-            color={textColor}
+            color={textColor || colors.text}
             numberOfLines={isHorizontal ? 1 : 2}
           >
             {name}
@@ -107,7 +108,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({
           <ResponsiveText 
             size={isHorizontal ? "sm" : "lg"}
             weight="bold" 
-            color={priceColor}
+            color={priceColor || colors.themedPrice}
           >
             ${price.toFixed(2)}
           </ResponsiveText>

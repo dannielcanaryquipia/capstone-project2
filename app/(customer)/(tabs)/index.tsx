@@ -7,10 +7,11 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import ProductCard from '../../../components/ui/ProductCard';
 import { ResponsiveText } from '../../../components/ui/ResponsiveText';
 import { ResponsiveView } from '../../../components/ui/ResponsiveView';
-import Colors from '../../../constants/Colors';
+import { Colors } from '../../../constants/Colors';
 import Layout from '../../../constants/Layout';
 import Responsive from '../../../constants/Responsive';
 import { useAuth } from '../../../contexts/AuthContext';
+import { useTheme } from '../../../contexts/ThemeContext';
 
 
 const popularItems = [
@@ -62,6 +63,7 @@ const recommendedItems = [
 ];
 
 export default function HomeScreen() {
+  const { colors } = useTheme();
   const { user } = useAuth();
   const router = useRouter();
   const userName = user?.user_metadata?.name || 'Guest';
@@ -95,7 +97,7 @@ export default function HomeScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
       <ScrollView showsVerticalScrollIndicator={false}>
         {/* Header */}
         <ResponsiveView 
@@ -110,7 +112,7 @@ export default function HomeScreen() {
             <ResponsiveView marginBottom="xs">
               <ResponsiveText 
                 size="sm" 
-                color="#666" 
+                color={colors.textSecondary} 
                 weight="regular"
               >
                 {getGreeting()}
@@ -119,7 +121,7 @@ export default function HomeScreen() {
             <ResponsiveText 
               size="xxxl" 
               weight="bold" 
-              color="#333"
+              color={colors.text}
             >
               {userName}
             </ResponsiveText>
@@ -131,7 +133,7 @@ export default function HomeScreen() {
             <MaterialIcons 
               name="notifications-none" 
               size={Responsive.responsiveValue(24, 26, 28, 32)} 
-              color="#333" 
+              color={colors.text} 
             />
             <View style={styles.notificationBadge} />
           </TouchableOpacity>
@@ -141,7 +143,7 @@ export default function HomeScreen() {
         <ResponsiveView 
           flexDirection="row" 
           alignItems="center" 
-          backgroundColor="#f5f5f5"
+          backgroundColor={colors.surfaceVariant}
           borderRadius="md"
           marginHorizontal="lg"
           marginVertical="md"
@@ -151,13 +153,13 @@ export default function HomeScreen() {
           <MaterialIcons 
             name="search" 
             size={Responsive.responsiveValue(20, 22, 24, 28)} 
-            color="#999" 
+            color={colors.textTertiary} 
             style={{ marginRight: Responsive.ResponsiveSpacing.sm }}
           />
           <TextInput
             style={[styles.searchInput, { fontSize: Responsive.InputSizes.medium.fontSize }]}
             placeholder="Search for food or restaurant"
-            placeholderTextColor="#999"
+            placeholderTextColor={colors.textTertiary}
             value={searchQuery}
             onChangeText={setSearchQuery}
             onSubmitEditing={handleSearch}
@@ -171,7 +173,7 @@ export default function HomeScreen() {
               <MaterialIcons 
                 name="clear" 
                 size={Responsive.responsiveValue(18, 20, 22, 24)} 
-                color="#999" 
+                color={colors.textTertiary} 
               />
             </TouchableOpacity>
           )}
@@ -185,17 +187,17 @@ export default function HomeScreen() {
             alignItems="center"
             marginBottom="md"
           >
-            <ResponsiveText size="xl" weight="bold" color="#333">
+            <ResponsiveText size="xl" weight="bold" color={colors.text}>
               Special Offers
             </ResponsiveText>
             <TouchableOpacity>
-              <ResponsiveText size="sm" weight="bold" color={Colors.black}>
+              <ResponsiveText size="sm" weight="bold" color={colors.themedViewAll}>
                 View All
               </ResponsiveText>
             </TouchableOpacity>
           </ResponsiveView>
           <ResponsiveView 
-            backgroundColor={Colors.primaryLight + '10'}
+            backgroundColor={colors.primary + '10'}
             borderRadius="lg"
             padding="lg"
             flexDirection="row"
@@ -207,7 +209,7 @@ export default function HomeScreen() {
                 <ResponsiveText 
                   size="xxl" 
                   weight="bold" 
-                  color={Colors.primaryLight}
+                  color={colors.themedDiscount}
                 >
                   30% OFF
                 </ResponsiveText>
@@ -215,13 +217,13 @@ export default function HomeScreen() {
               <ResponsiveView marginBottom="sm">
                 <ResponsiveText 
                   size="md" 
-                  color="#666"
+                  color={colors.textSecondary}
                 >
                   On your first order
                 </ResponsiveText>
               </ResponsiveView>
               <ResponsiveView 
-                backgroundColor={Colors.primaryLight + '20'}
+                backgroundColor={colors.primary + '20'}
                 paddingHorizontal="sm"
                 paddingVertical="xs"
                 borderRadius="pill"
@@ -229,7 +231,7 @@ export default function HomeScreen() {
               >
                 <ResponsiveText 
                   size="sm" 
-                  color={Colors.primaryLight}
+                  color={colors.themedDiscount}
                 >
                   Use code: WELCOME30
                 </ResponsiveText>
@@ -257,11 +259,11 @@ export default function HomeScreen() {
             alignItems="center"
             marginBottom="md"
           >
-            <ResponsiveText size="xl" weight="bold" color="#333">
+            <ResponsiveText size="xl" weight="bold" color={colors.text}>
               Popular Now
             </ResponsiveText>
             <TouchableOpacity onPress={() => router.push('/(customer)/menu?category=Popular')}>
-              <ResponsiveText size="sm" weight="bold" color={Colors.black}>
+              <ResponsiveText size="sm" weight="bold" color={colors.themedViewAll}>
                 View All
               </ResponsiveText>
             </TouchableOpacity>
@@ -298,11 +300,11 @@ export default function HomeScreen() {
             alignItems="center"
             marginBottom="md"
           >
-            <ResponsiveText size="xl" weight="bold" color="#333">
+            <ResponsiveText size="xl" weight="bold" color={colors.text}>
               Recommended For You
             </ResponsiveText>
             <TouchableOpacity onPress={() => router.push('/(customer)/menu?category=Recommended')}>
-              <ResponsiveText size="sm" weight="bold" color={Colors.black}>
+              <ResponsiveText size="sm" weight="bold" color={colors.themedViewAll}>
                 View All
               </ResponsiveText>
             </TouchableOpacity>
@@ -339,7 +341,7 @@ export default function HomeScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.backgroundLight,
+    // backgroundColor will be set dynamically by theme
   },
   header: {
     flexDirection: 'row',
@@ -372,7 +374,7 @@ const styles = StyleSheet.create({
     width: 10,
     height: 10,
     borderRadius: 5,
-    backgroundColor: Colors.primaryLight,
+    backgroundColor: '#FFE44D', // Will be overridden by theme
   },
   searchContainer: {
     flexDirection: 'row',

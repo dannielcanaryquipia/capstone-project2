@@ -1,5 +1,6 @@
+import { FontAwesome5, Ionicons, MaterialIcons } from '@expo/vector-icons';
 import { Tabs } from 'expo-router';
-import { MaterialIcons, FontAwesome5, Ionicons } from '@expo/vector-icons';
+import Layout from '../../constants/Layout';
 import { useAuth } from '../../contexts/AuthContext';
 
 export default function DeliveryLayout() {
@@ -16,7 +17,8 @@ export default function DeliveryLayout() {
       },
       tabBarLabelStyle: {
         fontSize: 12,
-        fontWeight: '500',
+        fontWeight: Layout.fontWeight.medium,
+        fontFamily: Layout.fontFamily.medium,
         marginBottom: 4,
       },
       headerShown: true,

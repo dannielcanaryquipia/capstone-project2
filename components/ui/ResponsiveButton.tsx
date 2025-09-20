@@ -1,6 +1,7 @@
 import React from 'react';
 import { ActivityIndicator, StyleSheet, TouchableOpacity, TouchableOpacityProps, View } from 'react-native';
 import Responsive from '../../constants/Responsive';
+import { useTheme } from '../../contexts/ThemeContext';
 import ResponsiveText from './ResponsiveText';
 
 interface ResponsiveButtonProps extends TouchableOpacityProps {
@@ -60,6 +61,7 @@ export const ResponsiveButton: React.FC<ResponsiveButtonProps> = ({
   style,
   ...props
 }) => {
+  const { colors } = useTheme();
   // Check if component should be hidden based on screen size
   const deviceSize = Responsive.getDeviceSize();
   const shouldHide = 
@@ -82,23 +84,23 @@ export const ResponsiveButton: React.FC<ResponsiveButtonProps> = ({
     switch (variant) {
       case 'primary':
         return {
-          backgroundColor: '#FFE44D',
+          backgroundColor: colors.primary,
           borderWidth: 0,
         };
       case 'secondary':
         return {
-          backgroundColor: '#4CAF50',
+          backgroundColor: colors.secondary,
           borderWidth: 0,
         };
       case 'outline':
         return {
           backgroundColor: 'transparent',
           borderWidth: 1,
-          borderColor: '#FFE44D',
+          borderColor: colors.primary,
         };
       case 'ghost':
         return {
-          backgroundColor: 'rgba(255, 228, 77, 0.1)',
+          backgroundColor: colors.primary + '20',
           borderWidth: 0,
         };
       case 'text':
@@ -109,7 +111,7 @@ export const ResponsiveButton: React.FC<ResponsiveButtonProps> = ({
         };
       default:
         return {
-          backgroundColor: '#FFE44D',
+          backgroundColor: colors.primary,
           borderWidth: 0,
         };
     }
@@ -121,13 +123,13 @@ export const ResponsiveButton: React.FC<ResponsiveButtonProps> = ({
     switch (variant) {
       case 'primary':
       case 'secondary':
-        return '#000000';
+        return colors.textInverse;
       case 'outline':
       case 'ghost':
       case 'text':
-        return '#FFE44D';
+        return colors.primary;
       default:
-        return '#000000';
+        return colors.textInverse;
     }
   };
 

@@ -1,9 +1,10 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image, FlatList, ListRenderItem } from 'react-native';
-import { MaterialIcons, MaterialCommunityIcons, FontAwesome } from '@expo/vector-icons';
-import { useTheme } from '../../../contexts/ThemeContext';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { MaterialCommunityIcons, MaterialIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
+import React, { useState } from 'react';
+import { FlatList, Image, ListRenderItem, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import Layout from '../../../constants/Layout';
+import { useTheme } from '../../../contexts/ThemeContext';
 
 type OrderItem = {
   name: string;
@@ -243,7 +244,8 @@ const styles = StyleSheet.create({
   },
   tabText: {
     fontSize: 14,
-    fontWeight: '500',
+    fontWeight: Layout.fontWeight.medium,
+    fontFamily: Layout.fontFamily.medium,
   },
   ordersList: {
     padding: 16,
@@ -278,7 +280,8 @@ const styles = StyleSheet.create({
   },
   restaurantName: {
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: Layout.fontWeight.semiBold,
+    fontFamily: Layout.fontFamily.semiBold,
     marginBottom: 4,
   },
   statusBadge: {
@@ -294,7 +297,8 @@ const styles = StyleSheet.create({
   },
   statusText: {
     fontSize: 12,
-    fontWeight: '500',
+    fontWeight: Layout.fontWeight.medium,
+    fontFamily: Layout.fontFamily.medium,
   },
   orderItems: {
     marginBottom: 12,
@@ -310,7 +314,8 @@ const styles = StyleSheet.create({
   },
   itemPrice: {
     fontSize: 14,
-    fontWeight: '500',
+    fontWeight: Layout.fontWeight.medium,
+    fontFamily: Layout.fontFamily.medium,
     marginLeft: 8,
   },
   orderFooter: {

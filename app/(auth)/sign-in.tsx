@@ -1,125 +1,138 @@
 import { router } from 'expo-router';
 import { useState } from 'react';
-import { Image, Platform, StyleSheet, View } from 'react-native';
+import { Platform, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import AuthFooter from '../../components/auth/AuthFooter';
+import AuthForm from '../../components/auth/AuthForm';
+import AuthHeader from '../../components/auth/AuthHeader';
 import Button from '../../components/ui/Button';
 import Input from '../../components/ui/Input';
-import Text from '../../components/ui/Text';
 import { Strings } from '../../constants/Strings';
+import { useTheme } from '../../contexts/ThemeContext';
 import { useAuth } from '../../hooks/useAuth';
 import global from '../../styles/global';
+import { commonRules, validateForm, ValidationErrors } from '../../utils/validation';
 
 export default function SignInScreen() {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+  const { colors } = useTheme();
+  const [formData, setFormData] = useState({
+    email: '',
+    password: '',
+  });
+  const [formErrors, setFormErrors] = useState<ValidationErrors>({});
   const { signIn, isLoading, error } = useAuth();
 
+  const validationRules = {
+    email: commonRules.email,
+    password: commonRules.password,
+  };
+
+  const validateFormData = () => {
+    const errors = validateForm(formData, validationRules);
+    setFormErrors(errors);
+    return Object.keys(errors).length === 0;
+  };
+
+  const handleInputChange = (field: string, value: string) => {
+    setFormData(prev => ({ ...prev, [field]: value }));
+    // Clear error when user starts typing
+    if (formErrors[field]) {
+      setFormErrors(prev => ({ ...prev, [field]: '' }));
+    }
+  };
+
   const handleSignIn = async () => {
-    if (!email || !password) return;
+    if (!validateFormData()) return;
+    
     try {
-      await signIn(email, password);
-    } catch {}
+      await signIn(formData.email, formData.password);
+    } catch (error) {
+      // Error is handled by the useAuth hook
+    }
   };
 
   return (
     <SafeAreaView style={styles.safeArea}>
       <View style={styles.container}>
-        <View style={styles.logoContainer}>
-          <Image source={require('../../assets/images/logo.png')} style={styles.logo} resizeMode="contain" />
-          <Text variant="h2" align="center">{Strings.appName.toUpperCase()}</Text>
-          <Text align="center" color="#6B7280">{Strings.appTagline}</Text>
-        </View>
+        <AuthHeader />
 
-        <View style={styles.form}>
-          {error ? (
-            <View style={styles.errorContainer}>
-              <Text color="#DC2626">{error}</Text>
-            </View>
-          ) : null}
-
+        <AuthForm error={error} style={styles.form}>
           <Input
             label={Strings.emailLabel}
             placeholder="Enter your email"
             keyboardType="email-address"
             autoCapitalize="none"
             autoComplete="email"
-            value={email}
-            onChangeText={setEmail}
+            value={formData.email}
+            onChangeText={(value) => handleInputChange('email', value)}
+            error={formErrors.email}
             fullWidth
+            iconType="email"
           />
 
           <Input
             label={Strings.passwordLabel}
             placeholder="Enter your password"
-            secureTextEntry
             autoCapitalize="none"
             autoComplete="current-password"
-            value={password}
-            onChangeText={setPassword}
+            value={formData.password}
+            onChangeText={(value) => handleInputChange('password', value)}
+            error={formErrors.password}
             fullWidth
+            iconType="password"
+            showPasswordToggle
           />
 
-          <View style={{ alignItems: 'flex-end', marginTop: 4 }}>
-            <Text color="#4F46E5" onPress={() => router.push('/(auth)/forgot-password')}>{Strings.forgotPasswordCta}</Text>
+          <View style={styles.forgotPasswordContainer}>
+            <Text 
+              style={[styles.forgotPasswordText, { color: colors.primary }]}
+              onPress={() => router.push('/(auth)/forgot-password')}
+            >
+              {Strings.forgotPasswordCta}
+            </Text>
           </View>
 
           <Button
             title={Strings.signInCta}
             onPress={handleSignIn}
             loading={isLoading}
-            disabled={!email || !password}
-            style={[global.button, (!email || !password) && global.buttonDisabled]}
+            disabled={!formData.email || !formData.password || isLoading}
+            style={[global.button, (!formData.email || !formData.password) && global.buttonDisabled]}
             fullWidth
           />
 
-          <View style={[global.divider]} />
-
-          <View style={styles.footer}> 
-            <Text>
-              {Strings.dontHaveAccount} <Text color="#4F46E5" onPress={() => router.push('/(auth)/sign-up' as any)}>{Strings.signUpTitle}</Text>
-            </Text>
-          </View>
-        </View>
+          <AuthFooter
+            primaryText={Strings.dontHaveAccount}
+            linkText={Strings.signUpTitle}
+            onLinkPress={() => router.push('/(auth)/sign-up' as any)}
+            disabled={isLoading}
+          />
+        </AuthForm>
       </View>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: '#FFFFFF' },
+  safeArea: { 
+    flex: 1, 
+    backgroundColor: '#FFFFFF' // Will be overridden by theme
+  },
   container: {
     flex: 1,
     paddingHorizontal: 24,
     paddingTop: Platform.OS === 'ios' ? 0 : 40,
   },
-  logoContainer: {
-    alignItems: 'center',
-    marginTop: 40,
-    marginBottom: 40,
-  },
-  logo: {
-    width: 100,
-    height: 100,
-    marginBottom: 24,
-  },
   form: {
     flex: 1,
   },
-  errorContainer: {
-    backgroundColor: '#FEE2E2',
-    padding: 12,
-    borderRadius: 8,
+  forgotPasswordContainer: {
+    alignItems: 'flex-end',
+    marginTop: 4,
     marginBottom: 16,
-    borderLeftWidth: 4,
-    borderLeftColor: '#DC2626',
   },
-  // Footer styles
-  footer: {
-    marginTop: 'auto',
-    marginBottom: 32,
-    alignItems: 'center',
+  forgotPasswordText: {
+    fontSize: 14,
+    fontWeight: '500',
   },
-  footerText: { color: '#6B7280', fontSize: 14 },
-  linkText: { color: '#4F46E5', fontWeight: '600' },
-  errorText: { color: '#DC2626', fontSize: 14, fontWeight: '500' },
 });

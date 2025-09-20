@@ -6,7 +6,6 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import ProductCard from '../../../components/ui/ProductCard';
 import ResponsiveText from '../../../components/ui/ResponsiveText';
 import ResponsiveView from '../../../components/ui/ResponsiveView';
-import Colors from '../../../constants/Colors';
 import Responsive from '../../../constants/Responsive';
 import { useTheme } from '../../../contexts/ThemeContext';
 
@@ -157,13 +156,18 @@ export default function MenuScreen() {
             <TouchableOpacity
               style={[
                 styles.categoryItem,
+                {
+                  backgroundColor: selectedCategory === item.id ? colors.categoryButtonActiveFill : 'transparent',
+                  borderColor: selectedCategory === item.id ? colors.categoryButtonActiveFill : colors.categoryButtonBorder,
+                  borderWidth: 1,
+                },
                 selectedCategory === item.id && styles.categoryItemActive,
               ]}
               onPress={() => setSelectedCategory(item.id)}
             >
               <ResponsiveText
                 size="sm"
-                color={selectedCategory === item.id ? '#FFFFFF' : colors.text}
+                color={selectedCategory === item.id ? colors.categoryButtonActiveText : colors.categoryButtonText}
                 weight={selectedCategory === item.id ? 'semiBold' : 'regular'}
               >
                 {item.name}
@@ -199,7 +203,7 @@ export default function MenuScreen() {
             variant="vertical"
             backgroundColor={colors.card}
             textColor={colors.text}
-            priceColor={Colors.brown}
+            priceColor={colors.themedPrice}
             onPress={() => router.push({
               pathname: '/(customer)/product/[id]',
               params: { id: item.id }
@@ -245,12 +249,10 @@ const styles = StyleSheet.create({
     paddingVertical: Responsive.responsiveValue(8, 10, 12, 14),
     borderRadius: Responsive.responsiveValue(20, 22, 24, 28),
     marginRight: Responsive.responsiveValue(8, 10, 12, 14),
-    backgroundColor: '#F5F5F5',
     minWidth: Responsive.responsiveValue(60, 70, 80, 90),
   },
   categoryItemActive: {
-    backgroundColor: '#FF6B35',
-    shadowColor: '#FF6B35',
+    shadowColor: '#FFE44D',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.3,
     shadowRadius: 4,

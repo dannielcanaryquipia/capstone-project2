@@ -1,7 +1,8 @@
-import React, { forwardRef } from 'react';
-import { TextInput, TextInputProps, View, Text, StyleSheet, TextStyle, ViewStyle } from 'react-native';
-import { useTheme } from '../../hooks/useTheme';
-
+import { MaterialCommunityIcons } from '@expo/vector-icons';
+import React, { forwardRef, useState } from 'react';
+import { StyleSheet, Text, TextInput, TextInputProps, TextStyle, TouchableOpacity, View, ViewStyle } from 'react-native';
+import Layout from '../../constants/Layout';
+import { useTheme } from '../../contexts/ThemeContext';
 type InputVariant = 'default' | 'outline' | 'filled' | 'underlined';
 type InputSize = 'small' | 'medium' | 'large';
 
@@ -17,6 +18,8 @@ interface InputProps extends Omit<TextInputProps, 'style'> {
   labelStyle?: TextStyle;
   errorStyle?: TextStyle;
   fullWidth?: boolean;
+  showPasswordToggle?: boolean;
+  iconType?: 'email' | 'password' | 'person' | 'phone' | 'none';
 }
 
 const Input = forwardRef<TextInput, InputProps>(({
@@ -31,14 +34,18 @@ const Input = forwardRef<TextInput, InputProps>(({
   labelStyle,
   errorStyle,
   fullWidth = false,
+  showPasswordToggle = false,
+  iconType = 'none',
   ...props
 }, ref) => {
   const theme = useTheme();
+  const [isFocused, setIsFocused] = useState(false);
+  const [isPasswordVisible, setIsPasswordVisible] = useState(false);
   
   const getContainerStyle = (): ViewStyle => {
     const baseStyle: ViewStyle = {
       width: fullWidth ? '100%' : undefined,
-      marginBottom: theme.spacing.sm,
+      marginBottom: Layout.spacing.sm,
     };
 
     return {
@@ -51,9 +58,9 @@ const Input = forwardRef<TextInput, InputProps>(({
     const baseStyle: ViewStyle = {
       flexDirection: 'row',
       alignItems: 'center',
-      borderRadius: theme.borderRadius.md,
+      borderRadius: Layout.borderRadius.md,
       borderWidth: 1,
-      borderColor: error ? theme.colors.error : theme.colors.border,
+      borderColor: error ? theme.colors.error : (isFocused ? theme.colors.primary : theme.colors.border),
       backgroundColor: theme.colors.background,
     };
 
@@ -67,7 +74,7 @@ const Input = forwardRef<TextInput, InputProps>(({
         borderWidth: 1,
       },
       filled: {
-        backgroundColor: theme.colors.lightGray,
+        backgroundColor: theme.colors.surfaceVariant,
         borderWidth: 0,
       },
       underlined: {
@@ -79,16 +86,16 @@ const Input = forwardRef<TextInput, InputProps>(({
 
     const sizeStyles: Record<InputSize, ViewStyle> = {
       small: {
-        paddingVertical: theme.spacing.xs,
-        paddingHorizontal: theme.spacing.sm,
+        paddingVertical: Layout.spacing.xs,
+        paddingHorizontal: Layout.spacing.sm,
       },
       medium: {
-        paddingVertical: theme.spacing.sm,
-        paddingHorizontal: theme.spacing.md,
+        paddingVertical: Layout.spacing.sm,
+        paddingHorizontal: Layout.spacing.md,
       },
       large: {
-        paddingVertical: theme.spacing.md,
-        paddingHorizontal: theme.spacing.lg,
+        paddingVertical: Layout.spacing.md,
+        paddingHorizontal: Layout.spacing.lg,
       },
     };
 
@@ -103,15 +110,16 @@ const Input = forwardRef<TextInput, InputProps>(({
     const baseStyle: TextStyle = {
       flex: 1,
       color: theme.colors.text,
-      fontSize: theme.fontSize.md,
+      fontSize: Layout.fontSize.md,
+      fontFamily: Layout.fontFamily.regular,
       padding: 0,
       margin: 0,
     };
 
     const sizeStyles: Record<InputSize, { height: number }> = {
-      small: { height: 32 },
-      medium: { height: 40 },
-      large: { height: 48 },
+      small: { height: 40 },
+      medium: { height: 45 },
+      large: { height: 50 },
     };
 
     return {
@@ -122,32 +130,104 @@ const Input = forwardRef<TextInput, InputProps>(({
   };
 
   const getLabelStyle = (): TextStyle => ({
-    fontSize: theme.fontSize.sm,
-    marginBottom: theme.spacing.xs,
+    fontSize: Layout.fontSize.sm,
+    marginBottom: Layout.spacing.xs,
     color: theme.colors.text,
-    fontWeight: theme.fontWeight.medium,
+    fontWeight: 'normal',
+    fontFamily: 'PoppinsRegular',
     ...labelStyle,
   });
 
   const getErrorStyle = (): TextStyle => ({
-    fontSize: theme.fontSize.xs,
+    fontSize: Layout.fontSize.xs,
     color: theme.colors.error,
-    marginTop: theme.spacing.xs,
+    fontFamily: 'PoppinsRegular',
+    marginTop: Layout.spacing.xs,
     ...errorStyle,
   });
+
+  const renderLeftIcon = () => {
+    if (leftIcon) return leftIcon;
+    
+    if (iconType === 'email') {
+      return (
+        <MaterialCommunityIcons 
+          name="email-outline" 
+          size={20} 
+          color={isFocused ? theme.colors.primary : theme.colors.textTertiary} 
+        />
+      );
+    }
+    
+    if (iconType === 'password') {
+      return (
+        <MaterialCommunityIcons 
+          name="lock-outline" 
+          size={20} 
+          color={isFocused ? theme.colors.primary : theme.colors.textTertiary} 
+        />
+      );
+    }
+    
+    if (iconType === 'person') {
+      return (
+        <MaterialCommunityIcons 
+          name="account-outline" 
+          size={20} 
+          color={isFocused ? theme.colors.primary : theme.colors.textTertiary} 
+        />
+      );
+    }
+    
+    if (iconType === 'phone') {
+      return (
+        <MaterialCommunityIcons 
+          name="phone-outline" 
+          size={20} 
+          color={isFocused ? theme.colors.primary : theme.colors.textTertiary} 
+        />
+      );
+    }
+    
+    return null;
+  };
+
+  const renderRightIcon = () => {
+    if (rightIcon) return rightIcon;
+    
+    if (showPasswordToggle) {
+      return (
+        <TouchableOpacity 
+          onPress={() => setIsPasswordVisible(!isPasswordVisible)}
+          style={styles.iconButton}
+        >
+          <MaterialCommunityIcons 
+            name={isPasswordVisible ? "eye-off-outline" : "eye-outline"} 
+            size={20} 
+            color={isFocused ? theme.colors.primary : theme.colors.textTertiary} 
+          />
+        </TouchableOpacity>
+      );
+    }
+    
+    return null;
+  };
 
   return (
     <View style={getContainerStyle()}>
       {label && <Text style={getLabelStyle()}>{label}</Text>}
       <View style={getInputContainerStyle()}>
-        {leftIcon && <View style={styles.iconContainer}>{leftIcon}</View>}
+        {renderLeftIcon() && <View style={styles.iconContainer}>{renderLeftIcon()}</View>}
         <TextInput
           ref={ref}
           style={getInputStyle()}
-          placeholderTextColor={theme.colors.muted}
+          placeholderTextColor={theme.colors.textTertiary}
+          onFocus={() => setIsFocused(true)}
+          onBlur={() => setIsFocused(false)}
+          secureTextEntry={showPasswordToggle ? !isPasswordVisible : props.secureTextEntry}
           {...props}
         />
-        {rightIcon && <View style={styles.iconContainer}>{rightIcon}</View>}
+        {renderRightIcon() && <View style={styles.iconContainer}>{renderRightIcon()}</View>}
       </View>
       {error && <Text style={getErrorStyle()}>{error}</Text>}
     </View>
@@ -157,6 +237,9 @@ const Input = forwardRef<TextInput, InputProps>(({
 const styles = StyleSheet.create({
   iconContainer: {
     marginHorizontal: 8,
+  },
+  iconButton: {
+    padding: 4,
   },
 });
 

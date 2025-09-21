@@ -1,32 +1,32 @@
-import { Ionicons, MaterialIcons } from '@expo/vector-icons';
+import { MaterialIcons } from '@expo/vector-icons';
 import { Tabs } from 'expo-router';
 import Layout from '../../constants/Layout';
 import { useAuth } from '../../contexts/AuthContext';
+import { useTheme } from '../../contexts/ThemeContext';
 
 export default function AdminLayout() {
   const { signOut } = useAuth();
+  const { colors } = useTheme();
 
   return (
     <Tabs screenOptions={{
-      tabBarActiveTintColor: '#4A90E2',
-      tabBarInactiveTintColor: '#999',
+      tabBarActiveTintColor: colors.background,
+      tabBarInactiveTintColor: colors.textSecondary,
       tabBarStyle: {
-        paddingTop: 8,
-        paddingBottom: 8,
-        height: 60,
+        backgroundColor: colors.primary,
+        borderTopColor: colors.primary,
+        paddingTop: Layout.spacing.sm,
+        paddingBottom: Layout.spacing.sm,
+        height: Layout.sizes.tabBarHeight + 10,
+        ...Layout.shadows.lg,
       },
       tabBarLabelStyle: {
-        fontSize: 12,
-        fontWeight: Layout.fontWeight.medium,
-        fontFamily: Layout.fontFamily.medium,
-        marginBottom: 4,
+        fontSize: Layout.fontSize.xs,
+        fontWeight: Layout.fontWeight.semiBold,
+        fontFamily: Layout.fontFamily.semiBold,
+        marginBottom: Layout.spacing.xs,
       },
-      headerShown: true,
-      headerTitleAlign: 'center',
-      headerStyle: {
-        backgroundColor: '#4A90E2',
-      },
-      headerTintColor: '#fff',
+      headerShown: false,
     }}>
       <Tabs.Screen 
         name="dashboard" 
@@ -60,16 +60,16 @@ export default function AdminLayout() {
         options={{
           title: 'Users',
           tabBarIcon: ({ color, size }) => (
-            <Ionicons name="people" size={size} color={color} />
+            <MaterialIcons name="people" size={size} color={color} />
           ),
         }}
       />
       <Tabs.Screen 
-        name="settings" 
+        name="reports" 
         options={{
-          title: 'Settings',
+          title: 'Reports',
           tabBarIcon: ({ color, size }) => (
-            <Ionicons name="settings" size={size} color={color} />
+            <MaterialIcons name="analytics" size={size} color={color} />
           ),
         }}
       />

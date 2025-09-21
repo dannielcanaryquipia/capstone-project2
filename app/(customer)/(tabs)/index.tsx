@@ -7,60 +7,11 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import ProductCard from '../../../components/ui/ProductCard';
 import { ResponsiveText } from '../../../components/ui/ResponsiveText';
 import { ResponsiveView } from '../../../components/ui/ResponsiveView';
-import { Colors } from '../../../constants/Colors';
 import Layout from '../../../constants/Layout';
 import Responsive from '../../../constants/Responsive';
 import { useAuth } from '../../../contexts/AuthContext';
 import { useTheme } from '../../../contexts/ThemeContext';
-
-
-const popularItems = [
-  {
-    id: '1',
-    name: 'Pepperoni Pizza',
-    price: 12.99,
-    image: 'https://images.unsplash.com/photo-1628840042765-356cda07504e?w=500&auto=format&fit=crop&q=60&ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxzZWFyY2h8Mnx8cGVwcGVyb25pJTIwcGl6emF8ZW58MHx8MHx8fDA%3D',
-    tags: ['Popular'],
-  },
-  {
-    id: '2',
-    name: 'Cheese Burger',
-    price: 8.99,
-    image: 'https://images.unsplash.com/photo-1568901346375-23c9450c58cd?w=500&auto=format&fit=crop&q=60&ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxzZWFyY2h8Mnx8Y2hlZXNlJTIwYnVyZ2VyfGVufDB8fDB8fHww',
-    tags: ['Popular'],
-  },
-];
-
-const recommendedItems = [
-  {
-    id: '3',
-    name: 'Margherita Pizza',
-    price: 11.99,
-    image: 'https://images.unsplash.com/photo-1604382354936-07c5d9983bd3?w=500&auto=format&fit=crop&q=60&ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxzZWFyY2h8Mnx8bWFyZ2hlcml0YSUyMHBpenphfGVufDB8fDB8fHww',
-    tags: ['Recommended'],
-  },
-  {
-    id: '4',
-    name: 'Chicken Wings',
-    price: 9.99,
-    image: 'https://images.unsplash.com/photo-1567620905732-2d1ec7ab7445?w=500&auto=format&fit=crop&q=60&ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxzZWFyY2h8Mnx8Y2hpY2tlbiUyMHdpbmdzfGVufDB8fDB8fHww',
-    tags: ['Recommended'],
-  },
-  {
-    id: '5',
-    name: 'Caesar Salad',
-    price: 7.99,
-    image: 'https://images.unsplash.com/photo-1546793665-c74683f339c1?w=500&auto=format&fit=crop&q=60&ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxzZWFyY2h8Mnx8Y2Flc2FyJTIwc2FsYWR8ZW58MHx8MHx8fDA%3D',
-    tags: ['Recommended'],
-  },
-  {
-    id: '6',
-    name: 'Chocolate Cake',
-    price: 6.99,
-    image: 'https://images.unsplash.com/photo-1578985545062-69928b1d9587?w=500&auto=format&fit=crop&q=60&ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxzZWFyY2h8Mnx8Y2hvY29sYXRlJTIwY2FrZXxlbnwwfHwwfHx8MA%3D%3D',
-    tags: ['Popular'],
-  },
-];
+import { useCart, useProductCategories, useProducts } from '../../../hooks';
 
 export default function HomeScreen() {
   const { colors } = useTheme();
@@ -68,6 +19,15 @@ export default function HomeScreen() {
   const router = useRouter();
   const userName = user?.user_metadata?.name || 'Guest';
   const [searchQuery, setSearchQuery] = useState('');
+  
+  // Use hooks for data fetching
+  const { products, isLoading: productsLoading, error: productsError } = useProducts();
+  const { categories, isLoading: categoriesLoading } = useProductCategories();
+  const { addItem } = useCart();
+  
+  // Filter products for different sections
+  const popularProducts = products.filter(product => product.is_recommended).slice(0, 4);
+  const recommendedProducts = products.filter(product => product.is_available).slice(0, 6);
   
   // Get current time of day for greeting
   const getGreeting = () => {
@@ -146,41 +106,43 @@ export default function HomeScreen() {
           backgroundColor={colors.surfaceVariant}
           borderRadius="md"
           marginHorizontal="lg"
-          marginVertical="md"
+          marginBottom="lg"
           paddingHorizontal="md"
-          height={Responsive.InputSizes.medium.height}
         >
           <MaterialIcons 
             name="search" 
-            size={Responsive.responsiveValue(20, 22, 24, 28)} 
-            color={colors.textTertiary} 
-            style={{ marginRight: Responsive.ResponsiveSpacing.sm }}
+            size={Responsive.responsiveValue(20, 22, 24, 26)} 
+            color={colors.textSecondary} 
           />
           <TextInput
-            style={[styles.searchInput, { fontSize: Responsive.InputSizes.medium.fontSize }]}
-            placeholder="Search for food or restaurant"
-            placeholderTextColor={colors.textTertiary}
+            style={[
+              styles.searchInput,
+              {
+                color: colors.text,
+                fontFamily: Layout.fontFamily.regular,
+                fontSize: Responsive.responsiveValue(14, 15, 16, 18),
+              }
+            ]}
+            placeholder="Search for food, drinks, or restaurants..."
+            placeholderTextColor={colors.textSecondary}
             value={searchQuery}
             onChangeText={setSearchQuery}
             onSubmitEditing={handleSearch}
             returnKeyType="search"
           />
           {searchQuery.length > 0 && (
-            <TouchableOpacity 
-              onPress={handleClearSearch}
-              style={styles.clearButton}
-            >
+            <TouchableOpacity onPress={handleClearSearch}>
               <MaterialIcons 
                 name="clear" 
                 size={Responsive.responsiveValue(18, 20, 22, 24)} 
-                color={colors.textTertiary} 
+                color={colors.textSecondary} 
               />
             </TouchableOpacity>
           )}
         </ResponsiveView>
 
         {/* Special Offers */}
-        <ResponsiveView marginTop="sm" paddingHorizontal="lg" marginBottom="lg">
+        <ResponsiveView marginBottom="lg" paddingHorizontal="lg">
           <ResponsiveView 
             flexDirection="row" 
             justifyContent="space-between" 
@@ -273,22 +235,28 @@ export default function HomeScreen() {
             showsHorizontalScrollIndicator={false}
             contentContainerStyle={{ paddingVertical: Responsive.ResponsiveSpacing.xs }}
           >
-            {popularItems.map((item) => (
-              <ProductCard
-                key={item.id}
-                id={item.id}
-                name={item.name}
-                price={item.price}
-                image={item.image}
-                tags={item.tags}
-                variant="horizontal"
-                width={Responsive.responsiveValue(160, 170, 180, 200)}
-                onPress={() => router.push({
-                  pathname: '/(customer)/product/[id]',
-                  params: { id: item.id }
-                } as any)}
-              />
-            ))}
+            {productsLoading ? (
+              <ResponsiveView padding="lg">
+                <ResponsiveText color={colors.textSecondary}>Loading popular items...</ResponsiveText>
+              </ResponsiveView>
+            ) : (
+              popularProducts.map((product) => (
+                <ProductCard
+                  key={product.id}
+                  id={product.id}
+                  name={product.name}
+                  price={product.price}
+                  image={product.image_url || 'https://via.placeholder.com/200x150'}
+                  tags={product.is_recommended ? ['Recommended'] : []}
+                  variant="horizontal"
+                  width={Responsive.responsiveValue(160, 170, 180, 200)}
+                  onPress={() => router.push({
+                    pathname: '/(customer)/product/[id]',
+                    params: { id: product.id }
+                  } as any)}
+                />
+              ))
+            )}
           </ScrollView>
         </ResponsiveView>
 
@@ -314,23 +282,135 @@ export default function HomeScreen() {
             showsHorizontalScrollIndicator={false}
             contentContainerStyle={{ paddingVertical: Responsive.ResponsiveSpacing.xs }}
           >
-            {recommendedItems.map((item) => (
-              <ProductCard
-                key={item.id}
-                id={item.id}
-                name={item.name}
-                price={item.price}
-                image={item.image}
-                tags={item.tags}
-                variant="horizontal"
-                width={Responsive.responsiveValue(160, 170, 180, 200)}
-                onPress={() => router.push({
-                  pathname: '/(customer)/product/[id]',
-                  params: { id: item.id }
-                } as any)}
-              />
-            ))}
+            {productsLoading ? (
+              <ResponsiveView padding="lg">
+                <ResponsiveText color={colors.textSecondary}>Loading recommended items...</ResponsiveText>
+              </ResponsiveView>
+            ) : (
+              recommendedProducts.map((product) => (
+                <ProductCard
+                  key={product.id}
+                  id={product.id}
+                  name={product.name}
+                  price={product.price}
+                  image={product.image_url || 'https://via.placeholder.com/200x150'}
+                  tags={product.is_recommended ? ['Recommended'] : []}
+                  variant="horizontal"
+                  width={Responsive.responsiveValue(160, 170, 180, 200)}
+                  onPress={() => router.push({
+                    pathname: '/(customer)/product/[id]',
+                    params: { id: product.id }
+                  } as any)}
+                />
+              ))
+            )}
           </ScrollView>
+        </ResponsiveView>
+
+        {/* Quick Actions */}
+        <ResponsiveView marginTop="sm" paddingHorizontal="lg" marginBottom="lg">
+          <ResponsiveView 
+            flexDirection="row" 
+            justifyContent="space-between" 
+            alignItems="center"
+            marginBottom="md"
+          >
+            <ResponsiveText size="xl" weight="bold" color={colors.text}>
+              Quick Actions
+            </ResponsiveText>
+          </ResponsiveView>
+          
+          <ResponsiveView 
+            flexDirection="row" 
+            justifyContent="space-between"
+          >
+            {/* View Cart Button */}
+            <TouchableOpacity 
+              style={[styles.quickActionCard, { backgroundColor: colors.primary + '10', borderColor: colors.primary + '20' }]}
+              onPress={() => router.push('/(customer)/(tabs)/cart')}
+            >
+              <ResponsiveView alignItems="center" padding="md">
+                <ResponsiveView 
+                  backgroundColor={colors.primary + '20'}
+                  borderRadius="round"
+                  padding="md"
+                  marginBottom="sm"
+                >
+                  <MaterialIcons 
+                    name="shopping-cart" 
+                    size={Responsive.responsiveValue(24, 26, 28, 32)} 
+                    color={colors.primary} 
+                  />
+                </ResponsiveView>
+                <ResponsiveText 
+                  size="sm" 
+                  weight="semiBold" 
+                  color={colors.text}
+                  align="center"
+                >
+                  View Cart
+                </ResponsiveText>
+              </ResponsiveView>
+            </TouchableOpacity>
+
+            {/* Track Order Button */}
+            <TouchableOpacity 
+              style={[styles.quickActionCard, { backgroundColor: colors.themedPrice + '10', borderColor: colors.themedPrice + '20' }]}
+              onPress={() => router.push('/(customer)/orders')}
+            >
+              <ResponsiveView alignItems="center" padding="md">
+                <ResponsiveView 
+                  backgroundColor={colors.themedPrice + '20'}
+                  borderRadius="round"
+                  padding="md"
+                  marginBottom="sm"
+                >
+                  <MaterialIcons 
+                    name="local-shipping" 
+                    size={Responsive.responsiveValue(24, 26, 28, 32)} 
+                    color={colors.themedPrice} 
+                  />
+                </ResponsiveView>
+                <ResponsiveText 
+                  size="sm" 
+                  weight="semiBold" 
+                  color={colors.text}
+                  align="center"
+                >
+                  Track Order
+                </ResponsiveText>
+              </ResponsiveView>
+            </TouchableOpacity>
+
+            {/* Add Address Button */}
+            <TouchableOpacity 
+              style={[styles.quickActionCard, { backgroundColor: colors.textSecondary + '10', borderColor: colors.textSecondary + '20' }]}
+              onPress={() => router.push('/(customer)/profile/addresses')}
+            >
+              <ResponsiveView alignItems="center" padding="md">
+                <ResponsiveView 
+                  backgroundColor={colors.textSecondary + '20'}
+                  borderRadius="round"
+                  padding="md"
+                  marginBottom="sm"
+                >
+                  <MaterialIcons 
+                    name="location-on" 
+                    size={Responsive.responsiveValue(24, 26, 28, 32)} 
+                    color={colors.textSecondary} 
+                  />
+                </ResponsiveView>
+                <ResponsiveText 
+                  size="sm" 
+                  weight="semiBold" 
+                  color={colors.text}
+                  align="center"
+                >
+                  Add Address
+                </ResponsiveText>
+              </ResponsiveView>
+            </TouchableOpacity>
+          </ResponsiveView>
         </ResponsiveView>
 
       </ScrollView>
@@ -371,172 +451,25 @@ const styles = StyleSheet.create({
     position: 'absolute',
     right: 0,
     top: 0,
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-    backgroundColor: '#FFE44D', // Will be overridden by theme
-  },
-  searchContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#f5f5f5',
-    borderRadius: 10,
-    marginHorizontal: 20,
-    marginVertical: 15,
-    paddingHorizontal: 15,
-    height: 50,
-  },
-  searchIcon: {
-    marginRight: 10,
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#FF6B6B',
   },
   searchInput: {
     flex: 1,
-    height: '100%',
+    paddingVertical: 12,
+    paddingHorizontal: 12,
     fontSize: 16,
-    color: '#333',
-  },
-  clearButton: {
-    padding: Responsive.ResponsiveSpacing.xs,
-    marginLeft: Responsive.ResponsiveSpacing.xs,
-  },
-  section: {
-    marginTop: 10,
-    paddingHorizontal: 20,
-    marginBottom: 20,
-  },
-  sectionHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 15,
-  },
-  sectionTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    fontFamily: Layout.fontFamily.bold,
-    color: '#333',
-  },
-  seeAllText: {
-    color: Colors.black,
-    fontSize: 14,
-    fontFamily: Layout.fontFamily.bold,
-    fontWeight: 'bold',
-  },
-  categoriesContainer: {
-    paddingVertical: 10,
-  },
-  categoryItem: {
-    alignItems: 'center',
-    marginRight: 20,
-    width: 70,
-  },
-  categoryIcon: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    backgroundColor: Colors.black + '20', // Black with 20% opacity
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  categoryIconActive: {
-    backgroundColor: Colors.black + '20', // Keep black background even when active
-  },
-  categoryName: {
-    fontSize: 12,
-    color: '#666',
-    textAlign: 'center',
-    fontFamily: Layout.fontFamily.regular,
-  },
-  categoryNameActive: {
-    color: Colors.brown, // Brown text when active
-    fontWeight: '600',
-  },
-  popularItemsContainer: {
-    paddingVertical: 5,
-  },
-  popularItem: {
-    width: 200,
-    backgroundColor: '#fff',
-    borderRadius: 15,
-    marginRight: 15,
-    overflow: 'hidden',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 5,
-    elevation: 3,
-  },
-  popularItemImage: {
-    width: '100%',
-    height: 120,
-    resizeMode: 'cover',
-  },
-  popularItemInfo: {
-    padding: 12,
-  },
-  popularItemName: {
-    fontSize: 16,
-    fontWeight: '600',
-    fontFamily: Layout.fontFamily.semiBold,
-    color: '#333',
-    marginBottom: 5,
-  },
-  ratingContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 5,
-  },
-  ratingText: {
-    marginLeft: 4,
-    color: '#666',
-    fontSize: 14,
-    fontFamily: Layout.fontFamily.regular,
-  },
-  popularItemPrice: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    fontFamily: Layout.fontFamily.bold,
-    color: Colors.primaryLight,
-  },
-  specialOfferCard: {
-    backgroundColor: Colors.primaryLight + '10', // Adding 10% opacity
-    borderRadius: 15,
-    padding: 20,
-    flexDirection: 'row',
-    alignItems: 'center',
-    overflow: 'hidden',
-  },
-  specialOfferContent: {
-    flex: 1,
-  },
-  specialOfferTitle: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    fontFamily: Layout.fontFamily.bold,
-    color: Colors.primaryLight,
-    marginBottom: 5,
-  },
-  specialOfferSubtitle: {
-    fontSize: 16,
-    fontFamily: Layout.fontFamily.regular,
-    color: '#666',
-    marginBottom: 10,
-  },
-  specialOfferCode: {
-    fontSize: 14,
-    fontFamily: Layout.fontFamily.regular,
-    color: Colors.primaryLight,
-    backgroundColor: Colors.primaryLight + '20', // Adding 20% opacity
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 15,
-    alignSelf: 'flex-start',
   },
   specialOfferImage: {
-    width: 120,
-    height: 100,
-    resizeMode: 'contain',
-    marginLeft: 10,
+    borderRadius: 12,
+  },
+  quickActionCard: {
+    flex: 1,
+    marginHorizontal: 4,
+    borderRadius: 12,
+    borderWidth: 1,
+    minHeight: 100,
   },
 });

@@ -18,9 +18,8 @@ import {
 import 'react-native-reanimated';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
-import { useColorScheme } from '../components/useColorScheme';
 import { AuthProvider, useAuth } from '../contexts/AuthContext';
-import { ThemeProvider as AppThemeProvider } from '../contexts/ThemeContext';
+import { ThemeProvider as AppThemeProvider, useTheme } from '../contexts/ThemeContext';
 
 export {
   // Catch any errors thrown by the Layout component.
@@ -36,22 +35,40 @@ SplashScreen.preventAutoHideAsync();
 
 // This can be used to protect routes that require authentication
 const AuthGuard = ({ children }: { children: React.ReactNode }) => {
-  const { user, isLoading } = useAuth();
+  const { user, isLoading, isAdmin, isDelivery } = useAuth();
   const segments = useSegments();
   const router = useRouter();
 
   useEffect(() => {
     const inAuthGroup = segments[0] === '(auth)';
+    const inAdminGroup = segments[0] === '(admin)';
+    const inDeliveryGroup = segments[0] === '(delivery)';
+    const inCustomerGroup = segments[0] === '(customer)';
 
     if (!isLoading) {
       if (!user && !inAuthGroup) {
         router.replace('/(auth)/sign-in');
       } else if (user && inAuthGroup) {
-        // @ts-ignore - Workaround for expo-router type issue
-        router.replace('/(customer)');
+        // Determine the correct route based on user role
+        if (isAdmin) {
+          router.replace('/(admin)/dashboard');
+        } else if (isDelivery) {
+          router.replace('/(delivery)/dashboard');
+        } else {
+          router.replace('/(customer)/(tabs)');
+        }
+      } else if (user && !inAuthGroup) {
+        // Check if user is in the wrong role-based section
+        if (isAdmin && !inAdminGroup) {
+          router.replace('/(admin)/dashboard');
+        } else if (isDelivery && !inDeliveryGroup) {
+          router.replace('/(delivery)/dashboard');
+        } else if (!isAdmin && !isDelivery && !inCustomerGroup) {
+          router.replace('/(customer)/(tabs)');
+        }
       }
     }
-  }, [user, isLoading, segments]);
+  }, [user, isLoading, segments, isAdmin, isDelivery]);
 
   if (isLoading) {
     return (
@@ -92,10 +109,66 @@ const CombinedDarkTheme = {
   },
 };
 
+// Theme integration component
+function ThemedApp() {
+  const { colors, isDark } = useTheme();
+  
+  // Create navigation themes based on our custom theme
+  const navigationTheme = {
+    dark: isDark,
+    colors: {
+      primary: colors.primary,
+      background: colors.background,
+      card: colors.card,
+      text: colors.text,
+      border: colors.border,
+      notification: colors.notification,
+    },
+    fonts: {
+      regular: {
+        fontFamily: 'PoppinsRegular',
+        fontWeight: '400' as const,
+      },
+      medium: {
+        fontFamily: 'PoppinsMedium',
+        fontWeight: '500' as const,
+      },
+      bold: {
+        fontFamily: 'PoppinsBold',
+        fontWeight: '700' as const,
+      },
+      heavy: {
+        fontFamily: 'PoppinsBlack',
+        fontWeight: '900' as const,
+      },
+    },
+  };
+
+  // Create Paper theme based on our custom theme
+  const paperTheme = {
+    ...(isDark ? MD3DarkTheme : MD3LightTheme),
+    colors: {
+      ...(isDark ? MD3DarkTheme.colors : MD3LightTheme.colors),
+      primary: colors.primary,
+      background: colors.background,
+      surface: colors.surface,
+      onSurface: colors.text,
+      onBackground: colors.text,
+      onPrimary: colors.textInverse,
+    },
+  };
+
+  return (
+    <PaperProvider theme={paperTheme}>
+      <ThemeProvider value={navigationTheme}>
+        <RootLayoutNav />
+      </ThemeProvider>
+    </PaperProvider>
+  );
+}
+
 function RootLayoutNav() {
-  const colorScheme = useColorScheme();
   const { user, isAdmin, isDelivery } = useAuth();
-  const theme = colorScheme === 'dark' ? CombinedDarkTheme : CombinedDefaultTheme;
 
   // Determine the initial route based on user role
   const getInitialRoute = () => {
@@ -106,17 +179,13 @@ function RootLayoutNav() {
   };
 
   return (
-    <PaperProvider theme={MD3LightTheme}>
-      <ThemeProvider value={theme}>
-        <Stack>
-          <Stack.Screen name="(auth)" options={{ headerShown: false }} />
-          <Stack.Screen name="(customer)" options={{ headerShown: false }} />
-          <Stack.Screen name="(admin)" options={{ headerShown: false }} />
-          <Stack.Screen name="(delivery)" options={{ headerShown: false }} />
-          <Stack.Screen name="modal" options={{ presentation: 'modal' }} />
-        </Stack>
-      </ThemeProvider>
-    </PaperProvider>
+    <Stack>
+      <Stack.Screen name="(auth)" options={{ headerShown: false }} />
+      <Stack.Screen name="(customer)" options={{ headerShown: false }} />
+      <Stack.Screen name="(admin)" options={{ headerShown: false }} />
+      <Stack.Screen name="(delivery)" options={{ headerShown: false }} />
+      <Stack.Screen name="modal" options={{ presentation: 'modal' }} />
+    </Stack>
   );
 }
 
@@ -147,7 +216,7 @@ function AppContent() {
     return null;
   }
 
-  return <RootLayoutNav />;
+  return <ThemedApp />;
 }
 
 export default function RootLayout() {

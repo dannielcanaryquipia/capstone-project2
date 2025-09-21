@@ -323,7 +323,7 @@ export const reviewService = {
   getMenuItemReviews: async (menuItemId: string): Promise<Review[]> => {
     const { data, error } = await supabase
       .from('reviews')
-      .select('*, profiles(full_name, avatar_url)')
+      .select('*, profiles!reviews_user_id_fkey(full_name, avatar_url)')
       .eq('menu_item_id', menuItemId)
       .order('created_at', { ascending: false });
     

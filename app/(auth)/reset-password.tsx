@@ -6,11 +6,68 @@ import AuthForm from '../../components/auth/AuthForm';
 import AuthHeader from '../../components/auth/AuthHeader';
 import Button from '../../components/ui/Button';
 import Input from '../../components/ui/Input';
-import { Colors } from '../../constants/Colors';
+import { useTheme } from '../../contexts/ThemeContext';
 import { useAuth } from '../../hooks/useAuth';
 import { commonRules, validateForm, ValidationErrors } from '../../utils/validation';
 
+const createStyles = (colors: any) => StyleSheet.create({
+  container: {
+    flex: 1,
+    // backgroundColor will be set dynamically by theme
+  },
+  contentContainer: {
+    flex: 1,
+    padding: 24,
+    justifyContent: 'center',
+  },
+  form: {
+    width: '100%',
+  },
+  backButton: {
+    marginTop: 16,
+    alignItems: 'center',
+    padding: 8,
+  },
+  backButtonText: {
+    // color will be set dynamically by theme
+    fontSize: 14,
+  },
+  backButtonLink: {
+    // color will be set dynamically by theme
+    fontWeight: '600',
+    fontFamily: 'PoppinsSemiBold',
+  },
+  checkmarkContainer: {
+    alignItems: 'center',
+    marginBottom: 24,
+  },
+  checkmark: {
+    width: 80,
+    height: 80,
+  },
+  loader: {
+    marginTop: 24,
+  },
+  title: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    fontFamily: 'PoppinsBold',
+    // color will be set dynamically by theme
+    textAlign: 'center',
+    marginBottom: 8,
+  },
+  subtitle: {
+    fontSize: 14,
+    // color will be set dynamically by theme
+    textAlign: 'center',
+    lineHeight: 20,
+    marginBottom: 32,
+  },
+});
+
 export default function ResetPasswordScreen() {
+  const { colors } = useTheme();
+  const styles = createStyles(colors);
   const [formData, setFormData] = useState({
     password: '',
     confirmPassword: '',
@@ -79,7 +136,7 @@ export default function ResetPasswordScreen() {
 
   if (isSubmitted) {
     return (
-      <SafeAreaView style={styles.container}>
+      <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
         <View style={styles.contentContainer}>
           <View style={styles.checkmarkContainer}>
             <Image
@@ -88,18 +145,18 @@ export default function ResetPasswordScreen() {
               resizeMode="contain"
             />
           </View>
-          <Text style={styles.title}>Password Reset Successful</Text>
-          <Text style={styles.subtitle}>
+          <Text style={[styles.title, { color: colors.text }]}>Password Reset Successful</Text>
+          <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
             Your password has been updated successfully. You'll be redirected to sign in shortly.
           </Text>
-          <ActivityIndicator size="large" color="#3B82F6" style={styles.loader} />
+          <ActivityIndicator size="large" color={colors.primary} style={styles.loader} />
         </View>
       </SafeAreaView>
     );
   }
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
       <View style={styles.contentContainer}>
         <AuthHeader />
 
@@ -139,9 +196,9 @@ export default function ResetPasswordScreen() {
           />
 
           <View style={styles.backButton}>
-            <Text style={styles.backButtonText}>
+            <Text style={[styles.backButtonText, { color: colors.textSecondary }]}>
               <Text>Back to </Text>
-              <Text style={[styles.backButtonLink, { color: Colors.black }]} onPress={() => !isLoading && router.back()}>
+              <Text style={[styles.backButtonLink, { color: colors.themedText }]} onPress={() => !isLoading && router.back()}>
                 Sign In
               </Text>
             </Text>
@@ -152,55 +209,3 @@ export default function ResetPasswordScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#FFFFFF',
-  },
-  contentContainer: {
-    flex: 1,
-    padding: 24,
-    justifyContent: 'center',
-  },
-  form: {
-    width: '100%',
-  },
-  backButton: {
-    marginTop: 16,
-    alignItems: 'center',
-    padding: 8,
-  },
-  backButtonText: {
-    color: '#6B7280',
-    fontSize: 14,
-  },
-  backButtonLink: {
-    color: '#3B82F6',
-    fontWeight: '600',
-  },
-  checkmarkContainer: {
-    alignItems: 'center',
-    marginBottom: 24,
-  },
-  checkmark: {
-    width: 80,
-    height: 80,
-  },
-  loader: {
-    marginTop: 24,
-  },
-  title: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#111827',
-    textAlign: 'center',
-    marginBottom: 8,
-  },
-  subtitle: {
-    fontSize: 14,
-    color: '#6B7280',
-    textAlign: 'center',
-    lineHeight: 20,
-    marginBottom: 32,
-  },
-});

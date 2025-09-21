@@ -1,16 +1,20 @@
-import { FontAwesome5, Ionicons, MaterialIcons } from '@expo/vector-icons';
+import { Ionicons, MaterialIcons } from '@expo/vector-icons';
 import { Tabs } from 'expo-router';
 import Layout from '../../constants/Layout';
 import { useAuth } from '../../contexts/AuthContext';
+import { useTheme } from '../../contexts/ThemeContext';
 
 export default function DeliveryLayout() {
   const { signOut } = useAuth();
+  const { colors } = useTheme();
 
   return (
     <Tabs screenOptions={{
-      tabBarActiveTintColor: '#4CAF50',
-      tabBarInactiveTintColor: '#999',
+      tabBarActiveTintColor: colors.secondary,
+      tabBarInactiveTintColor: colors.textSecondary,
       tabBarStyle: {
+        backgroundColor: colors.background,
+        borderTopColor: colors.border,
         paddingTop: 8,
         paddingBottom: 8,
         height: 60,
@@ -24,34 +28,25 @@ export default function DeliveryLayout() {
       headerShown: true,
       headerTitleAlign: 'center',
       headerStyle: {
-        backgroundColor: '#4CAF50',
+        backgroundColor: colors.secondary,
       },
-      headerTintColor: '#fff',
+      headerTintColor: colors.textInverse,
     }}>
       <Tabs.Screen 
-        name="available-orders" 
+        name="dashboard" 
         options={{
-          title: 'Available',
+          title: 'Dashboard',
+          tabBarIcon: ({ color, size }) => (
+            <MaterialIcons name="dashboard" size={size} color={color} />
+          ),
+        }}
+      />
+      <Tabs.Screen 
+        name="orders" 
+        options={{
+          title: 'Orders',
           tabBarIcon: ({ color, size }) => (
             <MaterialIcons name="delivery-dining" size={size} color={color} />
-          ),
-        }}
-      />
-      <Tabs.Screen 
-        name="my-orders" 
-        options={{
-          title: 'My Deliveries',
-          tabBarIcon: ({ color, size }) => (
-            <MaterialIcons name="list-alt" size={size} color={color} />
-          ),
-        }}
-      />
-      <Tabs.Screen 
-        name="earnings" 
-        options={{
-          title: 'Earnings',
-          tabBarIcon: ({ color, size }) => (
-            <FontAwesome5 name="money-bill-wave" size={size} color={color} />
           ),
         }}
       />

@@ -1,6 +1,6 @@
 import { router } from 'expo-router';
 import { useState } from 'react';
-import { Image, ScrollView, StyleSheet } from 'react-native';
+import { Platform, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import AuthFooter from '../../components/auth/AuthFooter';
 import AuthForm from '../../components/auth/AuthForm';
@@ -13,148 +13,24 @@ import { useAuth } from '../../hooks/useAuth';
 import global from '../../styles/global';
 import { commonRules, validateForm, ValidationErrors } from '../../utils/validation';
 
-const styles = StyleSheet.create({
+const createStyles = (colors: any) => StyleSheet.create({
+  safeArea: { 
+    flex: 1, 
+    // backgroundColor will be set dynamically by theme
+  },
   container: {
     flex: 1,
-    backgroundColor: '#FFFFFF',
-  },
-  scrollContainer: {
-    flexGrow: 1,
-    padding: 24,
-  },
-  logoContainer: {
-    alignItems: 'center',
-    marginBottom: 40,
-    marginTop: 20,
-  },
-  logo: {
-    width: 100,
-    height: 100,
-    marginBottom: 16,
-  },
-  title: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    color: '#1F2937',
-    marginBottom: 8,
-    textAlign: 'center',
-  },
-  subtitle: {
-    fontSize: 16,
-    color: '#6B7280',
-    textAlign: 'center',
-    marginBottom: 8,
+    paddingHorizontal: 24,
+    paddingTop: Platform.OS === 'ios' ? 0 : 40,
   },
   form: {
-    width: '100%',
-  },
-  errorContainer: {
-    backgroundColor: '#FEE2E2',
-    padding: 12,
-    borderRadius: 8,
-    marginBottom: 16,
-    borderWidth: 1,
-    borderColor: '#FCA5A5',
-  },
-  errorText: {
-    color: '#DC2626',
-    fontSize: 14,
-    textAlign: 'center',
-  },
-  inputContainer: {
-    marginBottom: 20,
-  },
-  label: {
-    fontSize: 14,
-    color: '#4B5563',
-    marginBottom: 8,
-    fontWeight: '500',
-  },
-  input: {
-    backgroundColor: '#F9FAFB',
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-    borderRadius: 8,
-    padding: 14,
-    fontSize: 16,
-    color: '#111827',
-  },
-  inputError: {
-    borderColor: '#F87171',
-  },
-  button: {
-    backgroundColor: '#3B82F6',
-    padding: 16,
-    borderRadius: 8,
-    alignItems: 'center',
-    marginTop: 8,
-  },
-  buttonDisabled: {
-    backgroundColor: '#93C5FD',
-  },
-  buttonText: {
-    color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  divider: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginVertical: 24,
-  },
-  dividerLine: {
     flex: 1,
-    height: 1,
-    backgroundColor: '#E5E7EB',
-  },
-  dividerText: {
-    color: '#6B7280',
-    marginHorizontal: 12,
-    fontSize: 14,
-  },
-  socialButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-    borderRadius: 8,
-    padding: 14,
-    marginBottom: 16,
-  },
-  socialButtonText: {
-    marginLeft: 12,
-    fontSize: 16,
-    color: '#374151',
-    fontWeight: '500',
-  },
-  loginContainer: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    marginTop: 24,
-  },
-  loginText: {
-    color: '#6B7280',
-    fontSize: 15,
-  },
-  loginLink: {
-    color: '#3B82F6',
-    fontWeight: '600',
-    marginLeft: 4,
-  },
-  dividerContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 16,
-  },
-  googleButton: {
-    backgroundColor: '#4285F4',
   },
 });
 
 export default function SignUpScreen() {
   const { colors } = useTheme();
+  const styles = createStyles(colors);
   const [formData, setFormData] = useState({
     email: '',
     password: '',
@@ -214,14 +90,11 @@ export default function SignUpScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
-      <ScrollView contentContainerStyle={styles.scrollContainer} keyboardShouldPersistTaps="handled">
+    <SafeAreaView style={[styles.safeArea, { backgroundColor: colors.background }]}>
+      <View style={styles.container}>
         <AuthHeader />
 
-        {/* Decorative/banner image in the form area */}
-        <Image source={require('../../assets/images/checkmark-circle.png')} style={global.heroIllustration} resizeMode="contain" />
-
-        <AuthForm error={error} style={[styles.form, global.card]}>
+        <AuthForm error={error} style={styles.form}>
           <Input
             label={Strings.fullNameLabel}
             value={formData.fullName}
@@ -300,7 +173,7 @@ export default function SignUpScreen() {
             disabled={isLoading}
           />
         </AuthForm>
-      </ScrollView>
+      </View>
     </SafeAreaView>
   );
 }

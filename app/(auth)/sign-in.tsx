@@ -7,6 +7,7 @@ import AuthForm from '../../components/auth/AuthForm';
 import AuthHeader from '../../components/auth/AuthHeader';
 import Button from '../../components/ui/Button';
 import Input from '../../components/ui/Input';
+import Layout from '../../constants/Layout';
 import { Strings } from '../../constants/Strings';
 import { useTheme } from '../../contexts/ThemeContext';
 import { useAuth } from '../../hooks/useAuth';
@@ -52,7 +53,7 @@ export default function SignInScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <SafeAreaView style={[styles.safeArea, { backgroundColor: colors.background }]}>
       <View style={styles.container}>
         <AuthHeader />
 
@@ -85,7 +86,7 @@ export default function SignInScreen() {
 
           <View style={styles.forgotPasswordContainer}>
             <Text 
-              style={[styles.forgotPasswordText, { color: colors.primary }]}
+              style={[styles.forgotPasswordText, { color: colors.themedText }]}
               onPress={() => router.push('/(auth)/forgot-password')}
             >
               {Strings.forgotPasswordCta}
@@ -116,7 +117,7 @@ export default function SignInScreen() {
 const styles = StyleSheet.create({
   safeArea: { 
     flex: 1, 
-    backgroundColor: '#FFFFFF' // Will be overridden by theme
+    // backgroundColor will be set dynamically by theme
   },
   container: {
     flex: 1,
@@ -133,6 +134,7 @@ const styles = StyleSheet.create({
   },
   forgotPasswordText: {
     fontSize: 14,
-    fontWeight: '500',
+    fontWeight: Layout.fontWeight.medium,
+    fontFamily: Layout.fontFamily.medium,
   },
 });

@@ -95,7 +95,7 @@ const Button: React.FC<ButtonProps> = ({
 
     const variantTextStyles: Record<ButtonVariant, TextStyle> = {
       primary: {
-        color: theme.colors.textInverse,
+        color: '#000000', // Constant black for primary buttons
       },
       secondary: {
         color: theme.colors.textInverse,
@@ -126,14 +126,16 @@ const Button: React.FC<ButtonProps> = ({
     >
       {loading ? (
         <ActivityIndicator 
-          color={variant === 'primary' || variant === 'secondary' || variant === 'danger' 
+          color={variant === 'primary' 
+            ? '#000000' // Constant black for primary buttons
+            : variant === 'secondary' || variant === 'danger' 
             ? theme.colors.textInverse 
             : theme.colors.primary} 
           size="small" 
         />
       ) : (
         <>
-          {icon && <>{icon} </>}
+          {icon && icon}
           <Text style={[getTextStyle(), textStyle]}>{title}</Text>
         </>
       )}

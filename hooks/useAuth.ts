@@ -2,14 +2,9 @@ import { Alert } from 'react-native';
 import { create } from 'zustand';
 import { supabase } from '../lib/supabase';
 import { authService } from '../services/auth.service';
+import { Database } from '../types/database.types';
 
-type Profile = {
-  id: string;
-  email: string | null;
-  full_name: string | null;
-  phone_number: string | null;
-  role: 'customer' | 'admin' | 'delivery' | null;
-};
+type Profile = Database['public']['Tables']['profiles']['Row'];
 
 type AuthState = {
   session: import('@supabase/supabase-js').Session | null;

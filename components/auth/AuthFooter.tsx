@@ -24,7 +24,7 @@ const AuthFooter: React.FC<AuthFooterProps> = ({
       <Text style={[styles.primaryText, { color: theme.colors.textSecondary }]}>
         {primaryText}{' '}
         <Text 
-          style={[styles.linkText, { color: theme.colors.primary }]}
+          style={[styles.linkText, { color: theme.colors.themedText }]}
           onPress={onLinkPress}
         >
           {linkText}

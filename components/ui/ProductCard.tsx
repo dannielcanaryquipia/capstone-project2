@@ -1,3 +1,4 @@
+import { MaterialIcons } from '@expo/vector-icons';
 import React from 'react';
 import { Image, StyleSheet, TouchableOpacity } from 'react-native';
 import Responsive from '../../constants/Responsive';
@@ -19,6 +20,8 @@ export interface ProductCardProps {
   priceColor?: string;
   width?: number;
   height?: number;
+  isSaved?: boolean;
+  onSaveToggle?: (productId: string, isSaved: boolean) => void;
 }
 
 export const ProductCard: React.FC<ProductCardProps> = ({
@@ -29,12 +32,14 @@ export const ProductCard: React.FC<ProductCardProps> = ({
   tags = [],
   onPress,
   variant = 'vertical',
-  showBadges = true,
+  showBadges = false,
   backgroundColor,
   textColor,
   priceColor,
   width,
   height,
+  isSaved = false,
+  onSaveToggle,
 }) => {
   const { colors } = useTheme();
   const isHorizontal = variant === 'horizontal';
@@ -64,24 +69,18 @@ export const ProductCard: React.FC<ProductCardProps> = ({
           source={{ uri: image }} 
           style={imageStyle}
         />
-        {showBadges && tags.length > 0 && (
-          <>
-            {tags.includes('Popular') && (
-              <ResponsiveView style={styles.popularBadge}>
-                <ResponsiveText size="xs" weight="bold" color="#FFFFFF">
-                  Popular
-                </ResponsiveText>
-              </ResponsiveView>
-            )}
-            {tags.includes('Recommended') && (
-              <ResponsiveView style={styles.recommendedBadge}>
-                <ResponsiveText size="xs" weight="bold" color="#FFFFFF">
-                  Recommended
-                </ResponsiveText>
-              </ResponsiveView>
-            )}
-          </>
-        )}
+        {/* Heart Icon for Save/Unsave */}
+        <TouchableOpacity
+          style={styles.heartButton}
+          onPress={() => onSaveToggle?.(id, !isSaved)}
+          activeOpacity={0.7}
+        >
+          <MaterialIcons
+            name={isSaved ? "favorite" : "favorite-border"}
+            size={Responsive.responsiveValue(20, 22, 24, 28)}
+            color={isSaved ? "#FF6B6B" : colors.textSecondary}
+          />
+        </TouchableOpacity>
       </ResponsiveView>
       
       <ResponsiveView 
@@ -110,7 +109,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({
             weight="bold" 
             color={priceColor || colors.themedPrice}
           >
-            ${price.toFixed(2)}
+            ₱{(price || 0).toFixed(2)}
           </ResponsiveText>
         </ResponsiveView>
       </ResponsiveView>
@@ -151,23 +150,18 @@ const styles = StyleSheet.create({
   content: {
     flex: 1,
   },
-  popularBadge: {
+  heartButton: {
     position: 'absolute',
     top: Responsive.responsiveValue(8, 10, 12, 14),
-    left: Responsive.responsiveValue(8, 10, 12, 14),
-    backgroundColor: '#FF6B35',
-    paddingHorizontal: Responsive.responsiveValue(6, 8, 10, 12),
-    paddingVertical: Responsive.responsiveValue(4, 5, 6, 8),
-    borderRadius: Responsive.responsiveValue(12, 14, 16, 20),
-  },
-  recommendedBadge: {
-    position: 'absolute',
-    top: Responsive.responsiveValue(8, 10, 12, 14),
-    left: Responsive.responsiveValue(8, 10, 12, 14),
-    backgroundColor: '#4CAF50',
-    paddingHorizontal: Responsive.responsiveValue(6, 8, 10, 12),
-    paddingVertical: Responsive.responsiveValue(4, 5, 6, 8),
-    borderRadius: Responsive.responsiveValue(12, 14, 16, 20),
+    right: Responsive.responsiveValue(8, 10, 12, 14),
+    backgroundColor: 'rgba(255, 255, 255, 0.9)',
+    borderRadius: Responsive.responsiveValue(16, 18, 20, 24),
+    padding: Responsive.responsiveValue(6, 8, 10, 12),
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
   },
 });
 

@@ -12,7 +12,7 @@ export interface Profile {
   username: string;
   full_name?: string;
   phone_number?: string;
-  role: 'customer' | 'admin' | 'delivery_staff';
+  role: 'customer' | 'admin' | 'delivery';
   avatar_url?: string;
   created_at: string;
   email_verified?: boolean;
@@ -89,16 +89,16 @@ export interface Address {
 }
 
 // Order Status Type
-export type OrderStatus = 'Pending' | 'Preparing' | 'Ready for Pickup' | 'Out for Delivery' | 'Delivered' | 'Cancelled';
+export type OrderStatus = 'pending' | 'confirmed' | 'preparing' | 'ready_for_pickup' | 'out_for_delivery' | 'delivered' | 'cancelled';
 
 // Payment Status Type
-export type PaymentStatus = 'Pending' | 'Verified' | 'Paid' | 'Failed' | 'Refunded';
+export type PaymentStatus = 'pending' | 'verified' | 'failed' | 'refunded';
 
 // Delivery Status Type
 export type DeliveryStatus = 'Assigned' | 'Picked Up' | 'In Transit' | 'Delivered' | 'Failed';
 
 // User Role Type
-export type UserRole = 'customer' | 'admin' | 'delivery_staff';
+export type UserRole = 'customer' | 'admin' | 'delivery';
 
 // Payment Method Type
 export type PaymentMethod = 'COD' | 'GCash' | 'card';

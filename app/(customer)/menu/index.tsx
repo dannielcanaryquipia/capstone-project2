@@ -7,82 +7,45 @@ import ProductCard from '../../../components/ui/ProductCard';
 import ResponsiveText from '../../../components/ui/ResponsiveText';
 import ResponsiveView from '../../../components/ui/ResponsiveView';
 import Responsive from '../../../constants/Responsive';
+import { useSavedProducts } from '../../../contexts/SavedProductsContext';
 import { useTheme } from '../../../contexts/ThemeContext';
+import { useProductCategories, useProducts } from '../../../hooks';
+import type { Product, ProductCategory } from '../../../types/product.types';
 
-const categories = [
+// Default categories for UI display
+const defaultCategories = [
   { id: '1', name: 'All', icon: 'food' },
   { id: '7', name: 'Popular', icon: 'star' },
   { id: '8', name: 'Recommended', icon: 'thumb-up' },
-  { id: '2', name: 'Pizza', icon: 'pizza' },
-  { id: '3', name: 'Burger', icon: 'hamburger' },
-  { id: '4', name: 'Sushi', icon: 'sushi' },
-  { id: '5', name: 'Drinks', icon: 'cup' },
-  { id: '6', name: 'Desserts', icon: 'cupcake' },
-];
-
-const menuItems = [
-  {
-    id: '1',
-    name: 'Pepperoni Pizza',
-    category: 'Pizza',
-    price: 12.99,
-    image: 'https://images.unsplash.com/photo-1628840042765-356cda07504e?w=500&auto=format&fit=crop&q=60&ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxzZWFyY2h8Mnx8cGVwcGVyb25pJTIwcGl6emF8ZW58MHx8MHx8fDA%3D',
-    tags: ['Popular'],
-  },
-  {
-    id: '2',
-    name: 'Cheese Burger',
-    category: 'Burger',
-    price: 8.99,
-    image: 'https://images.unsplash.com/photo-1568901346375-23c9450c58cd?w=500&auto=format&fit=crop&q=60&ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxzZWFyY2h8Mnx8Y2hlZXNlJTIwYnVyZ2VyfGVufDB8fDB8fHww',
-    tags: ['Popular'],
-  },
-  {
-    id: '3',
-    name: 'Margherita Pizza',
-    category: 'Pizza',
-    price: 11.99,
-    image: 'https://images.unsplash.com/photo-1604382354936-07c5d9983bd3?w=500&auto=format&fit=crop&q=60&ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxzZWFyY2h8Mnx8bWFyZ2hlcml0YSUyMHBpenphfGVufDB8fDB8fHww',
-    tags: ['Recommended'],
-  },
-  {
-    id: '4',
-    name: 'Chicken Wings',
-    category: 'Burger',
-    price: 9.99,
-    image: 'https://images.unsplash.com/photo-1567620905732-2d1ec7ab7445?w=500&auto=format&fit=crop&q=60&ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxzZWFyY2h8Mnx8Y2hpY2tlbiUyMHdpbmdzfGVufDB8fDB8fHww',
-    tags: ['Recommended'],
-  },
-  {
-    id: '5',
-    name: 'Caesar Salad',
-    category: 'Desserts',
-    price: 7.99,
-    image: 'https://images.unsplash.com/photo-1546793665-c74683f339c1?w=500&auto=format&fit=crop&q=60&ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxzZWFyY2h8Mnx8Y2Flc2FyJTIwc2FsYWR8ZW58MHx8MHx8fDA%3D',
-    tags: ['Recommended'],
-  },
-  {
-    id: '6',
-    name: 'Chocolate Cake',
-    category: 'Desserts',
-    price: 6.99,
-    image: 'https://images.unsplash.com/photo-1578985545062-69928b1d9587?w=500&auto=format&fit=crop&q=60&ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxzZWFyY2h8Mnx8Y2hvY29sYXRlJTIwY2FrZXxlbnwwfHwwfHx8MA%3D%3D',
-    tags: ['Popular'],
-  },
 ];
 
 export default function MenuScreen() {
   const { colors } = useTheme();
+  const { isProductSaved, toggleSave } = useSavedProducts();
   const router = useRouter();
   const { category, search } = useLocalSearchParams();
   const [selectedCategory, setSelectedCategory] = useState('1');
   const [searchQuery, setSearchQuery] = useState('');
 
+  // Use hooks for data fetching
+  const { products, isLoading: productsLoading, error: productsError } = useProducts();
+  const { categories: dbCategories, isLoading: categoriesLoading } = useProductCategories();
+
+  // Combine default categories with database categories
+  const allCategories = [
+    ...defaultCategories,
+    ...dbCategories.map((cat: ProductCategory) => ({
+      id: cat.id,
+      name: cat.name,
+      icon: 'food' // Default icon for database categories
+    }))
+  ];
+
   // Set initial category and search based on route parameters
   useEffect(() => {
     if (category) {
       // Find category by name and set its ID
-      const foundCategory = categories.find(c => c.name.toLowerCase() === category.toString().toLowerCase());
+      const foundCategory = allCategories.find(c => c.name.toLowerCase() === category.toString().toLowerCase());
       if (foundCategory) {
         setSelectedCategory(foundCategory.id);
       }
@@ -91,23 +54,23 @@ export default function MenuScreen() {
       // Set search query from route parameter
       setSearchQuery(search.toString());
     }
-  }, [category, search]);
+  }, [category, search, allCategories]);
 
-  const filteredItems = menuItems.filter(
-    item => {
-      const categoryName = categories.find(c => c.id === selectedCategory)?.name;
+  const filteredItems = products.filter(
+    (product: Product) => {
+      const categoryName = allCategories.find(c => c.id === selectedCategory)?.name;
       
       // Handle special categories
       if (categoryName === 'Popular') {
-        return item.tags?.includes('Popular') && item.name.toLowerCase().includes(searchQuery.toLowerCase());
+        return product.is_recommended && product.name.toLowerCase().includes(searchQuery.toLowerCase());
       }
       if (categoryName === 'Recommended') {
-        return item.tags?.includes('Recommended') && item.name.toLowerCase().includes(searchQuery.toLowerCase());
+        return product.is_recommended && product.name.toLowerCase().includes(searchQuery.toLowerCase());
       }
       
       // Handle regular categories
-      return (selectedCategory === '1' || item.category === categoryName) &&
-             item.name.toLowerCase().includes(searchQuery.toLowerCase());
+      return (selectedCategory === '1' || product.category?.name === categoryName) &&
+             product.name.toLowerCase().includes(searchQuery.toLowerCase());
     }
   );
 
@@ -148,7 +111,7 @@ export default function MenuScreen() {
       {/* Categories */}
       <ResponsiveView marginBottom="sm">
         <FlatList
-          data={categories}
+          data={allCategories}
           horizontal
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={{ paddingHorizontal: Responsive.ResponsiveSpacing.md }}
@@ -179,38 +142,51 @@ export default function MenuScreen() {
       </ResponsiveView>
 
       {/* Menu Items */}
-      <FlatList
-        data={filteredItems}
-        numColumns={2}
-        keyExtractor={(item) => item.id}
-        contentContainerStyle={{ 
-          padding: Responsive.ResponsiveSpacing.md,
-          paddingBottom: Responsive.ResponsiveSpacing.xl
-        }}
-        columnWrapperStyle={{ 
-          justifyContent: 'space-between',
-          marginBottom: Responsive.ResponsiveSpacing.md,
-          paddingHorizontal: Responsive.ResponsiveSpacing.xs,
-          gap: Responsive.ResponsiveSpacing.sm
-        }}
-        renderItem={({ item }) => (
-          <ProductCard
-            id={item.id}
-            name={item.name}
-            price={item.price}
-            image={item.image}
-            tags={item.tags}
-            variant="vertical"
-            backgroundColor={colors.card}
-            textColor={colors.text}
-            priceColor={colors.themedPrice}
-            onPress={() => router.push({
-              pathname: '/(customer)/product/[id]',
-              params: { id: item.id }
-            } as any)}
-          />
-        )}
-      />
+      {productsLoading ? (
+        <ResponsiveView padding="lg" alignItems="center">
+          <ResponsiveText color={colors.textSecondary}>Loading products...</ResponsiveText>
+        </ResponsiveView>
+      ) : productsError ? (
+        <ResponsiveView padding="lg" alignItems="center">
+          <ResponsiveText color={colors.error}>Error loading products: {productsError}</ResponsiveText>
+        </ResponsiveView>
+      ) : (
+        <FlatList
+          key={`menu-${Responsive.responsiveValue(1, 1, 1, 2)}`}
+          data={filteredItems}
+          numColumns={Responsive.responsiveValue(1, 1, 1, 2)}
+          keyExtractor={(item) => item.id}
+          contentContainerStyle={{ 
+            padding: Responsive.ResponsiveSpacing.md,
+            paddingBottom: Responsive.ResponsiveSpacing.xl
+          }}
+          columnWrapperStyle={Responsive.isTablet ? { 
+            justifyContent: 'space-between',
+            marginBottom: Responsive.ResponsiveSpacing.md,
+            paddingHorizontal: Responsive.ResponsiveSpacing.xs,
+            gap: Responsive.ResponsiveSpacing.sm
+          } : undefined}
+          renderItem={({ item }) => (
+            <ProductCard
+              id={item.id}
+              name={item.name}
+              price={item.price}
+              image={item.image_url || 'https://via.placeholder.com/200x150'}
+              tags={item.is_recommended ? ['Recommended'] : []}
+              variant="vertical"
+              backgroundColor={colors.card}
+              textColor={colors.text}
+              priceColor={colors.themedPrice}
+              isSaved={isProductSaved(item.id)}
+              onSaveToggle={toggleSave}
+              onPress={() => router.push({
+                pathname: '/(customer)/product/[id]',
+                params: { id: item.id }
+              } as any)}
+            />
+          )}
+        />
+      )}
     </SafeAreaView>
   );
 }
@@ -245,11 +221,11 @@ const styles = StyleSheet.create({
   categoryItem: {
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: Responsive.responsiveValue(16, 18, 20, 24),
-    paddingVertical: Responsive.responsiveValue(8, 10, 12, 14),
-    borderRadius: Responsive.responsiveValue(20, 22, 24, 28),
-    marginRight: Responsive.responsiveValue(8, 10, 12, 14),
-    minWidth: Responsive.responsiveValue(60, 70, 80, 90),
+    paddingHorizontal: Responsive.responsiveValue(12, 14, 16, 18),
+    paddingVertical: Responsive.responsiveValue(6, 8, 10, 12),
+    borderRadius: Responsive.responsiveValue(16, 18, 20, 22),
+    marginRight: Responsive.responsiveValue(6, 8, 10, 12),
+    minWidth: Responsive.responsiveValue(50, 60, 70, 80),
   },
   categoryItemActive: {
     shadowColor: '#FFE44D',

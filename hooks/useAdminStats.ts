@@ -300,7 +300,7 @@ const fetchRecentActivity = async () => {
     supabase
       .from('products')
       .select(`
-        id, name, price, is_available, created_at,
+        id, name, base_price, is_available, created_at,
         category:categories(name)
       `)
       .order('created_at', { ascending: false })

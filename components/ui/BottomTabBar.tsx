@@ -13,10 +13,18 @@ const ICON_MAP: Record<string, { focused: React.ComponentProps<typeof MaterialCo
 };
 
 const BottomTabBar: React.FC<BottomTabBarProps> = ({ state, descriptors, navigation }) => {
-  const { colors } = useTheme();
+  const { colors, isDark } = useTheme();
   
   return (
-    <View style={[styles.container, { backgroundColor: colors.surface, borderTopColor: colors.border }]}>
+    <View
+      style={[
+        styles.container,
+        {
+          backgroundColor: isDark ? 'rgba(0,0,0,0.25)' : 'rgba(255,255,255,0.6)',
+          shadowColor: colors.black,
+        },
+      ]}
+    >
       {state.routes.map((route, index) => {
         const isFocused = state.index === index;
         const options = descriptors[route.key].options;
@@ -49,17 +57,26 @@ const BottomTabBar: React.FC<BottomTabBarProps> = ({ state, descriptors, navigat
             accessibilityLabel={options.tabBarAccessibilityLabel}
             onPress={onPress}
             onLongPress={onLongPress}
-            style={styles.tab}
+            style={[
+              styles.tab,
+            ]}
             activeOpacity={0.8}
           >
-            <MaterialCommunityIcons
-              name={isFocused ? iconConf.focused : iconConf.unfocused}
-              color={isFocused ? colors.primary : colors.textTertiary}
-              size={28}
-            />
-            <Text style={[styles.label, { color: isFocused ? colors.primary : colors.textTertiary }]}>
-              {iconConf.label}
-            </Text>
+            <View style={styles.item}>
+              <MaterialCommunityIcons
+                name={isFocused ? iconConf.focused : iconConf.unfocused}
+                color={isFocused ? (isDark ? colors.primary : colors.black) : colors.textTertiary}
+                size={26}
+              />
+              <Text
+                style={[
+                  styles.label,
+                  { color: isFocused ? (isDark ? colors.primary : colors.black) : colors.textTertiary },
+                ]}
+              >
+                {iconConf.label}
+              </Text>
+            </View>
           </TouchableOpacity>
         );
       })}
@@ -72,17 +89,32 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-around',
     alignItems: 'center',
-    height: 120,
-    paddingBottom: 60,
-    paddingTop: 30,
-    borderTopWidth: 1,
+    width: '100%',
+    height: 100,
+    paddingBottom: 46,
+    paddingTop: 18,
+    borderTopWidth: 0,
+    marginHorizontal: 0,
+    marginBottom: 0,
+    borderRadius: 0,
+    overflow: 'visible',
+    shadowOpacity: 0.1,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 4 },
   },
   tab: {
     width: '25%',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 8,
-    gap: 4,
+    paddingHorizontal: 6,
+    gap: 6,
+  },
+  item: {
+    flexDirection: 'column',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 8,
+    paddingHorizontal: 12,
   },
   label: {
     fontSize: 12,

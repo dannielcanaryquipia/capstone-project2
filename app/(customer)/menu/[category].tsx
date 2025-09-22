@@ -7,14 +7,12 @@ import ProductCard from '../../../components/ui/ProductCard';
 import ResponsiveText from '../../../components/ui/ResponsiveText';
 import ResponsiveView from '../../../components/ui/ResponsiveView';
 import Responsive from '../../../constants/Responsive';
-import { useSavedProducts } from '../../../contexts/SavedProductsContext';
 import { useTheme } from '../../../contexts/ThemeContext';
 import { useProductCategories, useProducts } from '../../../hooks';
 import type { Product } from '../../../types/product.types';
 
 export default function CategoryMenuScreen() {
   const { colors } = useTheme();
-  const { isProductSaved, toggleSave } = useSavedProducts();
   const router = useRouter();
   const { category } = useLocalSearchParams();
   const [searchQuery, setSearchQuery] = useState('');
@@ -131,15 +129,14 @@ export default function CategoryMenuScreen() {
             <ProductCard
               id={item.id}
               name={item.name}
-              price={item.price}
+              description={item.description}
+              price={item.base_price}
               image={item.image_url || 'https://via.placeholder.com/200x150'}
               tags={item.is_recommended ? ['Recommended'] : []}
               variant="vertical"
               backgroundColor={colors.card}
               textColor={colors.text}
               priceColor={colors.themedPrice}
-              isSaved={isProductSaved(item.id)}
-              onSaveToggle={toggleSave}
               onPress={() => router.push({
                 pathname: '/(customer)/product/[id]',
                 params: { id: item.id }

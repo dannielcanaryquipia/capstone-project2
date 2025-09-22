@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useState } from 'react';
-import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
 import { OrderService } from '../services/order.service';
 import { Order, OrderFilters, OrderStats, OrderTracking } from '../types/order.types';
+import { useAuth } from './useAuth';
 
 export const useOrders = (filters?: OrderFilters) => {
   const [orders, setOrders] = useState<Order[]>([]);

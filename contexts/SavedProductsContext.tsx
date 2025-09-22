@@ -1,6 +1,6 @@
 import React, { createContext, ReactNode, useContext, useEffect, useState } from 'react';
+import { useAuth } from '../hooks/useAuth';
 import { supabase } from '../lib/supabase-client';
-import { useAuth } from './AuthContext';
 
 interface SavedProduct {
   id: string;
@@ -72,7 +72,7 @@ export const SavedProductsProvider: React.FC<SavedProductsProviderProps> = ({ ch
           products!inner(
             id,
             name,
-            price,
+            base_price,
             image_url,
             category:categories(name),
             is_recommended
@@ -91,7 +91,7 @@ export const SavedProductsProvider: React.FC<SavedProductsProviderProps> = ({ ch
         product: {
           id: item.products.id,
           name: item.products.name,
-          price: item.products.price,
+          price: item.products.base_price,
           image: item.products.image_url,
           category: item.products.category?.name || 'Unknown',
           tags: item.products.is_recommended ? ['Recommended'] : [],

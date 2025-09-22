@@ -1,6 +1,6 @@
 import { MaterialIcons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { FlatList, StyleSheet, TextInput, TouchableOpacity } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import ProductCard from '../../../components/ui/ProductCard';
@@ -14,9 +14,7 @@ import type { Product, ProductCategory } from '../../../types/product.types';
 
 // Default categories for UI display
 const defaultCategories = [
-  { id: '1', name: 'All', icon: 'food' },
-  { id: '7', name: 'Popular', icon: 'star' },
-  { id: '8', name: 'Recommended', icon: 'thumb-up' },
+  { id: 'all', name: 'All' },
 ];
 
 export default function MenuScreen() {
@@ -24,55 +22,146 @@ export default function MenuScreen() {
   const { isProductSaved, toggleSave } = useSavedProducts();
   const router = useRouter();
   const { category, search } = useLocalSearchParams();
-  const [selectedCategory, setSelectedCategory] = useState('1');
+  const [selectedCategory, setSelectedCategory] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
+  const didInitFromParamsRef = useRef(false);
 
   // Use hooks for data fetching
   const { products, isLoading: productsLoading, error: productsError } = useProducts();
   const { categories: dbCategories, isLoading: categoriesLoading } = useProductCategories();
+  
+  // Debug logging removed
 
   // Combine default categories with database categories
   const allCategories = [
     ...defaultCategories,
     ...dbCategories.map((cat: ProductCategory) => ({
       id: cat.id,
-      name: cat.name,
-      icon: 'food' // Default icon for database categories
+      name: (cat.name || '').trim(),
     }))
   ];
 
-  // Set initial category and search based on route parameters
+  // Memoized category lookup for better performance
+  const categoryLookup = useMemo(() => {
+    const lookup = new Map();
+    allCategories.forEach(cat => {
+      lookup.set(cat.id, cat.name);
+    });
+    return lookup;
+  }, [allCategories]);
+
+  // Normalize category names for robust comparisons
+  const normalizeCategoryName = useCallback((name?: string) => (name || '').trim().toLowerCase(), []);
+
+  // Helper function to get product count for a category (memoized)
+  const getCategoryProductCount = useCallback((categoryId: string) => {
+    if (categoryId === 'all') return products.length;
+    const categoryName = categoryLookup.get(categoryId);
+    const normTarget = normalizeCategoryName(categoryName);
+    return products.filter(p => normalizeCategoryName(p.category?.name) === normTarget).length;
+  }, [products, categoryLookup, normalizeCategoryName]);
+
+  // Set initial category and search based on route parameters (only once)
   useEffect(() => {
+    if (didInitFromParamsRef.current) return;
+
     if (category) {
-      // Find category by name and set its ID
       const foundCategory = allCategories.find(c => c.name.toLowerCase() === category.toString().toLowerCase());
       if (foundCategory) {
         setSelectedCategory(foundCategory.id);
       }
     }
     if (search) {
-      // Set search query from route parameter
       setSearchQuery(search.toString());
     }
+
+    didInitFromParamsRef.current = true;
   }, [category, search, allCategories]);
 
-  const filteredItems = products.filter(
-    (product: Product) => {
-      const categoryName = allCategories.find(c => c.id === selectedCategory)?.name;
-      
-      // Handle special categories
-      if (categoryName === 'Popular') {
-        return product.is_recommended && product.name.toLowerCase().includes(searchQuery.toLowerCase());
-      }
-      if (categoryName === 'Recommended') {
-        return product.is_recommended && product.name.toLowerCase().includes(searchQuery.toLowerCase());
-      }
-      
-      // Handle regular categories
-      return (selectedCategory === '1' || product.category?.name === categoryName) &&
-             product.name.toLowerCase().includes(searchQuery.toLowerCase());
+  // Enhanced search and filtering logic
+  const filteredItems = useMemo(() => {
+    // Early return if no products
+    if (!products || products.length === 0) {
+      return [];
     }
-  );
+    
+    const categoryName = categoryLookup.get(selectedCategory);
+    const normSelected = normalizeCategoryName(categoryName);
+    const searchLower = searchQuery.trim().toLowerCase();
+    
+    // Debug removed
+    
+    return products.filter((product: Product) => {
+      // If no search query, show all products in category
+      if (!searchLower) {
+        if (selectedCategory === 'all') return true;
+        return normalizeCategoryName(product.category?.name) === normSelected;
+      }
+      
+      // Search in product name, description, and category (case-insensitive)
+      const nameMatch = product.name.toLowerCase().includes(searchLower);
+      const descMatch = product.description?.toLowerCase().includes(searchLower) || false;
+      const categoryMatchSearch = product.category?.name?.toLowerCase().includes(searchLower) || false;
+      const matchesSearch = nameMatch || descMatch || categoryMatchSearch;
+      
+      // Debug removed
+      
+      // Handle "All" category with search
+      if (selectedCategory === 'all') return matchesSearch;
+      
+      // For database categories, filter by both category and search
+      return normalizeCategoryName(product.category?.name) === normSelected && matchesSearch;
+    });
+  }, [products, selectedCategory, searchQuery, categoryLookup, normalizeCategoryName]);
+
+  // Optimized category selection handler
+  const handleCategorySelect = useCallback((categoryId: string) => {
+    setSelectedCategory(categoryId);
+  }, []);
+
+  // Remove emojis from input (ban emoji usage in search)
+  const removeEmojis = useCallback((value: string) => {
+    // Covers most emoji blocks (Misc Symbols & Pictographs, Transport & Map, Supplemental Symbols & Pictographs)
+    // plus common symbols range
+    const emojiRegex = /[\u2600-\u27BF\u{1F300}-\u{1F6FF}\u{1F900}-\u{1FAFF}]/gu;
+    return value.replace(emojiRegex, '');
+  }, []);
+
+  // Enhanced search handlers
+  const handleSearchChange = useCallback((text: string) => {
+    // Strip emojis before setting state
+    const sanitized = removeEmojis(text);
+    setSearchQuery(sanitized);
+  }, []);
+
+  const handleClearSearch = useCallback(() => {
+    setSearchQuery('');
+  }, []);
+
+  const handleSearchSubmit = useCallback(() => {
+    // Search is handled automatically by the filteredItems memo
+    // This can be used for additional search logic if needed
+  }, []);
+
+  // Memoized product card renderer for better performance
+  const renderProductCard = useCallback(({ item }: { item: Product }) => (
+    <ProductCard
+      id={item.id}
+      name={item.name}
+      description={item.description}
+      price={item.base_price}
+      image={item.image_url || 'https://via.placeholder.com/200x150'}
+      tags={item.is_recommended ? ['Recommended'] : []}
+      variant="vertical"
+      backgroundColor={colors.card}
+      textColor={colors.text}
+      priceColor={colors.themedPrice}
+      onPress={() => router.push({
+        pathname: '/(customer)/product/[id]',
+        params: { id: item.id }
+      } as any)}
+    />
+  ), [colors, router]);
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
@@ -80,17 +169,18 @@ export default function MenuScreen() {
       <ResponsiveView 
         flexDirection="row" 
         alignItems="center" 
-        backgroundColor={colors.card}
+        backgroundColor={colors.surface}
         marginHorizontal="lg"
         marginVertical="md"
         borderRadius="md"
         paddingHorizontal="md"
         height={Responsive.InputSizes.medium.height}
+        style={[styles.searchBarShadow, { borderColor: colors.border, borderWidth: 1 }]}
       >
         <MaterialIcons 
           name="search" 
-          size={Responsive.responsiveValue(20, 22, 24, 28)} 
-          color={colors.textSecondary} 
+          size={Responsive.responsiveValue(20, 22, 24, 26)} 
+          color={colors.textSecondary}
           style={{ marginRight: Responsive.ResponsiveSpacing.sm }}
         />
         <TextInput
@@ -101,21 +191,29 @@ export default function MenuScreen() {
               fontSize: Responsive.InputSizes.medium.fontSize
             }
           ]}
-          placeholder="Search for food or restaurant"
+          placeholder="Search for food"
           placeholderTextColor={colors.textSecondary}
           value={searchQuery}
-          onChangeText={setSearchQuery}
+          onChangeText={handleSearchChange}
+          onSubmitEditing={handleSearchSubmit}
+          returnKeyType="search"
         />
+        {/* Clear icon temporarily removed for debugging */}
       </ResponsiveView>
 
       {/* Categories */}
       <ResponsiveView marginBottom="sm">
-        <FlatList
-          data={allCategories}
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={{ paddingHorizontal: Responsive.ResponsiveSpacing.md }}
-          renderItem={({ item }) => (
+        {categoriesLoading ? (
+          <ResponsiveView padding="md" alignItems="center">
+            <ResponsiveText color={colors.textSecondary}>Loading categories...</ResponsiveText>
+          </ResponsiveView>
+        ) : (
+          <FlatList
+            data={allCategories}
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={{ paddingHorizontal: Responsive.ResponsiveSpacing.md }}
+            renderItem={({ item }) => (
             <TouchableOpacity
               style={[
                 styles.categoryItem,
@@ -126,19 +224,21 @@ export default function MenuScreen() {
                 },
                 selectedCategory === item.id && styles.categoryItemActive,
               ]}
-              onPress={() => setSelectedCategory(item.id)}
+              onPress={() => handleCategorySelect(item.id)}
             >
-              <ResponsiveText
-                size="sm"
-                color={selectedCategory === item.id ? colors.categoryButtonActiveText : colors.categoryButtonText}
-                weight={selectedCategory === item.id ? 'semiBold' : 'regular'}
-              >
-                {item.name}
-              </ResponsiveText>
+                <ResponsiveText
+                  size="sm"
+                  color={selectedCategory === item.id ? colors.categoryButtonActiveText : colors.categoryButtonText}
+                  weight={selectedCategory === item.id ? 'semiBold' : 'regular'}
+                  style={{ textAlign: 'center', lineHeight: undefined }}
+                >
+                  {item.name}{getCategoryProductCount(item.id) > 0 ? ` (${getCategoryProductCount(item.id)})` : ''}
+                </ResponsiveText>
             </TouchableOpacity>
           )}
           keyExtractor={item => item.id}
         />
+        )}
       </ResponsiveView>
 
       {/* Menu Items */}
@@ -150,42 +250,74 @@ export default function MenuScreen() {
         <ResponsiveView padding="lg" alignItems="center">
           <ResponsiveText color={colors.error}>Error loading products: {productsError}</ResponsiveText>
         </ResponsiveView>
+      ) : filteredItems.length === 0 ? (
+        <ResponsiveView padding="xl" alignItems="center">
+          <MaterialIcons 
+            name={searchQuery ? "search-off" : "restaurant-menu"} 
+            size={Responsive.responsiveValue(48, 56, 64, 72)} 
+            color={colors.textSecondary} 
+          />
+          <ResponsiveView marginTop="md" alignItems="center">
+            <ResponsiveText size="lg" weight="semiBold" color={colors.text}>
+              {searchQuery ? `No results for "${searchQuery}"` : 'No products found'}
+            </ResponsiveText>
+            <ResponsiveText size="md" color={colors.textSecondary} style={{ textAlign: 'center', marginTop: Responsive.responsiveValue(4, 6, 8, 10) }}>
+              {searchQuery ? 'Try a different search term or clear the search' : 'No products in this category'}
+            </ResponsiveText>
+            {searchQuery && (
+              <TouchableOpacity 
+                onPress={handleClearSearch}
+                style={[styles.clearSearchButton, { backgroundColor: colors.primary }]}
+              >
+                <ResponsiveText size="sm" weight="semiBold" color="white">
+                  Clear Search
+                </ResponsiveText>
+              </TouchableOpacity>
+            )}
+          </ResponsiveView>
+        </ResponsiveView>
       ) : (
-        <FlatList
-          key={`menu-${Responsive.responsiveValue(1, 1, 1, 2)}`}
-          data={filteredItems}
-          numColumns={Responsive.responsiveValue(1, 1, 1, 2)}
-          keyExtractor={(item) => item.id}
-          contentContainerStyle={{ 
-            padding: Responsive.ResponsiveSpacing.md,
-            paddingBottom: Responsive.ResponsiveSpacing.xl
-          }}
-          columnWrapperStyle={Responsive.isTablet ? { 
-            justifyContent: 'space-between',
-            marginBottom: Responsive.ResponsiveSpacing.md,
-            paddingHorizontal: Responsive.ResponsiveSpacing.xs,
-            gap: Responsive.ResponsiveSpacing.sm
-          } : undefined}
-          renderItem={({ item }) => (
-            <ProductCard
-              id={item.id}
-              name={item.name}
-              price={item.price}
-              image={item.image_url || 'https://via.placeholder.com/200x150'}
-              tags={item.is_recommended ? ['Recommended'] : []}
-              variant="vertical"
-              backgroundColor={colors.card}
-              textColor={colors.text}
-              priceColor={colors.themedPrice}
-              isSaved={isProductSaved(item.id)}
-              onSaveToggle={toggleSave}
-              onPress={() => router.push({
-                pathname: '/(customer)/product/[id]',
-                params: { id: item.id }
-              } as any)}
-            />
-          )}
-        />
+        <>
+           {/* Search Results Counter */}
+           {false && searchQuery && (
+             <ResponsiveView 
+               paddingHorizontal="lg" 
+               paddingBottom="sm"
+               flexDirection="row"
+               alignItems="center"
+               justifyContent="space-between"
+             >
+               <ResponsiveText size="sm" color={colors.textSecondary}>
+                 {filteredItems.length} result{filteredItems.length !== 1 ? 's' : ''} for "{searchQuery}"
+               </ResponsiveText>
+               {/* Clear link temporarily removed for debugging */}
+             </ResponsiveView>
+           )}
+           
+          {/* Debug info removed */}
+          
+          <FlatList
+            key={`menu-${Responsive.responsiveValue(1, 1, 1, 2)}`}
+            data={filteredItems}
+            numColumns={Responsive.responsiveValue(1, 1, 1, 2)}
+            keyExtractor={(item) => item.id}
+            renderItem={renderProductCard}
+            contentContainerStyle={{ 
+              padding: Responsive.ResponsiveSpacing.md,
+              paddingBottom: Responsive.ResponsiveSpacing.xl
+            }}
+            columnWrapperStyle={Responsive.isTablet ? { 
+              justifyContent: 'space-between',
+              marginBottom: Responsive.ResponsiveSpacing.md,
+              paddingHorizontal: Responsive.ResponsiveSpacing.xs,
+              gap: Responsive.ResponsiveSpacing.sm
+            } : undefined}
+            removeClippedSubviews={true}
+            maxToRenderPerBatch={10}
+            windowSize={10}
+            initialNumToRender={10}
+          />
+        </>
       )}
     </SafeAreaView>
   );
@@ -219,20 +351,22 @@ const styles = StyleSheet.create({
     paddingHorizontal: 15,
   },
   categoryItem: {
+    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: Responsive.responsiveValue(12, 14, 16, 18),
     paddingVertical: Responsive.responsiveValue(6, 8, 10, 12),
     borderRadius: Responsive.responsiveValue(16, 18, 20, 22),
     marginRight: Responsive.responsiveValue(6, 8, 10, 12),
-    minWidth: Responsive.responsiveValue(50, 60, 70, 80),
+    minWidth: Responsive.responsiveValue(72, 80, 88, 100),
+    minHeight: Responsive.responsiveValue(36, 40, 44, 48),
   },
   categoryItemActive: {
     shadowColor: '#FFE44D',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
-    elevation: 4,
+    shadowOpacity: 0.2,
+    shadowRadius: 3,
+    elevation: 0, // Remove elevation to prevent text elevation issues
   },
   categoryName: {
     marginLeft: 8,
@@ -302,5 +436,22 @@ const styles = StyleSheet.create({
   menuItemPrice: {
     fontSize: 16,
     fontWeight: 'bold',
+  },
+  clearButton: {
+    padding: Responsive.responsiveValue(4, 6, 8, 10),
+    marginLeft: Responsive.responsiveValue(4, 6, 8, 10),
+  },
+  clearSearchButton: {
+    paddingHorizontal: Responsive.responsiveValue(16, 20, 24, 28),
+    paddingVertical: Responsive.responsiveValue(8, 10, 12, 14),
+    borderRadius: Responsive.responsiveValue(8, 10, 12, 16),
+    marginTop: Responsive.responsiveValue(12, 16, 20, 24),
+  },
+  searchBarShadow: {
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
   },
 });

@@ -1,5 +1,5 @@
 import { router } from 'expo-router';
-import { useState } from 'react';
+import React, { useCallback, useMemo } from 'react';
 import { Platform, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import AuthFooter from '../../components/auth/AuthFooter';
@@ -10,8 +10,9 @@ import Input from '../../components/ui/Input';
 import { Strings } from '../../constants/Strings';
 import { useTheme } from '../../contexts/ThemeContext';
 import { useAuth } from '../../hooks/useAuth';
+import { useFormValidation } from '../../hooks/useFormValidation';
 import global from '../../styles/global';
-import { commonRules, validateForm, ValidationErrors } from '../../utils/validation';
+import { commonRules } from '../../utils/validation';
 
 const createStyles = (colors: any) => StyleSheet.create({
   safeArea: { 
@@ -31,54 +32,44 @@ const createStyles = (colors: any) => StyleSheet.create({
 export default function SignUpScreen() {
   const { colors } = useTheme();
   const styles = createStyles(colors);
-  const [formData, setFormData] = useState({
-    email: '',
-    password: '',
-    confirmPassword: '',
-    fullName: '',
-    phone: ''
-  });
-  const [formErrors, setFormErrors] = useState<ValidationErrors>({});
   const { signUp, isLoading, error } = useAuth();
 
-  const validationRules = {
+  const validationRules = useMemo(() => ({
     fullName: commonRules.fullName,
     email: commonRules.email,
     password: commonRules.password,
     confirmPassword: {
       ...commonRules.confirmPassword,
       custom: (value: string) => {
-        if (formData.password && value !== formData.password) {
-          return 'Passwords do not match';
-        }
+        // This will be updated when password changes
         return null;
       },
     },
     phone: commonRules.phone,
-  };
+  }), []);
 
-  const validateFormData = () => {
-    const errors = validateForm(formData, validationRules);
-    setFormErrors(errors);
-    return Object.keys(errors).length === 0;
-  };
+  const {
+    formData,
+    formErrors,
+    updateField,
+    validateFormData,
+    isFormValid,
+  } = useFormValidation(
+    { email: '', password: '', confirmPassword: '', fullName: '', phone: '' },
+    { rules: validationRules, debounceMs: 300 }
+  );
 
-  const handleInputChange = (field: string, value: string) => {
-    setFormData(prev => ({
-      ...prev,
-      [field]: value
-    }));
-    
-    // Clear error when user starts typing
-    if (formErrors[field]) {
-      setFormErrors(prev => ({
-        ...prev,
-        [field]: ''
-      }));
+  // Update confirmPassword validation when password changes
+  const handlePasswordChange = useCallback((value: string) => {
+    updateField('password', value);
+    // Re-validate confirmPassword if it has a value
+    if (formData.confirmPassword) {
+      const confirmPasswordError = formData.confirmPassword !== value ? 'Passwords do not match' : '';
+      // This will be handled by the validation system
     }
-  };
+  }, [updateField, formData.confirmPassword]);
 
-  const handleSignUp = async () => {
+  const handleSignUp = useCallback(async () => {
     if (!validateFormData()) return;
     
     try {
@@ -87,7 +78,11 @@ export default function SignUpScreen() {
     } catch (error) {
       // Error is handled by the useAuth hook
     }
-  };
+  }, [formData.email, formData.password, formData.fullName, formData.phone, validateFormData, signUp]);
+
+  const isButtonDisabled = useMemo(() => {
+    return !formData.email || !formData.password || !formData.confirmPassword || !formData.fullName || isLoading || !isFormValid;
+  }, [formData.email, formData.password, formData.confirmPassword, formData.fullName, isLoading, isFormValid]);
 
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor: colors.background }]}>
@@ -98,7 +93,7 @@ export default function SignUpScreen() {
           <Input
             label={Strings.fullNameLabel}
             value={formData.fullName}
-            onChangeText={(value) => handleInputChange('fullName', value)}
+            onChangeText={(value) => updateField('fullName', value)}
             placeholder="Enter your full name"
             autoCapitalize="words"
             error={formErrors.fullName}
@@ -109,7 +104,7 @@ export default function SignUpScreen() {
           <Input
             label={Strings.emailLabel}
             value={formData.email}
-            onChangeText={(value) => handleInputChange('email', value)}
+            onChangeText={(value) => updateField('email', value)}
             placeholder="Enter your email"
             keyboardType="email-address"
             autoCapitalize="none"
@@ -122,7 +117,7 @@ export default function SignUpScreen() {
           <Input
             label={Strings.passwordLabel}
             value={formData.password}
-            onChangeText={(value) => handleInputChange('password', value)}
+            onChangeText={handlePasswordChange}
             placeholder="Create a password (min 6 characters)"
             autoCapitalize="none"
             autoComplete="new-password"
@@ -135,7 +130,7 @@ export default function SignUpScreen() {
           <Input
             label={Strings.confirmPasswordLabel}
             value={formData.confirmPassword}
-            onChangeText={(value) => handleInputChange('confirmPassword', value)}
+            onChangeText={(value) => updateField('confirmPassword', value)}
             placeholder="Confirm your password"
             autoCapitalize="none"
             autoComplete="new-password"
@@ -148,7 +143,7 @@ export default function SignUpScreen() {
           <Input
             label={`${Strings.phoneLabel} ${Strings.optional}`}
             value={formData.phone}
-            onChangeText={(value) => handleInputChange('phone', value)}
+            onChangeText={(value) => updateField('phone', value)}
             placeholder="Enter your phone number"
             keyboardType="phone-pad"
             error={formErrors.phone}
@@ -160,8 +155,8 @@ export default function SignUpScreen() {
             title={Strings.signUpCta}
             onPress={handleSignUp}
             loading={isLoading}
-            disabled={!formData.email || !formData.password || !formData.confirmPassword || !formData.fullName || isLoading}
-            style={[global.button, (!formData.email || !formData.password || !formData.confirmPassword || !formData.fullName) && global.buttonDisabled]}
+            disabled={isButtonDisabled}
+            style={[global.button, isButtonDisabled && global.buttonDisabled]}
             fullWidth
           />
 

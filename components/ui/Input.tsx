@@ -1,5 +1,5 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import React, { forwardRef, useState } from 'react';
+import React, { forwardRef, useCallback, useMemo, useState } from 'react';
 import { StyleSheet, Text, TextInput, TextInputProps, TextStyle, TouchableOpacity, View, ViewStyle } from 'react-native';
 import Layout from '../../constants/Layout';
 import { useTheme } from '../../contexts/ThemeContext';
@@ -40,9 +40,10 @@ const Input = forwardRef<TextInput, InputProps>(({
 }, ref) => {
   const theme = useTheme();
   const [isFocused, setIsFocused] = useState(false);
-  const [isPasswordVisible, setIsPasswordVisible] = useState(false);
+  const [isPasswordVisible, setIsPasswordVisible] = useState(true);
   
-  const getContainerStyle = (): ViewStyle => {
+  // Memoize style calculations to prevent unnecessary re-renders
+  const containerStyleMemo = useMemo((): ViewStyle => {
     const baseStyle: ViewStyle = {
       width: fullWidth ? '100%' : undefined,
       marginBottom: Layout.spacing.sm,
@@ -52,9 +53,9 @@ const Input = forwardRef<TextInput, InputProps>(({
       ...baseStyle,
       ...containerStyle,
     };
-  };
+  }, [fullWidth, containerStyle]);
 
-  const getInputContainerStyle = (): ViewStyle => {
+  const inputContainerStyleMemo = useMemo((): ViewStyle => {
     const baseStyle: ViewStyle = {
       flexDirection: 'row',
       alignItems: 'center',
@@ -104,9 +105,9 @@ const Input = forwardRef<TextInput, InputProps>(({
       ...variantStyles[variant],
       ...sizeStyles[size],
     };
-  };
+  }, [variant, size, error, isFocused, theme.colors]);
 
-  const getInputStyle = (): TextStyle => {
+  const inputStyleMemo = useMemo((): TextStyle => {
     const baseStyle: TextStyle = {
       flex: 1,
       color: theme.colors.text,
@@ -127,72 +128,70 @@ const Input = forwardRef<TextInput, InputProps>(({
       ...sizeStyles[size],
       ...inputStyle,
     };
-  };
+  }, [size, theme.colors.text, inputStyle]);
 
-  const getLabelStyle = (): TextStyle => ({
+  const labelStyleMemo = useMemo((): TextStyle => ({
     fontSize: Layout.fontSize.sm,
     marginBottom: Layout.spacing.xs,
     color: theme.colors.text,
     fontWeight: 'normal',
     fontFamily: 'PoppinsRegular',
     ...labelStyle,
-  });
+  }), [theme.colors.text, labelStyle]);
 
-  const getErrorStyle = (): TextStyle => ({
+  const errorStyleMemo = useMemo((): TextStyle => ({
     fontSize: Layout.fontSize.xs,
     color: theme.colors.error,
     fontFamily: 'PoppinsRegular',
     marginTop: Layout.spacing.xs,
     ...errorStyle,
-  });
+  }), [theme.colors.error, errorStyle]);
 
-  const renderLeftIcon = () => {
+  // Memoize icon rendering to prevent unnecessary re-renders
+  const renderLeftIcon = useCallback(() => {
     if (leftIcon) return leftIcon;
     
-    if (iconType === 'email') {
-      return (
-        <MaterialCommunityIcons 
-          name="email-outline" 
-          size={20} 
-          color={isFocused ? theme.colors.primary : theme.colors.textTertiary} 
-        />
-      );
-    }
+    const iconColor = isFocused ? theme.colors.primary : theme.colors.textTertiary;
     
-    if (iconType === 'password') {
-      return (
-        <MaterialCommunityIcons 
-          name="lock-outline" 
-          size={20} 
-          color={isFocused ? theme.colors.primary : theme.colors.textTertiary} 
-        />
-      );
+    switch (iconType) {
+      case 'email':
+        return (
+          <MaterialCommunityIcons 
+            name="email-outline" 
+            size={20} 
+            color={iconColor} 
+          />
+        );
+      case 'password':
+        return (
+          <MaterialCommunityIcons 
+            name="lock-outline" 
+            size={20} 
+            color={iconColor} 
+          />
+        );
+      case 'person':
+        return (
+          <MaterialCommunityIcons 
+            name="account-outline" 
+            size={20} 
+            color={iconColor} 
+          />
+        );
+      case 'phone':
+        return (
+          <MaterialCommunityIcons 
+            name="phone-outline" 
+            size={20} 
+            color={iconColor} 
+          />
+        );
+      default:
+        return null;
     }
-    
-    if (iconType === 'person') {
-      return (
-        <MaterialCommunityIcons 
-          name="account-outline" 
-          size={20} 
-          color={isFocused ? theme.colors.primary : theme.colors.textTertiary} 
-        />
-      );
-    }
-    
-    if (iconType === 'phone') {
-      return (
-        <MaterialCommunityIcons 
-          name="phone-outline" 
-          size={20} 
-          color={isFocused ? theme.colors.primary : theme.colors.textTertiary} 
-        />
-      );
-    }
-    
-    return null;
-  };
+  }, [leftIcon, iconType, isFocused, theme.colors.primary, theme.colors.textTertiary]);
 
-  const renderRightIcon = () => {
+  const renderRightIcon = useCallback(() => {
     if (rightIcon) return rightIcon;
     
     if (showPasswordToggle) {
@@ -202,7 +201,7 @@ const Input = forwardRef<TextInput, InputProps>(({
           style={styles.iconButton}
         >
           <MaterialCommunityIcons 
-            name={isPasswordVisible ? "eye-off-outline" : "eye-outline"} 
+            name={isPasswordVisible ? "eye-outline" : "eye-off-outline"} 
             size={20} 
             color={isFocused ? theme.colors.primary : theme.colors.textTertiary} 
           />
@@ -211,25 +210,34 @@ const Input = forwardRef<TextInput, InputProps>(({
     }
     
     return null;
-  };
+  }, [rightIcon, showPasswordToggle, isPasswordVisible, isFocused, theme.colors.primary, theme.colors.textTertiary]);
+
+  // Memoize focus handlers
+  const handleFocus = useCallback(() => {
+    setIsFocused(true);
+  }, []);
+
+  const handleBlur = useCallback(() => {
+    setIsFocused(false);
+  }, []);
 
   return (
-    <View style={getContainerStyle()}>
-      {label && <Text style={getLabelStyle()}>{label}</Text>}
-      <View style={getInputContainerStyle()}>
+    <View style={containerStyleMemo}>
+      {label && <Text style={labelStyleMemo}>{label}</Text>}
+      <View style={inputContainerStyleMemo}>
         {renderLeftIcon() && <View style={styles.iconContainer}>{renderLeftIcon()}</View>}
         <TextInput
           ref={ref}
-          style={getInputStyle()}
+          style={inputStyleMemo}
           placeholderTextColor={theme.colors.textTertiary}
-          onFocus={() => setIsFocused(true)}
-          onBlur={() => setIsFocused(false)}
+          onFocus={handleFocus}
+          onBlur={handleBlur}
           secureTextEntry={showPasswordToggle ? !isPasswordVisible : props.secureTextEntry}
           {...props}
         />
         {renderRightIcon() && <View style={styles.iconContainer}>{renderRightIcon()}</View>}
       </View>
-      {error && <Text style={getErrorStyle()}>{error}</Text>}
+      {error && <Text style={errorStyleMemo}>{error}</Text>}
     </View>
   );
 });

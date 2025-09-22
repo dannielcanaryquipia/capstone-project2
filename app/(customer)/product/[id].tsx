@@ -1,43 +1,75 @@
-import { Ionicons, MaterialIcons } from '@expo/vector-icons';
+import { MaterialIcons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Dimensions, Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import SelectablePill from '../../../components/ui/SelectablePill';
 import Layout from '../../../constants/Layout';
 import { useTheme } from '../../../contexts/ThemeContext';
+import { useCrusts, useProductDetail } from '../../../hooks/useProductDetail';
 
 const { width } = Dimensions.get('window');
 
-const productData = {
-  id: '1',
-  name: 'Pepperoni Pizza',
-  description: 'Classic pepperoni pizza with mozzarella cheese and tomato sauce, topped with fresh basil leaves.',
-  price: 12.99,
-  rating: 4.8,
-  reviewCount: 124,
-  calories: 850,
-  ingredients: ['Pepperoni', 'Mozzarella', 'Tomato Sauce', 'Basil'],
-  image: 'https://images.unsplash.com/photo-1628840042765-356cda07504e?w=800&auto=format&fit=crop&q=60&ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxzZWFyY2h8Mnx8cGVwcGVyb25pJTIwcGl6emF8ZW58MHx8MHx8fDA%3D',
-  relatedItems: [
-    {
-      id: '2',
-      name: 'Cheese Burger',
-      price: 8.99,
-      image: 'https://images.unsplash.com/photo-1568901346375-23c9450c58cd?w=500&auto=format&fit=crop&q=60&ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxzZWFyY2h8Mnx8Y2hlZXNlJTIwYnVyZ2VyfGVufDB8fDB8fHww',
-    },
-    // Add more related items...
-  ],
+// Mock data fallback for loading states
+const mockProductData = {
+  id: 'loading',
+  name: 'Loading...',
+  description: 'Loading product details...',
+  base_price: 0,
+  image_url: 'https://via.placeholder.com/400x300',
+  is_available: true,
+  is_recommended: false,
+  preparation_time_minutes: 30,
+  allergens: [],
+  nutritional_info: null,
+  category: { name: 'Loading...', description: '' },
+  pizza_options: [],
 };
 
 export default function ProductScreen() {
   const { id } = useLocalSearchParams();
-  const { colors } = useTheme();
+  const { colors, isDark } = useTheme();
   const router = useRouter();
   const [quantity, setQuantity] = useState(1);
-  const [selectedSize, setSelectedSize] = useState('medium');
-  const [selectedCrust, setSelectedCrust] = useState('original');
+  const [selectedSize, setSelectedSize] = useState('');
+  const [selectedCrust, setSelectedCrust] = useState('');
 
-  // In a real app, you would fetch the product data based on the ID
-  const product = productData;
+  // Fetch real product data from backend
+  const { productDetail, isLoading, error } = useProductDetail(id as string);
+  const product = productDetail || mockProductData;
+
+  // Determine if this is a Pizza category (to show size & crust)
+  const isPizzaCategory = useMemo(() => {
+    const name = (product.category?.name || '').trim().toLowerCase();
+    return name === 'pizza' || name === 'pizzas';
+  }, [product]);
+
+  // Derive sizes and crusts from product.pizza_options
+  const availableSizes = useMemo(() => {
+    return Array.from(new Set((product.pizza_options || []).map((o: any) => o.size)));
+  }, [product]);
+
+  // Fetch all crusts from crusts table (not from pizza_options)
+  const { crusts: allCrusts } = useCrusts();
+  const availableCrustsForSize = useMemo(() => (allCrusts || []).map(c => c.name), [allCrusts]);
+
+  // Determine price based on selected size (fallback to base_price)
+  const selectedSizePrice = useMemo(() => {
+    const option = (product.pizza_options || []).find((o: any) => o.size === selectedSize);
+    return option?.price ?? product.base_price;
+  }, [product, selectedSize]);
+
+  // Initialize defaults when data is ready
+  useEffect(() => {
+    if (!selectedSize && availableSizes.length > 0) {
+      setSelectedSize(availableSizes[0]);
+    }
+  }, [availableSizes, selectedSize]);
+
+  useEffect(() => {
+    if (!selectedCrust && availableCrustsForSize.length > 0) {
+      setSelectedCrust(availableCrustsForSize[0]);
+    }
+  }, [availableCrustsForSize, selectedCrust]);
 
   const increaseQuantity = () => setQuantity(prev => prev + 1);
   const decreaseQuantity = () => setQuantity(prev => Math.max(1, prev - 1));
@@ -47,131 +79,138 @@ export default function ProductScreen() {
     console.log(`Added ${quantity} ${product.name}(s) to cart`);
   };
 
+  if (isLoading) {
+    return (
+      <View style={[styles.container, { backgroundColor: colors.background }]}>
+        <View style={styles.loadingContainer}>
+          <Text style={[styles.loadingText, { color: colors.text }]}>Loading product...</Text>
+        </View>
+      </View>
+    );
+  }
+
+  if (error) {
+    return (
+      <View style={[styles.container, { backgroundColor: colors.background }]}>
+        <View style={styles.loadingContainer}>
+          <Text style={[styles.loadingText, { color: colors.error }]}>Error loading product: {error}</Text>
+        </View>
+      </View>
+    );
+  }
+
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-          <Ionicons name="arrow-back" size={24} color={colors.text} />
+          <MaterialIcons name="arrow-back" size={28} color={isDark ? colors.primary : colors.white} style={styles.iconShadow} />
         </TouchableOpacity>
         <View style={styles.headerIcons}>
           <TouchableOpacity style={styles.iconButton}>
-            <Ionicons name="heart-outline" size={24} color={colors.text} />
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.iconButton}>
-            <Ionicons name="share-social-outline" size={24} color={colors.text} />
+            <MaterialIcons name="favorite-border" size={28} color={isDark ? colors.primary : colors.white} style={styles.iconShadow} />
           </TouchableOpacity>
         </View>
       </View>
 
       <ScrollView showsVerticalScrollIndicator={false}>
         {/* Product Image */}
-        <Image source={{ uri: product.image }} style={styles.productImage} />
+        <Image source={{ uri: product.image_url || 'https://via.placeholder.com/400x300' }} style={styles.productImage} />
 
         {/* Product Info */}
         <View style={[styles.productInfo, { backgroundColor: colors.card }]}>
           <View style={styles.productHeader}>
-            <View>
-              <Text style={[styles.productName, { color: colors.text }]}>{product.name}</Text>
-              <View style={styles.ratingContainer}>
-                <MaterialIcons name="star" size={20} color="#FFD700" />
-                <Text style={[styles.ratingText, { color: colors.textSecondary }]}>
-                  {product.rating} ({product.reviewCount} reviews)
-                </Text>
-              </View>
+            <View style={styles.productTitleContainer}>
+              <Text
+                style={[styles.productName, { color: colors.text }]}
+                numberOfLines={2}
+                ellipsizeMode="tail"
+                adjustsFontSizeToFit
+                minimumFontScale={0.9}
+              >
+                {product.name}
+              </Text>
             </View>
-            <Text style={[styles.price, { color: colors.themedPrice }]}>${product.price.toFixed(2)}</Text>
+            <Text style={[styles.price, { color: colors.themedPrice }]}>₱{selectedSizePrice.toFixed(2)}</Text>
           </View>
 
           <Text style={[styles.description, { color: colors.textSecondary }]}>
             {product.description}
           </Text>
 
-          {/* Size Selection */}
-          <View style={styles.section}>
-            <Text style={[styles.sectionTitle, { color: colors.text }]}>Size</Text>
-            <View style={styles.sizeContainer}>
-              {['small', 'medium', 'large'].map(size => (
-                <TouchableOpacity
-                  key={size}
-                  style={[
-                    styles.sizeButton,
-                    selectedSize === size && { backgroundColor: colors.primary },
-                  ]}
-                  onPress={() => setSelectedSize(size)}
-                >
-                  <Text
-                    style={[
-                      styles.sizeText,
-                      selectedSize === size && { color: '#fff' },
-                    ]}
-                  >
-                    {size.charAt(0).toUpperCase() + size.slice(1)}
-                  </Text>
-                </TouchableOpacity>
-              ))}
+          {/* Size Selection (from product_options) - Only for Pizza */}
+          {isPizzaCategory && availableSizes.length > 0 && (
+            <View style={styles.section}>
+              <Text style={[styles.sectionTitle, { color: colors.text }]}>Size</Text>
+              <View style={styles.sizeContainer}>
+                {availableSizes.map(size => (
+                  <SelectablePill
+                    key={String(size)}
+                    label={String(size).charAt(0).toUpperCase() + String(size).slice(1)}
+                    selected={selectedSize === size}
+                    onPress={() => setSelectedSize(size)}
+                    size="md"
+                  />
+                ))}
+              </View>
             </View>
+          )}
+
+          {/* Crust Selection (from crusts.name) - Only for Pizza */}
+          {isPizzaCategory && availableCrustsForSize.length > 0 && (
+            <View style={styles.section}>
+              <Text style={[styles.sectionTitle, { color: colors.text }]}>Crust</Text>
+              <View style={styles.sizeContainer}>
+                {availableCrustsForSize.map(crust => (
+                  <SelectablePill
+                    key={String(crust)}
+                    label={String(crust).charAt(0).toUpperCase() + String(crust).slice(1)}
+                    selected={selectedCrust === crust}
+                    onPress={() => setSelectedCrust(crust)}
+                    size="md"
+                  />
+                ))}
+              </View>
+            </View>
+          )}
+
+          {/* Allergens */}
+          {product.allergens && product.allergens.length > 0 && (
+            <View style={styles.section}>
+              <Text style={[styles.sectionTitle, { color: colors.text }]}>Allergens</Text>
+              <View style={styles.ingredientsContainer}>
+                {product.allergens.map((allergen: string, index: number) => (
+                  <View key={index} style={[styles.ingredientTag, { backgroundColor: colors.background }]}>
+                    <Text style={[styles.ingredientText, { color: colors.text }]}>{allergen}</Text>
+                  </View>
+                ))}
+              </View>
+            </View>
+          )}
+
+          {/* Preparation Time */}
+          <View style={styles.section}>
+            <Text style={[styles.sectionTitle, { color: colors.text }]}>Preparation Time</Text>
+            <Text style={[styles.preparationTime, { color: colors.textSecondary }]}>
+              {product.preparation_time_minutes || 30} minutes
+            </Text>
           </View>
 
-          {/* Crust Selection */}
+          {/* Category Info */}
           <View style={styles.section}>
-            <Text style={[styles.sectionTitle, { color: colors.text }]}>Crust</Text>
-            <View style={styles.crustContainer}>
-              {['original', 'thin', 'cheese'].map(crust => (
-                <TouchableOpacity
-                  key={crust}
-                  style={[
-                    styles.crustButton,
-                    selectedCrust === crust && { borderColor: colors.primary },
-                  ]}
-                  onPress={() => setSelectedCrust(crust)}
-                >
-                  <Text
-                    style={[
-                      styles.crustText,
-                      { color: colors.text },
-                      selectedCrust === crust && { color: colors.primary, fontWeight: Layout.fontWeight.semiBold, fontFamily: Layout.fontFamily.semiBold },
-                    ]}
-                  >
-                    {crust.charAt(0).toUpperCase() + crust.slice(1)}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-          </View>
-
-          {/* Ingredients */}
-          <View style={styles.section}>
-            <Text style={[styles.sectionTitle, { color: colors.text }]}>Ingredients</Text>
-            <View style={styles.ingredientsContainer}>
-              {product.ingredients.map((ingredient, index) => (
-                <View key={index} style={[styles.ingredientTag, { backgroundColor: colors.background }]}>
-                  <Text style={[styles.ingredientText, { color: colors.text }]}>{ingredient}</Text>
-                </View>
-              ))}
-            </View>
-          </View>
-
-          {/* Nutrition Info */}
-          <View style={styles.nutritionContainer}>
-            <View style={styles.nutritionItem}>
-              <Text style={[styles.nutritionValue, { color: colors.primary }]}>{product.calories}</Text>
-              <Text style={[styles.nutritionLabel, { color: colors.textSecondary }]}>Calories</Text>
-            </View>
-            <View style={styles.nutritionDivider} />
-            <View style={styles.nutritionItem}>
-              <Text style={[styles.nutritionValue, { color: colors.primary }]}>12g</Text>
-              <Text style={[styles.nutritionLabel, { color: colors.textSecondary }]}>Fat</Text>
-            </View>
-            <View style={styles.nutritionDivider} />
-            <View style={styles.nutritionItem}>
-              <Text style={[styles.nutritionValue, { color: colors.primary }]}>24g</Text>
-              <Text style={[styles.nutritionLabel, { color: colors.textSecondary }]}>Protein</Text>
-            </View>
+            <Text style={[styles.sectionTitle, { color: colors.text }]}>Category</Text>
+            <Text style={[styles.categoryName, { color: colors.textSecondary }]}>
+              {product.category?.name || 'Unknown'}
+            </Text>
+            {product.category?.description && (
+              <Text style={[styles.categoryDescription, { color: colors.textSecondary }]}>
+                {product.category.description}
+              </Text>
+            )}
           </View>
         </View>
 
-        {/* Related Items */}
+        {/* You May Also Like (mockup) */}
         <View style={styles.relatedSection}>
           <Text style={[styles.sectionTitle, { color: colors.text }]}>You may also like</Text>
           <ScrollView
@@ -179,21 +218,15 @@ export default function ProductScreen() {
             showsHorizontalScrollIndicator={false}
             contentContainerStyle={styles.relatedItemsContainer}
           >
-            {product.relatedItems.map(item => (
-              <TouchableOpacity
-                key={item.id}
-                style={[styles.relatedItem, { backgroundColor: colors.card }]}
-                onPress={() => router.push({
-                  pathname: '/(customer)/product/[id]',
-                  params: { id: item.id }
-                } as any)}
-              >
-                <Image source={{ uri: item.image }} style={styles.relatedItemImage} />
-                <Text style={[styles.relatedItemName, { color: colors.text }]}>{item.name}</Text>
-                <Text style={[styles.relatedItemPrice, { color: colors.themedPrice }]}>
-                  ${item.price.toFixed(2)}
-                </Text>
-              </TouchableOpacity>
+            {[1, 2, 3].map((i) => (
+              <View key={i} style={[styles.relatedItem, { backgroundColor: colors.card }]}>
+                <Image
+                  source={{ uri: 'https://via.placeholder.com/200x120' }}
+                  style={styles.relatedItemImage}
+                />
+                <Text style={[styles.relatedItemName, { color: colors.text }]}>Sample Product {i}</Text>
+                <Text style={[styles.relatedItemPrice, { color: colors.themedPrice }]}>₱{(product.base_price + i * 10).toFixed(2)}</Text>
+              </View>
             ))}
           </ScrollView>
         </View>
@@ -214,7 +247,7 @@ export default function ProductScreen() {
           style={[styles.addToCartButton, { backgroundColor: colors.primary }]}
           onPress={addToCart}
         >
-          <Text style={styles.addToCartText}>Add to Cart - ${(product.price * quantity).toFixed(2)}</Text>
+          <Text style={[styles.addToCartText, { color: colors.black }]}>Add to Cart - ₱{(selectedSizePrice * quantity).toFixed(2)}</Text>
         </TouchableOpacity>
       </View>
     </View>
@@ -240,7 +273,7 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: 'rgba(255, 255, 255, 0.8)',
+    backgroundColor: 'transparent',
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -251,10 +284,15 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: 'rgba(255, 255, 255, 0.8)',
+    backgroundColor: 'transparent',
     justifyContent: 'center',
     alignItems: 'center',
     marginLeft: 10,
+  },
+  iconShadow: {
+    textShadowColor: 'rgba(0,0,0,0.4)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
   },
   productImage: {
     width: '100%',
@@ -272,6 +310,10 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: 10,
+  },
+  productTitleContainer: {
+    flex: 1,
+    paddingRight: 12,
   },
   productName: {
     fontSize: 24,
@@ -452,5 +494,36 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: Layout.fontWeight.semiBold,
     fontFamily: Layout.fontFamily.semiBold,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  loadingText: {
+    fontSize: 16,
+    fontFamily: Layout.fontFamily.regular,
+    textAlign: 'center',
+  },
+  preparationTime: {
+    fontSize: 16,
+    fontFamily: Layout.fontFamily.regular,
+    marginTop: 4,
+  },
+  categoryName: {
+    fontSize: 16,
+    fontFamily: Layout.fontFamily.semiBold,
+    marginTop: 4,
+  },
+  categoryDescription: {
+    fontSize: 14,
+    fontFamily: Layout.fontFamily.regular,
+    marginTop: 2,
+    fontStyle: 'italic',
+  },
+  pizzaOptionContent: {
+    padding: 12,
+    alignItems: 'center',
   },
 });

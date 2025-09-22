@@ -8,17 +8,19 @@ export interface Product {
   price?: number; // For backward compatibility, will be set to base_price
   category_id: string;
   image_url?: string;
+  gallery_image_urls?: string[];
   is_available: boolean;
   is_recommended: boolean;
+  is_featured?: boolean;
   preparation_time_minutes?: number; // in minutes
-  calories?: number;
   allergens?: string[];
-  ingredients?: string[];
+  nutritional_info?: any;
   created_at: string;
   updated_at: string;
   
   // Relations
   category?: ProductCategory;
+  pizza_options?: PizzaOption[];
   stock?: ProductStock;
   variants?: ProductVariant[];
 }
@@ -76,34 +78,28 @@ export interface ProductStats {
 // Pizza specific types
 export interface PizzaOption {
   id: string;
-  name: string;
-  base_price: number;
-  sizes: PizzaSize[];
-  crusts: PizzaCrust[];
-  is_available: boolean;
-}
-
-export interface PizzaSize {
-  id: string;
-  name: string;
-  price_modifier: number;
-  diameter?: number; // in inches
-  slices?: number;
+  product_id: string;
+  size: string;
+  price: number;
+  crust_id: string;
+  crust?: {
+    id: string;
+    name: string;
+  };
+  toppings?: {
+    id: string;
+    name: string;
+  }[];
 }
 
 export interface PizzaCrust {
   id: string;
   name: string;
-  price_modifier: number;
-  description?: string;
 }
 
 export interface PizzaTopping {
   id: string;
   name: string;
-  price_modifier: number;
-  category: 'meat' | 'vegetable' | 'cheese' | 'sauce' | 'other';
-  is_available: boolean;
 }
 
 export interface PizzaToppingOption {

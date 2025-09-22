@@ -1,101 +1,117 @@
 import { MaterialCommunityIcons, MaterialIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import React, { useState } from 'react';
-import { FlatList, Image, ListRenderItem, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import React, { useMemo, useState } from 'react';
+import { FlatList, Image, ListRenderItem, RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Layout from '../../../constants/Layout';
 import { useTheme } from '../../../contexts/ThemeContext';
+import { useOrders } from '../../../hooks/useOrders';
+import { Order, OrderStatus } from '../../../types/order.types';
 
-type OrderItem = {
-  name: string;
-  quantity: number;
-  price: number;
-};
-
-type Order = {
-  id: string;
-  restaurant: string;
-  status: 'Preparing' | 'On the Way' | 'Delivered' | 'Pending';
-  items: OrderItem[];
-  total: number;
-  orderTime: string;
-  deliveryTime: string;
-  image: string;
-};
-
-// Mock data for orders
-const orderData: Order[] = [
-  {
-    id: '1',
-    restaurant: 'Pizza Palace',
-    status: 'Preparing',
-    items: [
-      { name: 'Pepperoni Pizza', quantity: 1, price: 12.99 },
-      { name: 'Garlic Bread', quantity: 2, price: 3.99 },
-    ],
-    total: 20.97,
-    orderTime: '10:30 AM',
-    deliveryTime: '11:30 AM',
-    image: 'https://images.unsplash.com/photo-1513104890138-7c749659a591?w=500&auto=format&fit=crop&q=60',
-  },
-  {
-    id: '2',
-    restaurant: 'Burger House',
-    status: 'On the Way',
-    items: [
-      { name: 'Classic Burger', quantity: 1, price: 8.99 },
-      { name: 'French Fries', quantity: 1, price: 2.99 },
-      { name: 'Soda', quantity: 1, price: 1.99 },
-    ],
-    total: 16.96,
-    orderTime: '12:15 PM',
-    deliveryTime: '1:15 PM',
-    image: 'https://images.unsplash.com/photo-1568901346375-23c9450c58cd?w=500&auto=format&fit=crop&q=60',
-  },
-  {
-    id: '3',
-    restaurant: 'Sushi Express',
-    status: 'Delivered',
-    items: [
-      { name: 'California Roll', quantity: 1, price: 10.99 },
-      { name: 'Miso Soup', quantity: 1, price: 2.99 },
-    ],
-    total: 16.97,
-    orderTime: 'Yesterday, 7:30 PM',
-    deliveryTime: '8:30 PM',
-    image: 'https://images.unsplash.com/photo-1579871494447-9811cf80d66c?w=500&auto=format&fit=crop&q=60',
-  },
-];
-
+// Status mapping for display
 const statusTabs = ['All', 'Pending', 'Preparing', 'On the Way', 'Delivered'];
+
+// Helper function to format order status for display
+const formatOrderStatus = (status: OrderStatus): string => {
+  const statusMap: Record<OrderStatus, string> = {
+    'pending': 'Pending',
+    'confirmed': 'Preparing',
+    'preparing': 'Preparing',
+    'ready_for_pickup': 'Preparing',
+    'out_for_delivery': 'On the Way',
+    'delivered': 'Delivered',
+    'cancelled': 'Cancelled'
+  };
+  return statusMap[status] || status;
+};
+
+// Helper function to get status color
+const getStatusColor = (status: OrderStatus, colors: any): string => {
+  const colorMap: Record<OrderStatus, string> = {
+    'pending': colors.warning,
+    'confirmed': colors.warning,
+    'preparing': colors.warning,
+    'ready_for_pickup': colors.warning,
+    'out_for_delivery': colors.info,
+    'delivered': colors.success,
+    'cancelled': colors.error
+  };
+  return colorMap[status] || colors.textSecondary;
+};
+
+// Helper function to get status icon
+const getStatusIcon = (status: OrderStatus): keyof typeof MaterialCommunityIcons.glyphMap => {
+  const iconMap: Record<OrderStatus, keyof typeof MaterialCommunityIcons.glyphMap> = {
+    'pending': 'clock-time-four',
+    'confirmed': 'chef-hat',
+    'preparing': 'chef-hat',
+    'ready_for_pickup': 'chef-hat',
+    'out_for_delivery': 'motorbike',
+    'delivered': 'check-circle',
+    'cancelled': 'close-circle'
+  };
+  return iconMap[status] || 'clock-time-four';
+};
+
+// Helper function to format date
+const formatOrderDate = (dateString: string): string => {
+  const date = new Date(dateString);
+  const now = new Date();
+  const diffInHours = (now.getTime() - date.getTime()) / (1000 * 60 * 60);
+  
+  if (diffInHours < 24) {
+    return date.toLocaleTimeString('en-US', { 
+      hour: 'numeric', 
+      minute: '2-digit',
+      hour12: true 
+    });
+  } else if (diffInHours < 48) {
+    return `Yesterday, ${date.toLocaleTimeString('en-US', { 
+      hour: 'numeric', 
+      minute: '2-digit',
+      hour12: true 
+    })}`;
+  } else {
+    return date.toLocaleDateString('en-US', { 
+      month: 'short', 
+      day: 'numeric',
+      hour: 'numeric', 
+      minute: '2-digit',
+      hour12: true 
+    });
+  }
+};
 
 export default function OrdersScreen() {
   const { colors } = useTheme();
   const router = useRouter();
   const [activeTab, setActiveTab] = useState('All');
+  
+  // Fetch orders from the backend
+  const { orders, isLoading, error, refresh } = useOrders();
 
-  const filteredOrders = activeTab === 'All' 
-    ? orderData 
-    : orderData.filter(order => 
-        order.status.toLowerCase() === activeTab.toLowerCase() ||
-        (activeTab === 'On the Way' && order.status === 'On the Way') ||
-        (activeTab === 'Pending' && order.status === 'Pending')
-      );
+  // Filter orders based on active tab
+  const filteredOrders = useMemo(() => {
+    if (activeTab === 'All') return orders;
+    
+    return orders.filter((order: Order) => {
+      const displayStatus = formatOrderStatus(order.status);
+      return displayStatus === activeTab;
+    });
+  }, [orders, activeTab]);
 
   const renderOrderItem: ListRenderItem<Order> = ({ item }) => {
-    const statusColors = {
-      'Preparing': colors.warning,
-      'On the Way': colors.info,
-      'Delivered': colors.success,
-      'Pending': colors.warning,
-    };
-
-    const statusIcons: Record<Order['status'], keyof typeof MaterialCommunityIcons.glyphMap> = {
-      'Preparing': 'chef-hat',
-      'On the Way': 'motorbike',
-      'Delivered': 'check-circle',
-      'Pending': 'clock-time-four',
-    };
+    const displayStatus = formatOrderStatus(item.status);
+    const statusColor = getStatusColor(item.status, colors);
+    const statusIcon = getStatusIcon(item.status);
+    const orderTime = formatOrderDate(item.created_at);
+    
+    // Get the first item's image or use a default
+    const firstItem = item.items?.[0];
+    const orderImage = firstItem?.product_image || 'https://via.placeholder.com/200x150';
+    
+    // Get restaurant name from the first item or use a default
+    const restaurantName = firstItem?.product_name?.split(' ')[0] + ' Restaurant' || 'Restaurant';
 
     return (
       <TouchableOpacity 
@@ -107,18 +123,18 @@ export default function OrdersScreen() {
       >
         <View style={styles.orderHeader}>
           <View style={styles.restaurantInfo}>
-            <Image source={{ uri: item.image }} style={styles.restaurantImage} />
+            <Image source={{ uri: orderImage }} style={styles.restaurantImage} />
             <View>
-              <Text style={[styles.restaurantName, { color: colors.text }]}>{item.restaurant}</Text>
-              <View style={[styles.statusBadge, { backgroundColor: `${statusColors[item.status]}20` }]}>
+              <Text style={[styles.restaurantName, { color: colors.text }]}>{restaurantName}</Text>
+              <View style={[styles.statusBadge, { backgroundColor: `${statusColor}20` }]}>
                 <MaterialCommunityIcons 
-                  name={statusIcons[item.status] || 'clock'} 
+                  name={statusIcon} 
                   size={14} 
-                  color={statusColors[item.status]} 
+                  color={statusColor} 
                   style={styles.statusIcon} 
                 />
-                <Text style={[styles.statusText, { color: statusColors[item.status] }]}>
-                  {item.status}
+                <Text style={[styles.statusText, { color: statusColor }]}>
+                  {displayStatus}
                 </Text>
               </View>
             </View>
@@ -127,29 +143,33 @@ export default function OrdersScreen() {
         </View>
 
         <View style={styles.orderItems}>
-          {item.items.map((orderItem: OrderItem, index: number) => (
+          {item.items?.map((orderItem, index: number) => (
             <View key={index} style={styles.orderItem}>
               <Text style={[styles.itemName, { color: colors.textSecondary }]}>
-                {orderItem.quantity}x {orderItem.name}
+                {orderItem.quantity}x {orderItem.product_name}
               </Text>
               <Text style={[styles.itemPrice, { color: colors.text }]}>
-                ${orderItem.price.toFixed(2)}
+                ₱{orderItem.unit_price.toFixed(2)}
               </Text>
             </View>
-          ))}
+          )) || (
+            <Text style={[styles.itemName, { color: colors.textSecondary }]}>
+              No items found
+            </Text>
+          )}
         </View>
 
         <View style={styles.orderFooter}>
           <View style={styles.timeInfo}>
             <MaterialIcons name="access-time" size={16} color={colors.textSecondary} />
             <Text style={[styles.timeText, { color: colors.textSecondary }]}>
-              Ordered: {item.orderTime}
+              Ordered: {orderTime}
             </Text>
           </View>
           <View style={styles.totalContainer}>
             <Text style={[styles.totalLabel, { color: colors.textSecondary }]}>Total:</Text>
             <Text style={[styles.totalAmount, { color: colors.primary }]}>
-              ${item.total.toFixed(2)}
+              ₱{item.total_amount.toFixed(2)}
             </Text>
           </View>
         </View>
@@ -195,13 +215,52 @@ export default function OrdersScreen() {
         ))}
       </ScrollView>
 
-      {filteredOrders.length > 0 ? (
+      {isLoading ? (
+        <View style={styles.loadingState}>
+          <MaterialCommunityIcons 
+            name="loading" 
+            size={48} 
+            color={colors.primary} 
+          />
+          <Text style={[styles.loadingText, { color: colors.textSecondary }]}>
+            Loading your orders...
+          </Text>
+        </View>
+      ) : error ? (
+        <View style={styles.errorState}>
+          <MaterialCommunityIcons 
+            name="alert-circle" 
+            size={48} 
+            color={colors.error} 
+          />
+          <Text style={[styles.errorTitle, { color: colors.text }]}>Error Loading Orders</Text>
+          <Text style={[styles.errorSubtitle, { color: colors.textSecondary }]}>
+            {error}
+          </Text>
+          <TouchableOpacity 
+            style={[styles.retryButton, { backgroundColor: colors.primary }]}
+            onPress={refresh}
+          >
+            <Text style={[styles.retryButtonText, { color: colors.background }]}>
+              Try Again
+            </Text>
+          </TouchableOpacity>
+        </View>
+      ) : filteredOrders.length > 0 ? (
         <FlatList
           data={filteredOrders}
           renderItem={renderOrderItem}
           keyExtractor={(item) => item.id}
           contentContainerStyle={styles.ordersList}
           showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl
+              refreshing={isLoading}
+              onRefresh={refresh}
+              colors={[colors.primary]}
+              tintColor={colors.primary}
+            />
+          }
         />
       ) : (
         <View style={styles.emptyContainer}>
@@ -356,5 +415,43 @@ const styles = StyleSheet.create({
     marginTop: 16,
     fontSize: 16,
     textAlign: 'center',
+  },
+  loadingState: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 40,
+  },
+  loadingText: {
+    marginTop: 16,
+    fontSize: 16,
+    textAlign: 'center',
+  },
+  errorState: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 40,
+  },
+  errorTitle: {
+    marginTop: 16,
+    fontSize: 18,
+    fontWeight: 'bold',
+    textAlign: 'center',
+  },
+  errorSubtitle: {
+    marginTop: 8,
+    fontSize: 14,
+    textAlign: 'center',
+    marginBottom: 20,
+  },
+  retryButton: {
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 8,
+  },
+  retryButtonText: {
+    fontSize: 16,
+    fontWeight: 'bold',
   },
 });

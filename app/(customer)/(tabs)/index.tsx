@@ -9,25 +9,33 @@ import { ResponsiveText } from '../../../components/ui/ResponsiveText';
 import { ResponsiveView } from '../../../components/ui/ResponsiveView';
 import Layout from '../../../constants/Layout';
 import Responsive from '../../../constants/Responsive';
-import { useAuth } from '../../../contexts/AuthContext';
 import { useTheme } from '../../../contexts/ThemeContext';
-import { useCart, useProductCategories, useProducts } from '../../../hooks';
+import { useCart, useCurrentUserProfile, useProductCategories, useProducts } from '../../../hooks';
+import { useAuth } from '../../../hooks/useAuth';
 
 export default function HomeScreen() {
   const { colors } = useTheme();
   const { user } = useAuth();
+  const { profile } = useCurrentUserProfile();
   const router = useRouter();
-  const userName = user?.user_metadata?.name || 'Guest';
+  const userName = profile?.full_name || user?.user_metadata?.name || 'Guest';
   const [searchQuery, setSearchQuery] = useState('');
+  
+  // Ban emoji usage in search input
+  const removeEmojis = useCallback((value: string) => {
+    const emojiRegex = /[\u2600-\u27BF\u{1F300}-\u{1F6FF}\u{1F900}-\u{1FAFF}]/gu;
+    return value.replace(emojiRegex, '');
+  }, []);
   
   // Use hooks for data fetching
   const { products, isLoading: productsLoading, error: productsError } = useProducts();
   const { categories, isLoading: categoriesLoading } = useProductCategories();
   const { addItem } = useCart();
   
+  
   // Filter products for different sections
   const popularProducts = products.filter(product => product.is_recommended).slice(0, 4);
-  const recommendedProducts = products.filter(product => product.is_available).slice(0, 6);
+  const recommendedProducts = products.filter(product => product.is_recommended).slice(0, 2);
   
   // Get current time of day for greeting
   const getGreeting = () => {
@@ -56,6 +64,7 @@ export default function HomeScreen() {
     setSearchQuery('');
   };
 
+
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
       <ScrollView showsVerticalScrollIndicator={false}>
@@ -63,56 +72,88 @@ export default function HomeScreen() {
         <ResponsiveView 
           flexDirection="row" 
           justifyContent="space-between" 
-          alignItems="center"
+          alignItems="flex-start"
           paddingHorizontal="lg"
-          paddingTop="sm"
-          paddingBottom="sm"
+          paddingTop="lg"
+          paddingBottom="lg"
         >
-          <ResponsiveView>
-            <ResponsiveView marginBottom="xs">
+          <ResponsiveView flex={1}>
+            <ResponsiveView marginBottom="sm">
               <ResponsiveText 
-                size="sm" 
+                size="lg" 
                 color={colors.textSecondary} 
-                weight="regular"
+                weight="medium"
+                lineHeight="relaxed"
               >
                 {getGreeting()}
               </ResponsiveText>
             </ResponsiveView>
+            <ResponsiveView marginBottom="xs">
+              <ResponsiveText 
+                size="display" 
+                weight="bold" 
+                color={colors.text}
+                lineHeight="tight"
+              >
+                {userName}
+              </ResponsiveText>
+            </ResponsiveView>
             <ResponsiveText 
-              size="xxxl" 
-              weight="bold" 
-              color={colors.text}
+              size="md" 
+              color={colors.textSecondary} 
+              weight="regular"
+              lineHeight="normal"
             >
-              {userName}
+              What would you like to order today?
             </ResponsiveText>
           </ResponsiveView>
-          <TouchableOpacity 
-            style={styles.notificationButton}
-            onPress={() => router.push('/(customer)/notification')}
-          >
-            <MaterialIcons 
-              name="notifications-none" 
-              size={Responsive.responsiveValue(24, 26, 28, 32)} 
-              color={colors.text} 
-            />
-            <View style={styles.notificationBadge} />
-          </TouchableOpacity>
+          <ResponsiveView flexDirection="row" alignItems="center" marginLeft="md">
+            <TouchableOpacity 
+              style={styles.notificationButton}
+              onPress={() => router.push('/(customer)/notification')}
+            >
+              <MaterialIcons 
+                name="notifications-none" 
+                size={Responsive.responsiveValue(24, 26, 28, 32)} 
+                color={colors.text} 
+              />
+              <View style={styles.notificationBadge} />
+            </TouchableOpacity>
+          </ResponsiveView>
         </ResponsiveView>
+
+        {/* Error Display */}
+        {productsError && (
+          <ResponsiveView 
+            backgroundColor={colors.error + '20'}
+            marginHorizontal="lg"
+            marginVertical="sm"
+            padding="md"
+            borderRadius="md"
+          >
+            <ResponsiveText size="sm" color={colors.error}>
+              Error loading products: {productsError}
+            </ResponsiveText>
+          </ResponsiveView>
+        )}
 
         {/* Search Bar */}
         <ResponsiveView 
           flexDirection="row" 
           alignItems="center" 
-          backgroundColor={colors.surfaceVariant}
+          backgroundColor={colors.surface}
           borderRadius="md"
           marginHorizontal="lg"
           marginBottom="lg"
           paddingHorizontal="md"
+          height={Responsive.InputSizes.medium.height}
+          style={[styles.searchBarShadow, { borderColor: colors.border, borderWidth: 1 }]}
         >
           <MaterialIcons 
             name="search" 
             size={Responsive.responsiveValue(20, 22, 24, 26)} 
-            color={colors.textSecondary} 
+            color={colors.textSecondary}
+            style={{ marginRight: Responsive.ResponsiveSpacing.sm }}
           />
           <TextInput
             style={[
@@ -120,18 +161,22 @@ export default function HomeScreen() {
               {
                 color: colors.text,
                 fontFamily: Layout.fontFamily.regular,
-                fontSize: Responsive.responsiveValue(14, 15, 16, 18),
+                fontSize: Responsive.InputSizes.medium.fontSize
               }
             ]}
-            placeholder="Search for food, drinks, or restaurants..."
+            placeholder="Search for food"
             placeholderTextColor={colors.textSecondary}
             value={searchQuery}
-            onChangeText={setSearchQuery}
+            onChangeText={(t) => setSearchQuery(removeEmojis(t))}
             onSubmitEditing={handleSearch}
             returnKeyType="search"
           />
           {searchQuery.length > 0 && (
-            <TouchableOpacity onPress={handleClearSearch}>
+            <TouchableOpacity 
+              onPress={handleClearSearch}
+              style={styles.clearButton}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            >
               <MaterialIcons 
                 name="clear" 
                 size={Responsive.responsiveValue(18, 20, 22, 24)} 
@@ -147,13 +192,13 @@ export default function HomeScreen() {
             flexDirection="row" 
             justifyContent="space-between" 
             alignItems="center"
-            marginBottom="md"
+            marginBottom="lg"
           >
-            <ResponsiveText size="xl" weight="bold" color={colors.text}>
+            <ResponsiveText size="xxl" weight="bold" color={colors.text}>
               Special Offers
             </ResponsiveText>
             <TouchableOpacity>
-              <ResponsiveText size="sm" weight="bold" color={colors.themedViewAll}>
+              <ResponsiveText size="md" weight="semiBold" color={colors.themedViewAll}>
                 View All
               </ResponsiveText>
             </TouchableOpacity>
@@ -213,19 +258,20 @@ export default function HomeScreen() {
           </ResponsiveView>
         </ResponsiveView>
 
+
         {/* Popular Items */}
         <ResponsiveView marginTop="sm" paddingHorizontal="lg" marginBottom="lg">
           <ResponsiveView 
             flexDirection="row" 
             justifyContent="space-between" 
             alignItems="center"
-            marginBottom="md"
+            marginBottom="lg"
           >
-            <ResponsiveText size="xl" weight="bold" color={colors.text}>
-              Popular Now
+            <ResponsiveText size="xxl" weight="bold" color={colors.text}>
+              Popular Now ({popularProducts.length})
             </ResponsiveText>
-            <TouchableOpacity onPress={() => router.push('/(customer)/menu?category=Popular')}>
-              <ResponsiveText size="sm" weight="bold" color={colors.themedViewAll}>
+            <TouchableOpacity onPress={() => router.push('/(customer)/menu')}>
+              <ResponsiveText size="md" weight="semiBold" color={colors.themedViewAll}>
                 View All
               </ResponsiveText>
             </TouchableOpacity>
@@ -245,7 +291,8 @@ export default function HomeScreen() {
                   key={product.id}
                   id={product.id}
                   name={product.name}
-                  price={product.price}
+                  description={product.description}
+                  price={product.base_price}
                   image={product.image_url || 'https://via.placeholder.com/200x150'}
                   tags={product.is_recommended ? ['Recommended'] : []}
                   variant="horizontal"
@@ -266,13 +313,13 @@ export default function HomeScreen() {
             flexDirection="row" 
             justifyContent="space-between" 
             alignItems="center"
-            marginBottom="md"
+            marginBottom="lg"
           >
-            <ResponsiveText size="xl" weight="bold" color={colors.text}>
-              Recommended For You
+            <ResponsiveText size="xxl" weight="bold" color={colors.text}>
+              Recommended For You ({recommendedProducts.length})
             </ResponsiveText>
-            <TouchableOpacity onPress={() => router.push('/(customer)/menu?category=Recommended')}>
-              <ResponsiveText size="sm" weight="bold" color={colors.themedViewAll}>
+            <TouchableOpacity onPress={() => router.push('/(customer)/menu')}>
+              <ResponsiveText size="md" weight="semiBold" color={colors.themedViewAll}>
                 View All
               </ResponsiveText>
             </TouchableOpacity>
@@ -292,7 +339,8 @@ export default function HomeScreen() {
                   key={product.id}
                   id={product.id}
                   name={product.name}
-                  price={product.price}
+                  description={product.description}
+                  price={product.base_price}
                   image={product.image_url || 'https://via.placeholder.com/200x150'}
                   tags={product.is_recommended ? ['Recommended'] : []}
                   variant="horizontal"
@@ -313,9 +361,9 @@ export default function HomeScreen() {
             flexDirection="row" 
             justifyContent="space-between" 
             alignItems="center"
-            marginBottom="md"
+            marginBottom="lg"
           >
-            <ResponsiveText size="xl" weight="bold" color={colors.text}>
+            <ResponsiveText size="xxl" weight="bold" color={colors.text}>
               Quick Actions
             </ResponsiveText>
           </ResponsiveView>
@@ -461,6 +509,17 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     paddingHorizontal: 12,
     fontSize: 16,
+  },
+  searchBarShadow: {
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  clearButton: {
+    padding: Responsive.responsiveValue(4, 6, 8, 10),
+    marginLeft: Responsive.responsiveValue(4, 6, 8, 10),
   },
   specialOfferImage: {
     borderRadius: 12,

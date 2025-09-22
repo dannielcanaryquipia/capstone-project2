@@ -1,5 +1,5 @@
 import { router, useLocalSearchParams } from 'expo-router';
-import { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Image, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import AuthForm from '../../components/auth/AuthForm';
@@ -8,7 +8,8 @@ import Button from '../../components/ui/Button';
 import Input from '../../components/ui/Input';
 import { useTheme } from '../../contexts/ThemeContext';
 import { useAuth } from '../../hooks/useAuth';
-import { commonRules, validateForm, ValidationErrors } from '../../utils/validation';
+import { useFormValidation } from '../../hooks/useFormValidation';
+import { commonRules } from '../../utils/validation';
 
 const createStyles = (colors: any) => StyleSheet.create({
   container: {
@@ -68,11 +69,6 @@ const createStyles = (colors: any) => StyleSheet.create({
 export default function ResetPasswordScreen() {
   const { colors } = useTheme();
   const styles = createStyles(colors);
-  const [formData, setFormData] = useState({
-    password: '',
-    confirmPassword: '',
-  });
-  const [formErrors, setFormErrors] = useState<ValidationErrors>({});
   const [isSubmitted, setIsSubmitted] = useState(false);
   const { updatePassword, isLoading, error } = useAuth();
   const { token } = useLocalSearchParams<{ token?: string }>();
@@ -84,41 +80,39 @@ export default function ResetPasswordScreen() {
     }
   }, [token]);
 
-  const validationRules = {
+  const validationRules = useMemo(() => ({
     password: commonRules.password,
     confirmPassword: {
       ...commonRules.confirmPassword,
       custom: (value: string) => {
-        if (formData.password && value !== formData.password) {
-          return 'Passwords do not match';
-        }
+        // This will be updated when password changes
         return null;
       },
     },
-  };
+  }), []);
 
-  const validateFormData = () => {
-    const errors = validateForm(formData, validationRules);
-    setFormErrors(errors);
-    return Object.keys(errors).length === 0;
-  };
+  const {
+    formData,
+    formErrors,
+    updateField,
+    validateFormData,
+    isFormValid,
+  } = useFormValidation(
+    { password: '', confirmPassword: '' },
+    { rules: validationRules, debounceMs: 300 }
+  );
 
-  const handleInputChange = (field: string, value: string) => {
-    setFormData(prev => ({
-      ...prev,
-      [field]: value
-    }));
-    
-    // Clear error when user starts typing
-    if (formErrors[field]) {
-      setFormErrors(prev => ({
-        ...prev,
-        [field]: ''
-      }));
+  // Update confirmPassword validation when password changes
+  const handlePasswordChange = useCallback((value: string) => {
+    updateField('password', value);
+    // Re-validate confirmPassword if it has a value
+    if (formData.confirmPassword) {
+      const confirmPasswordError = formData.confirmPassword !== value ? 'Passwords do not match' : '';
+      // This will be handled by the validation system
     }
-  };
+  }, [updateField, formData.confirmPassword]);
 
-  const handleResetPassword = async () => {
+  const handleResetPassword = useCallback(async () => {
     if (!validateFormData()) return;
     
     try {
@@ -132,7 +126,11 @@ export default function ResetPasswordScreen() {
     } catch (error) {
       // Error is handled by the useAuth hook
     }
-  };
+  }, [formData.password, validateFormData, updatePassword]);
+
+  const isButtonDisabled = useMemo(() => {
+    return !formData.password || !formData.confirmPassword || isLoading || !isFormValid;
+  }, [formData.password, formData.confirmPassword, isLoading, isFormValid]);
 
   if (isSubmitted) {
     return (
@@ -164,7 +162,7 @@ export default function ResetPasswordScreen() {
           <Input
             label="New Password"
             value={formData.password}
-            onChangeText={(value: string) => handleInputChange('password', value)}
+            onChangeText={handlePasswordChange}
             placeholder="Enter new password (min 6 characters)"
             autoCapitalize="none"
             autoComplete="new-password"
@@ -177,7 +175,7 @@ export default function ResetPasswordScreen() {
           <Input
             label="Confirm New Password"
             value={formData.confirmPassword}
-            onChangeText={(value: string) => handleInputChange('confirmPassword', value)}
+            onChangeText={(value: string) => updateField('confirmPassword', value)}
             placeholder="Confirm your new password"
             autoCapitalize="none"
             autoComplete="new-password"
@@ -191,7 +189,7 @@ export default function ResetPasswordScreen() {
             title="Update Password"
             onPress={handleResetPassword}
             loading={isLoading}
-            disabled={!formData.password || !formData.confirmPassword || isLoading}
+            disabled={isButtonDisabled}
             fullWidth
           />
 

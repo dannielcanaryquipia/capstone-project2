@@ -18,8 +18,8 @@ import {
 import 'react-native-reanimated';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
-import { AuthProvider, useAuth } from '../contexts/AuthContext';
 import { ThemeProvider as AppThemeProvider, useTheme } from '../contexts/ThemeContext';
+import { useAuth } from '../hooks/useAuth';
 
 export {
   // Catch any errors thrown by the Layout component.
@@ -221,14 +221,12 @@ function AppContent() {
 
 export default function RootLayout() {
   return (
-    <AuthProvider>
-      <AppThemeProvider>
-        <SafeAreaProvider>
-          <AuthGuard>
-            <AppContent />
-          </AuthGuard>
-        </SafeAreaProvider>
-      </AppThemeProvider>
-    </AuthProvider>
+    <AppThemeProvider>
+      <SafeAreaProvider>
+        <AuthGuard>
+          <AppContent />
+        </AuthGuard>
+      </SafeAreaProvider>
+    </AppThemeProvider>
   );
 }

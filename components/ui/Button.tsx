@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { memo, useMemo } from 'react';
 import { ActivityIndicator, StyleProp, StyleSheet, Text, TextStyle, TouchableOpacity, ViewStyle } from 'react-native';
 import Layout from '../../constants/Layout';
 import { useTheme } from '../../contexts/ThemeContext';
@@ -19,7 +19,7 @@ interface ButtonProps {
   fullWidth?: boolean;
 }
 
-const Button: React.FC<ButtonProps> = ({
+const Button: React.FC<ButtonProps> = memo(({
   title,
   onPress,
   variant = 'primary',
@@ -33,7 +33,7 @@ const Button: React.FC<ButtonProps> = ({
 }) => {
   const theme = useTheme();
   
-  const getButtonStyle = (): ViewStyle => {
+  const buttonStyle = useMemo((): ViewStyle => {
     const baseStyle: ViewStyle = {
       borderRadius: Layout.borderRadius.md,
       flexDirection: 'row',
@@ -83,9 +83,9 @@ const Button: React.FC<ButtonProps> = ({
       ...sizeStyles[size],
       ...variantStyles[variant],
     };
-  };
+  }, [variant, size, disabled, loading, fullWidth, theme.colors]);
 
-  const getTextStyle = (): TextStyle => {
+  const textStyleMemo = useMemo((): TextStyle => {
     const baseStyle: TextStyle = {
       fontSize: Layout.fontSize.md,
       fontWeight: 'normal',
@@ -115,11 +115,11 @@ const Button: React.FC<ButtonProps> = ({
       ...baseStyle,
       ...variantTextStyles[variant],
     };
-  };
+  }, [variant, theme.colors]);
 
   return (
     <TouchableOpacity
-      style={[getButtonStyle(), style]}
+      style={[buttonStyle, style]}
       onPress={onPress}
       disabled={disabled || loading}
       activeOpacity={0.7}
@@ -136,12 +136,12 @@ const Button: React.FC<ButtonProps> = ({
       ) : (
         <>
           {icon && icon}
-          <Text style={[getTextStyle(), textStyle]}>{title}</Text>
+          <Text style={[textStyleMemo, textStyle]}>{title}</Text>
         </>
       )}
     </TouchableOpacity>
   );
-};
+});
 
 const styles = StyleSheet.create({
   button: {

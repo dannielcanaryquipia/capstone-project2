@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useState } from 'react';
-import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
 import { OrderService } from '../services/order.service';
 import { DeliveryOrder, Order } from '../types/order.types';
+import { useAuth } from './useAuth';
 
 export const useAvailableOrders = () => {
   const [orders, setOrders] = useState<DeliveryOrder[]>([]);

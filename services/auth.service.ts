@@ -1,5 +1,4 @@
 import { supabase } from '../lib/supabase';
-import { Database } from '../types/database.types';
 
 type SignUpCredentials = {
   email: string;
@@ -93,14 +92,27 @@ export const authService = {
 
   // Update user profile
   async updateProfile(userId: string, updates: UpdateProfileData) {
+    // Convert UpdateProfileData to database field names
+    const dbUpdates: any = {};
+    if (updates.fullName !== undefined) dbUpdates.full_name = updates.fullName;
+    if (updates.phoneNumber !== undefined) dbUpdates.phone_number = updates.phoneNumber;
+    if (updates.avatarUrl !== undefined) dbUpdates.avatar_url = updates.avatarUrl;
+
+    console.log('Updating profile for user:', userId, 'with data:', dbUpdates);
+
     const { data, error } = await supabase
       .from('profiles')
-      .update(updates)
+      .update(dbUpdates)
       .eq('id', userId)
       .select()
       .single();
 
-    if (error) throw error;
+    if (error) {
+      console.error('Profile update error:', error);
+      throw error;
+    }
+    
+    console.log('Profile updated successfully:', data);
     return data;
   },
 
@@ -154,4 +166,5 @@ export const authService = {
   },
 };
 
-export type { SignUpCredentials, SignInCredentials, UpdateProfileData };
+export type { SignInCredentials, SignUpCredentials, UpdateProfileData };
+

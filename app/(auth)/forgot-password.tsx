@@ -1,5 +1,5 @@
 import { router } from 'expo-router';
-import { useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import { Image, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import AuthForm from '../../components/auth/AuthForm';
@@ -8,7 +8,8 @@ import Button from '../../components/ui/Button';
 import Input from '../../components/ui/Input';
 import { useTheme } from '../../contexts/ThemeContext';
 import { useAuth } from '../../hooks/useAuth';
-import { commonRules, validateForm, ValidationErrors } from '../../utils/validation';
+import { useFormValidation } from '../../hooks/useFormValidation';
+import { commonRules } from '../../utils/validation';
 
 const createStyles = (colors: any) => StyleSheet.create({
   container: {
@@ -135,32 +136,25 @@ const createStyles = (colors: any) => StyleSheet.create({
 export default function ForgotPasswordScreen() {
   const { colors } = useTheme();
   const styles = createStyles(colors);
-  const [formData, setFormData] = useState({
-    email: '',
-  });
-  const [formErrors, setFormErrors] = useState<ValidationErrors>({});
   const [isSubmitted, setIsSubmitted] = useState(false);
   const { resetPassword, isLoading, error } = useAuth();
 
-  const validationRules = {
+  const validationRules = useMemo(() => ({
     email: commonRules.email,
-  };
+  }), []);
 
-  const validateFormData = () => {
-    const errors = validateForm(formData, validationRules);
-    setFormErrors(errors);
-    return Object.keys(errors).length === 0;
-  };
+  const {
+    formData,
+    formErrors,
+    updateField,
+    validateFormData,
+    isFormValid,
+  } = useFormValidation(
+    { email: '' },
+    { rules: validationRules, debounceMs: 300 }
+  );
 
-  const handleInputChange = (field: string, value: string) => {
-    setFormData(prev => ({ ...prev, [field]: value }));
-    // Clear error when user starts typing
-    if (formErrors[field]) {
-      setFormErrors(prev => ({ ...prev, [field]: '' }));
-    }
-  };
-
-  const handleResetPassword = async () => {
+  const handleResetPassword = useCallback(async () => {
     if (!validateFormData()) return;
     
     try {
@@ -169,7 +163,11 @@ export default function ForgotPasswordScreen() {
     } catch (error) {
       // Error is handled by the useAuth hook
     }
-  };
+  }, [formData.email, validateFormData, resetPassword]);
+
+  const isButtonDisabled = useMemo(() => {
+    return !formData.email || isLoading || !isFormValid;
+  }, [formData.email, isLoading, isFormValid]);
 
   if (isSubmitted) {
     return (
@@ -210,7 +208,7 @@ export default function ForgotPasswordScreen() {
           <Input
             label="Email Address"
             value={formData.email}
-            onChangeText={(value: string) => handleInputChange('email', value)}
+            onChangeText={(value: string) => updateField('email', value)}
             placeholder="Enter your email"
             keyboardType="email-address"
             autoCapitalize="none"
@@ -224,7 +222,7 @@ export default function ForgotPasswordScreen() {
             title="Send Reset Link"
             onPress={handleResetPassword}
             loading={isLoading}
-            disabled={!formData.email || isLoading}
+            disabled={isButtonDisabled}
             fullWidth
           />
 

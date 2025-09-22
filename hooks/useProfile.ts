@@ -1,7 +1,7 @@
-import { useState, useEffect } from 'react';
-import { Database } from '../types/database.types';
+import { useEffect, useState } from 'react';
 import { authService, UpdateProfileData } from '../services/auth.service';
-import { useAuth as useAuthContext } from '../contexts/AuthContext';
+import { Database } from '../types/database.types';
+import { useAuth as useAuthContext } from './useAuth';
 
 type Profile = Database['public']['Tables']['profiles']['Row'];
 

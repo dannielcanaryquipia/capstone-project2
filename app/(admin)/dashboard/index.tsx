@@ -14,9 +14,9 @@ import { ResponsiveText } from '../../../components/ui/ResponsiveText';
 import { ResponsiveView } from '../../../components/ui/ResponsiveView';
 import Layout from '../../../constants/Layout';
 import { Strings } from '../../../constants/Strings';
-import { useAuth } from '../../../contexts/AuthContext';
 import { useTheme } from '../../../contexts/ThemeContext';
 import { useAdminOrders, useAdminStats } from '../../../hooks';
+import { useAuth } from '../../../hooks/useAuth';
 
 export default function AdminDashboard() {
   const { colors } = useTheme();

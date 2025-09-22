@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
-import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
 import { Product } from '../types/product.types';
+import { useAuth } from './useAuth';
 
 export interface SavedProduct {
   id: string;
@@ -30,8 +30,7 @@ export const useSavedProducts = () => {
           *,
           product:products(
             *,
-            category:categories(name, description),
-            stock:product_stock(quantity, low_stock_threshold)
+            category:categories(name, description)
           )
         `)
         .eq('user_id', user.id)

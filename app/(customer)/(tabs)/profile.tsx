@@ -1,4 +1,5 @@
 import { MaterialIcons } from '@expo/vector-icons';
+import * as ImagePicker from 'expo-image-picker';
 import { useRouter } from 'expo-router';
 import React, { useState } from 'react';
 import {
@@ -10,15 +11,18 @@ import {
   ScrollView,
   StyleSheet,
   TextInput,
-  TouchableOpacity
+  TouchableOpacity,
+  View
 } from 'react-native';
 import Button from '../../../components/ui/Button';
 import ResponsiveText from '../../../components/ui/ResponsiveText';
 import ResponsiveView from '../../../components/ui/ResponsiveView';
 import Layout from '../../../constants/Layout';
 import Strings from '../../../constants/Strings';
-import { useAuth } from '../../../contexts/AuthContext';
 import { useTheme } from '../../../contexts/ThemeContext';
+import { useAuth } from '../../../hooks/useAuth';
+import { useAvatar } from '../../../hooks/useAvatar';
+import { useOrders } from '../../../hooks/useOrders';
 import { useCurrentUserProfile } from '../../../hooks/useProfile';
 import global from '../../../styles/global';
 
@@ -35,15 +39,18 @@ interface ProfileActionItem {
 export default function ProfileScreen() {
   const { user, signOut } = useAuth();
   const { profile, isLoading, error, refresh, updateProfile } = useCurrentUserProfile();
+  const { orders, isLoading: ordersLoading } = useOrders();
   const { colors } = useTheme();
   const router = useRouter();
   const [refreshing, setRefreshing] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [editForm, setEditForm] = useState({
     fullName: '',
+    username: '',
     phoneNumber: '',
   });
   const [isUpdating, setIsUpdating] = useState(false);
+  const { localAvatar, isLoading: isUploadingAvatar, saveAvatar, removeAvatar } = useAvatar();
 
   const handleRefresh = async () => {
     setRefreshing(true);
@@ -54,6 +61,7 @@ export default function ProfileScreen() {
   const handleEditPress = () => {
     setEditForm({
       fullName: profile?.full_name || '',
+      username: profile?.full_name || '', // For now, username maps to full_name
       phoneNumber: profile?.phone_number || '',
     });
     setShowEditModal(true);
@@ -62,6 +70,11 @@ export default function ProfileScreen() {
   const handleSaveProfile = async () => {
     if (!editForm.fullName.trim()) {
       Alert.alert('Error', 'Full name is required');
+      return;
+    }
+
+    if (!editForm.username.trim()) {
+      Alert.alert('Error', 'Username is required');
       return;
     }
 
@@ -74,7 +87,9 @@ export default function ProfileScreen() {
       setShowEditModal(false);
       Alert.alert('Success', 'Profile updated successfully');
     } catch (error) {
-      Alert.alert('Error', 'Failed to update profile. Please try again.');
+      console.error('Error updating profile:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Failed to update profile. Please try again.';
+      Alert.alert('Error', errorMessage);
     } finally {
       setIsUpdating(false);
     }
@@ -84,9 +99,100 @@ export default function ProfileScreen() {
     setShowEditModal(false);
     setEditForm({
       fullName: '',
+      username: '',
       phoneNumber: '',
     });
   };
+
+  const handleAvatarPress = () => {
+    Alert.alert(
+      'Change Avatar',
+      'Choose how you want to update your profile picture',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Take Photo', onPress: () => pickImage('camera') },
+        { text: 'Choose from Library', onPress: () => pickImage('library') },
+        { text: 'Remove Avatar', onPress: () => removeAvatarHandler(), style: 'destructive' },
+      ]
+    );
+  };
+
+  const pickImage = async (source: 'camera' | 'library') => {
+    try {
+      let result;
+      
+      if (source === 'camera') {
+        const permissionResult = await ImagePicker.requestCameraPermissionsAsync();
+        if (permissionResult.granted === false) {
+          Alert.alert('Permission Required', 'Camera permission is required to take photos.');
+          return;
+        }
+        result = await ImagePicker.launchCameraAsync({
+          mediaTypes: ImagePicker.MediaTypeOptions.Images,
+          allowsEditing: true,
+          aspect: [1, 1],
+          quality: 0.8,
+        });
+      } else {
+        const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
+        if (permissionResult.granted === false) {
+          Alert.alert('Permission Required', 'Photo library permission is required to select images.');
+          return;
+        }
+        result = await ImagePicker.launchImageLibraryAsync({
+          mediaTypes: ImagePicker.MediaTypeOptions.Images,
+          allowsEditing: true,
+          aspect: [1, 1],
+          quality: 0.8,
+        });
+      }
+
+      if (!result.canceled && result.assets[0]) {
+        await uploadAvatar(result.assets[0].uri);
+      }
+    } catch (error) {
+      console.error('Error picking image:', error);
+      Alert.alert('Error', 'Failed to pick image. Please try again.');
+    }
+  };
+
+  const uploadAvatar = async (imageUri: string) => {
+    const success = await saveAvatar(imageUri);
+    if (success) {
+      Alert.alert('Success', 'Profile picture updated successfully');
+    } else {
+      Alert.alert('Error', 'Failed to save profile picture. Please try again.');
+    }
+  };
+
+  const removeAvatarHandler = async () => {
+    const success = await removeAvatar();
+    if (success) {
+      Alert.alert('Success', 'Profile picture removed successfully');
+    } else {
+      Alert.alert('Error', 'Failed to remove profile picture. Please try again.');
+    }
+  };
+
+  const formatOrderDate = (dateString: string) => {
+    const date = new Date(dateString);
+    return date.toLocaleDateString('en-US', { 
+      month: 'short', 
+      day: 'numeric',
+      year: 'numeric'
+    });
+  };
+
+  const getOrderStatusColor = (status: string) => {
+    switch (status) {
+      case 'completed': return colors.success;
+      case 'cancelled': return colors.error;
+      case 'pending': return colors.warning;
+      default: return colors.textSecondary;
+    }
+  };
+
+  const recentOrders = orders?.slice(0, 3) || [];
 
   const handleSignOut = () => {
     Alert.alert(
@@ -123,11 +229,27 @@ export default function ProfileScreen() {
 
   const profileActions: ProfileActionItem[] = [
     {
+      id: 'orders',
+      title: 'Order History',
+      subtitle: 'View your past and current orders',
+      icon: 'history',
+      onPress: () => router.push('/(customer)/orders'),
+      showChevron: true,
+    },
+    {
       id: 'addresses',
       title: 'Manage Addresses',
       subtitle: 'Add or edit delivery addresses',
       icon: 'location-on',
       onPress: () => router.push('/(customer)/profile/addresses'),
+      showChevron: true,
+    },
+    {
+      id: 'payment-methods',
+      title: 'Payment Methods',
+      subtitle: 'Manage your payment options',
+      icon: 'payment',
+      onPress: () => router.push('/(customer)/profile/payment-methods'),
       showChevron: true,
     },
     {
@@ -214,19 +336,30 @@ export default function ProfileScreen() {
       <ResponsiveView padding="lg">
         {/* Profile Header */}
         <ResponsiveView style={[styles.profileHeader, { backgroundColor: colors.surface }]}>
-          <ResponsiveView style={styles.avatarContainer}>
-            {profile?.avatar_url ? (
-              <Image source={{ uri: profile.avatar_url }} style={styles.avatar} />
+          <TouchableOpacity 
+            style={styles.avatarContainer}
+            onPress={handleAvatarPress}
+            disabled={isUploadingAvatar}
+            activeOpacity={0.7}
+          >
+            {localAvatar ? (
+              <Image source={{ uri: localAvatar }} style={styles.avatar} />
             ) : (
-              <ResponsiveView style={[styles.avatar, { backgroundColor: colors.surfaceVariant }]}>
-                <MaterialIcons name="person" size={40} color={colors.textSecondary} />
+              <View style={[styles.avatar, { backgroundColor: colors.surfaceVariant }]} />
+            )}
+            {isUploadingAvatar && (
+              <ResponsiveView style={[styles.avatarOverlay, { backgroundColor: colors.background + '80' }]}>
+                <ActivityIndicator size="small" color={colors.primary} />
               </ResponsiveView>
             )}
-          </ResponsiveView>
+            <ResponsiveView style={[styles.avatarEditIcon, { backgroundColor: colors.primary }]}>
+              <MaterialIcons name="camera-alt" size={16} color={colors.textInverse} />
+            </ResponsiveView>
+          </TouchableOpacity>
           
           <ResponsiveView style={styles.userInfo}>
             <ResponsiveText size="xl" weight="bold" color={colors.text}>
-              {profile?.full_name || 'User Name'}
+              {profile?.full_name || 'Username'}
             </ResponsiveText>
             <ResponsiveView marginTop="xs">
               <ResponsiveText size="md" color={colors.textSecondary}>
@@ -329,6 +462,71 @@ export default function ProfileScreen() {
             </ResponsiveView>
           </ResponsiveView>
         </ResponsiveView>
+
+        {/* Recent Orders Section */}
+        {recentOrders.length > 0 && (
+          <ResponsiveView style={styles.section}>
+            <ResponsiveView marginBottom="md">
+              <ResponsiveView style={styles.sectionHeader}>
+                <ResponsiveText size="lg" weight="semiBold" color={colors.text}>
+                  Recent Orders
+                </ResponsiveText>
+                <TouchableOpacity onPress={() => router.push('/(customer)/orders')}>
+                  <ResponsiveText size="md" color={colors.primary}>
+                    View All
+                  </ResponsiveText>
+                </TouchableOpacity>
+              </ResponsiveView>
+            </ResponsiveView>
+            
+            <ResponsiveView style={[styles.ordersCard, { 
+              backgroundColor: colors.surface,
+              ...Layout.shadows.sm
+            }]}>
+              {recentOrders.map((order, index) => (
+                <TouchableOpacity
+                  key={order.id}
+                  style={[
+                    styles.orderItem,
+                    index < recentOrders.length - 1 && { borderBottomColor: colors.border },
+                  ]}
+                  onPress={() => router.push('/(customer)/orders')}
+                  activeOpacity={0.7}
+                >
+                  <ResponsiveView style={styles.orderLeft}>
+                    <ResponsiveView style={[styles.orderIcon, { backgroundColor: colors.surfaceVariant }]}>
+                      <MaterialIcons name="receipt" size={20} color={colors.primary} />
+                    </ResponsiveView>
+                    <ResponsiveView style={styles.orderDetails}>
+                      <ResponsiveText size="md" weight="medium" color={colors.text}>
+                        Order #{order.id.slice(-8)}
+                      </ResponsiveText>
+                      <ResponsiveView marginTop="xs">
+                        <ResponsiveText size="sm" color={colors.textSecondary}>
+                          {formatOrderDate(order.created_at)} • ${order.total_amount}
+                        </ResponsiveText>
+                      </ResponsiveView>
+                    </ResponsiveView>
+                  </ResponsiveView>
+                  <ResponsiveView style={styles.orderRight}>
+                    <ResponsiveView style={[styles.statusBadge, { 
+                      backgroundColor: getOrderStatusColor(order.status) + '20' 
+                    }]}>
+                      <ResponsiveText 
+                        size="xs" 
+                        weight="medium" 
+                        color={getOrderStatusColor(order.status)}
+                      >
+                        {order.status.toUpperCase()}
+                      </ResponsiveText>
+                    </ResponsiveView>
+                    <MaterialIcons name="chevron-right" size={20} color={colors.textTertiary} />
+                  </ResponsiveView>
+                </TouchableOpacity>
+              ))}
+            </ResponsiveView>
+          </ResponsiveView>
+        )}
 
         {/* Account Actions Section */}
         <ResponsiveView style={styles.section}>
@@ -466,6 +664,27 @@ export default function ProfileScreen() {
             <ResponsiveView style={styles.formSection}>
               <ResponsiveView marginBottom="sm">
                 <ResponsiveText size="md" weight="medium" color={colors.text}>
+                  Username *
+                </ResponsiveText>
+              </ResponsiveView>
+              <TextInput
+                style={[styles.textInput, { 
+                  borderColor: colors.border,
+                  color: colors.text,
+                  backgroundColor: colors.surface 
+                }]}
+                value={editForm.username}
+                onChangeText={(text: string) => setEditForm(prev => ({ ...prev, username: text }))}
+                placeholder="Enter your username"
+                placeholderTextColor={colors.textTertiary}
+                autoCapitalize="none"
+                autoCorrect={false}
+              />
+            </ResponsiveView>
+
+            <ResponsiveView style={styles.formSection}>
+              <ResponsiveView marginBottom="sm">
+                <ResponsiveText size="md" weight="medium" color={colors.text}>
                   {Strings.phoneNumber}
                 </ResponsiveText>
               </ResponsiveView>
@@ -527,11 +746,34 @@ const styles = StyleSheet.create({
   },
   avatarContainer: {
     marginRight: Layout.spacing.md,
+    position: 'relative',
   },
   avatar: {
     width: Layout.sizes.avatarLarge,
     height: Layout.sizes.avatarLarge,
     borderRadius: Layout.sizes.avatarLarge / 2,
+  },
+  avatarOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    borderRadius: Layout.sizes.avatarLarge / 2,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  avatarEditIcon: {
+    position: 'absolute',
+    bottom: 0,
+    right: 0,
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: '#FFFFFF',
   },
   userInfo: {
     flex: 1,
@@ -647,6 +889,48 @@ const styles = StyleSheet.create({
   },
   disabledInput: {
     opacity: 0.6,
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  ordersCard: {
+    borderRadius: Layout.borderRadius.lg,
+  },
+  orderItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: Layout.spacing.md,
+    paddingVertical: Layout.spacing.md,
+    borderBottomWidth: 1,
+  },
+  orderLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  orderIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: Layout.spacing.sm,
+  },
+  orderDetails: {
+    flex: 1,
+  },
+  orderRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Layout.spacing.sm,
+  },
+  statusBadge: {
+    paddingHorizontal: Layout.spacing.xs,
+    paddingVertical: 2,
+    borderRadius: Layout.borderRadius.xs,
   },
 });
 

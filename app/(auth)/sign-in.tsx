@@ -1,5 +1,5 @@
 import { router } from 'expo-router';
-import { useState } from 'react';
+import React, { useCallback, useMemo } from 'react';
 import { Platform, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import AuthFooter from '../../components/auth/AuthFooter';
@@ -11,38 +11,31 @@ import Layout from '../../constants/Layout';
 import { Strings } from '../../constants/Strings';
 import { useTheme } from '../../contexts/ThemeContext';
 import { useAuth } from '../../hooks/useAuth';
+import { useFormValidation } from '../../hooks/useFormValidation';
 import global from '../../styles/global';
-import { commonRules, validateForm, ValidationErrors } from '../../utils/validation';
+import { commonRules } from '../../utils/validation';
 
 export default function SignInScreen() {
   const { colors } = useTheme();
-  const [formData, setFormData] = useState({
-    email: '',
-    password: '',
-  });
-  const [formErrors, setFormErrors] = useState<ValidationErrors>({});
   const { signIn, isLoading, error } = useAuth();
 
-  const validationRules = {
+  const validationRules = useMemo(() => ({
     email: commonRules.email,
     password: commonRules.password,
-  };
+  }), []);
 
-  const validateFormData = () => {
-    const errors = validateForm(formData, validationRules);
-    setFormErrors(errors);
-    return Object.keys(errors).length === 0;
-  };
+  const {
+    formData,
+    formErrors,
+    updateField,
+    validateFormData,
+    isFormValid,
+  } = useFormValidation(
+    { email: '', password: '' },
+    { rules: validationRules, debounceMs: 300 }
+  );
 
-  const handleInputChange = (field: string, value: string) => {
-    setFormData(prev => ({ ...prev, [field]: value }));
-    // Clear error when user starts typing
-    if (formErrors[field]) {
-      setFormErrors(prev => ({ ...prev, [field]: '' }));
-    }
-  };
-
-  const handleSignIn = async () => {
+  const handleSignIn = useCallback(async () => {
     if (!validateFormData()) return;
     
     try {
@@ -50,7 +43,11 @@ export default function SignInScreen() {
     } catch (error) {
       // Error is handled by the useAuth hook
     }
-  };
+  }, [formData.email, formData.password, validateFormData, signIn]);
+
+  const isButtonDisabled = useMemo(() => {
+    return !formData.email || !formData.password || isLoading || !isFormValid;
+  }, [formData.email, formData.password, isLoading, isFormValid]);
 
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor: colors.background }]}>
@@ -65,7 +62,7 @@ export default function SignInScreen() {
             autoCapitalize="none"
             autoComplete="email"
             value={formData.email}
-            onChangeText={(value) => handleInputChange('email', value)}
+            onChangeText={(value) => updateField('email', value)}
             error={formErrors.email}
             fullWidth
             iconType="email"
@@ -77,7 +74,7 @@ export default function SignInScreen() {
             autoCapitalize="none"
             autoComplete="current-password"
             value={formData.password}
-            onChangeText={(value) => handleInputChange('password', value)}
+            onChangeText={(value) => updateField('password', value)}
             error={formErrors.password}
             fullWidth
             iconType="password"
@@ -97,8 +94,8 @@ export default function SignInScreen() {
             title={Strings.signInCta}
             onPress={handleSignIn}
             loading={isLoading}
-            disabled={!formData.email || !formData.password || isLoading}
-            style={[global.button, (!formData.email || !formData.password) && global.buttonDisabled]}
+            disabled={isButtonDisabled}
+            style={[global.button, isButtonDisabled && global.buttonDisabled]}
             fullWidth
           />
 

@@ -155,7 +155,7 @@ export class ReportsService {
       const lastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
 
       const totalCustomers = profiles?.length || 0;
-      const newCustomers = profiles?.filter(p => 
+      const newCustomers = profiles?.filter((p: any) => 
         new Date(p.created_at) >= thisMonth
       ).length || 0;
       const returningCustomers = totalCustomers - newCustomers;

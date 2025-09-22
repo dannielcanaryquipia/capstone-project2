@@ -15,7 +15,7 @@ import Button from '../../../components/ui/Button';
 import { ResponsiveText } from '../../../components/ui/ResponsiveText';
 import { ResponsiveView } from '../../../components/ui/ResponsiveView';
 import { Strings } from '../../../constants/Strings';
-import { useAuth } from '../../../contexts/AuthContext';
+import { useAuth } from '../../../hooks/useAuth';
 import { useTheme } from '../../../contexts/ThemeContext';
 import { Order } from '../../../types/order.types';
 

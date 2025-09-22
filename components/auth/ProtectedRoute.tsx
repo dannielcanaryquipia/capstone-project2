@@ -1,6 +1,6 @@
 import { Redirect } from 'expo-router';
 import { ActivityIndicator, View } from 'react-native';
-import { useAuth as useAuthContext } from '../../contexts/AuthContext';
+import { useAuth as useAuthContext } from '../../hooks/useAuth';
 import { Text } from '../ui/Text';
 
 type ProtectedRouteProps = {

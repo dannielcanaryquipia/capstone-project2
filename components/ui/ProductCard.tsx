@@ -1,4 +1,3 @@
-import { MaterialIcons } from '@expo/vector-icons';
 import React from 'react';
 import { Image, StyleSheet, TouchableOpacity } from 'react-native';
 import Responsive from '../../constants/Responsive';
@@ -9,6 +8,7 @@ import { ResponsiveView } from './ResponsiveView';
 export interface ProductCardProps {
   id: string;
   name: string;
+  description?: string;
   price: number;
   image: string;
   tags?: string[];
@@ -20,13 +20,12 @@ export interface ProductCardProps {
   priceColor?: string;
   width?: number;
   height?: number;
-  isSaved?: boolean;
-  onSaveToggle?: (productId: string, isSaved: boolean) => void;
 }
 
 export const ProductCard: React.FC<ProductCardProps> = ({
   id,
   name,
+  description,
   price,
   image,
   tags = [],
@@ -38,11 +37,10 @@ export const ProductCard: React.FC<ProductCardProps> = ({
   priceColor,
   width,
   height,
-  isSaved = false,
-  onSaveToggle,
 }) => {
   const { colors } = useTheme();
   const isHorizontal = variant === 'horizontal';
+  
   
   const cardStyle = [
     styles.card,
@@ -69,40 +67,44 @@ export const ProductCard: React.FC<ProductCardProps> = ({
           source={{ uri: image }} 
           style={imageStyle}
         />
-        {/* Heart Icon for Save/Unsave */}
-        <TouchableOpacity
-          style={styles.heartButton}
-          onPress={() => onSaveToggle?.(id, !isSaved)}
-          activeOpacity={0.7}
-        >
-          <MaterialIcons
-            name={isSaved ? "favorite" : "favorite-border"}
-            size={Responsive.responsiveValue(20, 22, 24, 28)}
-            color={isSaved ? "#FF6B6B" : colors.textSecondary}
-          />
-        </TouchableOpacity>
       </ResponsiveView>
       
       <ResponsiveView 
         padding={isHorizontal ? "sm" : "md"}
         style={styles.content}
       >
-        <ResponsiveView marginBottom="xs">
-          <ResponsiveText 
-            size={isHorizontal ? "sm" : "md"}
-            weight="semiBold" 
-            color={textColor || colors.text}
-            numberOfLines={isHorizontal ? 1 : 2}
-          >
-            {name}
-          </ResponsiveText>
+        <ResponsiveView>
+          <ResponsiveView marginBottom="xs">
+            <ResponsiveText 
+              size={isHorizontal ? "sm" : "md"}
+              weight="semiBold" 
+              color={textColor || colors.text}
+              numberOfLines={isHorizontal ? 1 : 2}
+            >
+              {name}
+            </ResponsiveText>
+          </ResponsiveView>
+          
+          {description && (
+            <ResponsiveView marginBottom="xs">
+              <ResponsiveText 
+                size={isHorizontal ? "xs" : "sm"}
+                weight="regular" 
+                color={colors.textSecondary}
+                numberOfLines={isHorizontal ? 1 : 2}
+                lineHeight="tight"
+              >
+                {description}
+              </ResponsiveText>
+            </ResponsiveView>
+          )}
         </ResponsiveView>
         
         <ResponsiveView 
           flexDirection="row" 
           alignItems="center" 
-          justifyContent="flex-end"
-          marginTop="xs"
+          justifyContent="flex-start"
+          style={{ marginTop: 'auto' }}
         >
           <ResponsiveText 
             size={isHorizontal ? "sm" : "lg"}
@@ -149,19 +151,7 @@ const styles = StyleSheet.create({
   },
   content: {
     flex: 1,
-  },
-  heartButton: {
-    position: 'absolute',
-    top: Responsive.responsiveValue(8, 10, 12, 14),
-    right: Responsive.responsiveValue(8, 10, 12, 14),
-    backgroundColor: 'rgba(255, 255, 255, 0.9)',
-    borderRadius: Responsive.responsiveValue(16, 18, 20, 24),
-    padding: Responsive.responsiveValue(6, 8, 10, 12),
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 2,
+    justifyContent: 'space-between',
   },
 });
 

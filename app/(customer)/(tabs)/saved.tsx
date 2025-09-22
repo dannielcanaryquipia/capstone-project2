@@ -78,15 +78,14 @@ export default function SavedScreen() {
       <ProductCard
         id={product.id}
         name={product.name}
-        price={product.price}
+        description={product.description}
+        price={product.base_price || product.price}
         image={product.image_url || product.image}
         tags={product.is_recommended ? ['Recommended'] : []}
         variant="vertical"
         backgroundColor={colors.card}
         textColor={colors.text}
         priceColor={colors.themedPrice}
-        isSaved={true} // All items in this list are saved
-        onSaveToggle={() => toggleSaveProduct(product.id)}
         onPress={() => router.push({
           pathname: '/(customer)/product/[id]',
           params: { id: product.id }

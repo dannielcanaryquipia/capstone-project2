@@ -10,7 +10,12 @@ export class ProductService {
         .select(`
           *,
           category:categories(name, description),
-          stock:product_stock(quantity)
+          pizza_options:pizza_options(
+            id,
+            size,
+            price,
+            crust:crusts(name)
+          )
         `)
         .order('created_at', { ascending: false });
 
@@ -40,7 +45,12 @@ export class ProductService {
 
       const { data, error } = await query;
 
-      if (error) throw error;
+      if (error) {
+        console.error('ProductService Error:', error);
+        throw error;
+      }
+      
+      
       return data || [];
     } catch (error) {
       console.error('Error fetching products:', error);
@@ -56,8 +66,12 @@ export class ProductService {
         .select(`
           *,
           category:categories(name, description),
-          stock:product_stock(quantity),
-          variants:product_variants(*)
+          pizza_options:pizza_options(
+            id,
+            size,
+            price,
+            crust:crusts(name)
+          )
         `)
         .eq('id', productId)
         .single();
@@ -104,14 +118,6 @@ export class ProductService {
 
       if (error) throw error;
 
-      // Create initial stock entry
-      await supabase
-        .from('product_stock')
-        .insert({
-          product_id: (data as any).id,
-          quantity: 0,
-        } as any);
-
       return await this.getProductById((data as any).id) as Product;
     } catch (error) {
       console.error('Error creating product:', error);
@@ -144,18 +150,7 @@ export class ProductService {
   // Delete product
   static async deleteProduct(productId: string): Promise<void> {
     try {
-      // First delete related records
-      await supabase
-        .from('product_stock')
-        .delete()
-        .eq('product_id', productId);
-
-      await supabase
-        .from('product_variants')
-        .delete()
-        .eq('product_id', productId);
-
-      // Then delete the product
+      // Delete the product
       const { error } = await supabase
         .from('products')
         .delete()
@@ -275,15 +270,8 @@ export class ProductService {
 
       if (categoriesError) throw categoriesError;
 
-      const { data: stock, error: stockError } = await supabase
-        .from('product_stock')
-        .select('product_id, quantity');
-
-      if (stockError) throw stockError;
-
       const productsData = products as any[];
       const categoriesData = categories as any[];
-      const stockData = stock as any[];
 
       const stats: ProductStats = {
         total_products: productsData.length,
@@ -291,7 +279,7 @@ export class ProductService {
         unavailable_products: productsData.filter(p => !p.is_available).length,
         recommended_products: productsData.filter(p => p.is_recommended).length,
         total_categories: categoriesData.length,
-        low_stock_products: stockData.filter(s => s.quantity <= 10).length, // Default threshold
+        low_stock_products: 0, // No stock tracking in current schema
         average_price: productsData.length > 0 ? 
           productsData.reduce((sum, p) => sum + p.base_price, 0) / productsData.length : 0,
         new_products_this_month: productsData.filter(p => 
@@ -306,41 +294,11 @@ export class ProductService {
     }
   }
 
-  // Update product stock
-  static async updateStock(
-    productId: string, 
-    quantity: number
-  ): Promise<void> {
-    try {
-      const { error } = await (supabase as any)
-        .from('product_stock')
-        .update({ quantity })
-        .eq('product_id', productId);
-
-      if (error) throw error;
-    } catch (error) {
-      console.error('Error updating stock:', error);
-      throw error;
-    }
-  }
-
-  // Get low stock products
+  // Get low stock products (placeholder - no stock tracking in current schema)
   static async getLowStockProducts(): Promise<Product[]> {
     try {
-      const { data, error } = await supabase
-        .from('products')
-        .select(`
-          *,
-          category:categories(name),
-          stock:product_stock(quantity)
-        `)
-        .eq('is_available', true);
-
-      if (error) throw error;
-
-      return (data || []).filter((product: any) => 
-        product.stock && product.stock.quantity <= 10 // Default low stock threshold
-      );
+      // Return empty array since stock tracking is not implemented
+      return [];
     } catch (error) {
       console.error('Error fetching low stock products:', error);
       throw error;
@@ -354,7 +312,13 @@ export class ProductService {
         .from('products')
         .select(`
           *,
-          category:categories(name)
+          category:categories(name, description),
+          pizza_options:pizza_options(
+            id,
+            size,
+            price,
+            crust:crusts(name)
+          )
         `)
         .or(`name.ilike.%${query}%,description.ilike.%${query}%`)
         .eq('is_available', true)

@@ -1,20 +1,144 @@
 import { MaterialIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import React from 'react';
-import { ScrollView, StyleSheet } from 'react-native';
+import React, { useState } from 'react';
+import {
+  ActivityIndicator,
+  Alert,
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  TouchableOpacity
+} from 'react-native';
 import Button from '../../../components/ui/Button';
 import ResponsiveText from '../../../components/ui/ResponsiveText';
 import ResponsiveView from '../../../components/ui/ResponsiveView';
 import Layout from '../../../constants/Layout';
 import { useTheme } from '../../../contexts/ThemeContext';
+import {
+  Address,
+  useAddresses,
+  useDeleteAddress,
+  useSetDefaultAddress
+} from '../../../hooks/useAddresses';
 import global from '../../../styles/global';
 
 export default function AddressesScreen() {
   const { colors } = useTheme();
   const router = useRouter();
+  const { addresses, isLoading, error, refresh } = useAddresses();
+  const { deleteAddress, isLoading: isDeleting } = useDeleteAddress();
+  const { setDefaultAddress, isLoading: isSettingDefault } = useSetDefaultAddress();
+  const [refreshing, setRefreshing] = useState(false);
+
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    await refresh();
+    setRefreshing(false);
+  };
+
+  const handleAddAddress = () => {
+    router.push('/(customer)/profile/address-form');
+  };
+
+  const handleEditAddress = (address: Address) => {
+    router.push({
+      pathname: '/(customer)/profile/address-form',
+      params: { addressId: address.id }
+    });
+  };
+
+  const handleDeleteAddress = (address: Address) => {
+    Alert.alert(
+      'Delete Address',
+      `Are you sure you want to delete "${address.label}"?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await deleteAddress(address.id);
+              Alert.alert('Success', 'Address deleted successfully');
+            } catch (error) {
+              Alert.alert('Error', 'Failed to delete address. Please try again.');
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  const handleSetDefault = async (address: Address) => {
+    try {
+      await setDefaultAddress(address.id);
+      Alert.alert('Success', 'Default address updated successfully');
+    } catch (error) {
+      Alert.alert('Error', 'Failed to set default address. Please try again.');
+    }
+  };
+
+  const formatAddress = (address: Address) => {
+    const parts = [
+      address.address_line_1,
+      address.address_line_2,
+      address.city,
+      address.state,
+      address.postal_code,
+      address.country
+    ].filter(Boolean);
+    return parts.join(', ');
+  };
+
+  if (isLoading && !addresses.length) {
+    return (
+      <ResponsiveView style={[global.screen, styles.center]}>
+        <ActivityIndicator size="large" color={colors.primary} />
+        <ResponsiveView marginTop="md">
+          <ResponsiveText size="md" color={colors.textSecondary}>
+            Loading addresses...
+          </ResponsiveText>
+        </ResponsiveView>
+      </ResponsiveView>
+    );
+  }
+
+  if (error) {
+    return (
+      <ResponsiveView style={[global.screen, styles.center]} padding="lg">
+        <MaterialIcons name="error-outline" size={64} color={colors.error} />
+        <ResponsiveView marginTop="md">
+          <ResponsiveText size="lg" weight="semiBold" color={colors.error} align="center">
+            Failed to load addresses
+          </ResponsiveText>
+        </ResponsiveView>
+        <ResponsiveView marginTop="sm">
+          <ResponsiveText size="md" color={colors.textSecondary} align="center">
+            {error}
+          </ResponsiveText>
+        </ResponsiveView>
+        <Button
+          title="Try Again"
+          onPress={refresh}
+          variant="primary"
+          size="medium"
+          style={styles.retryButton}
+        />
+      </ResponsiveView>
+    );
+  }
 
   return (
-    <ScrollView style={[global.screen, { backgroundColor: colors.background }]}>
+    <ScrollView 
+      style={[global.screen, { backgroundColor: colors.background }]}
+      refreshControl={
+        <RefreshControl 
+          refreshing={refreshing} 
+          onRefresh={handleRefresh}
+          tintColor={colors.primary}
+        />
+      }
+    >
       <ResponsiveView padding="lg">
         {/* Header */}
         <ResponsiveView style={[styles.header, { backgroundColor: colors.surface }]}>
@@ -30,10 +154,17 @@ export default function AddressesScreen() {
               Manage Addresses
             </ResponsiveText>
           </ResponsiveView>
+          <Button
+            title="Add Address"
+            onPress={handleAddAddress}
+            variant="primary"
+            size="small"
+            icon={<MaterialIcons name="add" size={16} color={colors.textInverse} />}
+          />
         </ResponsiveView>
 
-        {/* Content */}
-        <ResponsiveView style={styles.content}>
+        {/* Addresses List */}
+        {addresses.length === 0 ? (
           <ResponsiveView style={[styles.emptyState, { backgroundColor: colors.surface }]}>
             <ResponsiveView style={[styles.emptyIcon, { backgroundColor: colors.surfaceVariant }]}>
               <MaterialIcons name="location-on" size={64} color={colors.primary} />
@@ -50,23 +181,111 @@ export default function AddressesScreen() {
             </ResponsiveView>
             <Button
               title="Add Address"
-              onPress={() => {
-                // TODO: Implement add address functionality
-                console.log('Add address pressed');
-              }}
+              onPress={handleAddAddress}
               variant="primary"
               size="large"
               style={styles.addButton}
             />
           </ResponsiveView>
-        </ResponsiveView>
+        ) : (
+          <ResponsiveView style={styles.addressesList}>
+            {addresses.map((address, index) => (
+              <ResponsiveView 
+                key={address.id} 
+                style={[
+                  styles.addressCard, 
+                  { 
+                    backgroundColor: colors.surface,
+                    borderColor: address.is_default ? colors.primary : colors.border,
+                    ...Layout.shadows.sm
+                  }
+                ]}
+              >
+                {/* Address Header */}
+                <ResponsiveView style={styles.addressHeader}>
+                  <ResponsiveView style={styles.addressTitleRow}>
+                    <ResponsiveText size="md" weight="semiBold" color={colors.text}>
+                      {address.label}
+                    </ResponsiveText>
+                    {address.is_default && (
+                      <ResponsiveView style={[styles.defaultBadge, { backgroundColor: colors.primary }]}>
+                        <ResponsiveText size="xs" weight="medium" color={colors.textInverse}>
+                          DEFAULT
+                        </ResponsiveText>
+                      </ResponsiveView>
+                    )}
+                  </ResponsiveView>
+                  <ResponsiveView style={styles.addressActions}>
+                    <TouchableOpacity
+                      style={styles.actionButton}
+                      onPress={() => handleEditAddress(address)}
+                      disabled={isDeleting || isSettingDefault}
+                    >
+                      <MaterialIcons name="edit" size={20} color={colors.primary} />
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={styles.actionButton}
+                      onPress={() => handleDeleteAddress(address)}
+                      disabled={isDeleting || isSettingDefault}
+                    >
+                      <MaterialIcons name="delete" size={20} color={colors.error} />
+                    </TouchableOpacity>
+                  </ResponsiveView>
+                </ResponsiveView>
+
+                {/* Address Details */}
+                <ResponsiveView style={styles.addressDetails}>
+                  <ResponsiveText size="sm" color={colors.textSecondary}>
+                    {address.full_name}
+                  </ResponsiveText>
+                  <ResponsiveText size="sm" color={colors.textSecondary}>
+                    {address.phone_number}
+                  </ResponsiveText>
+                  <ResponsiveView marginTop="xs">
+                    <ResponsiveText size="md" color={colors.text}>
+                      {formatAddress(address)}
+                    </ResponsiveText>
+                  </ResponsiveView>
+                  {address.delivery_instructions && (
+                    <ResponsiveView marginTop="xs">
+                      <ResponsiveText size="sm" color={colors.textSecondary}>
+                        Instructions: {address.delivery_instructions}
+                      </ResponsiveText>
+                    </ResponsiveView>
+                  )}
+                </ResponsiveView>
+
+                {/* Set Default Button */}
+                {!address.is_default && (
+                  <ResponsiveView style={styles.setDefaultSection}>
+                    <Button
+                      title="Set as Default"
+                      onPress={() => handleSetDefault(address)}
+                      variant="outline"
+                      size="small"
+                      disabled={isSettingDefault}
+                      style={styles.setDefaultButton}
+                    />
+                  </ResponsiveView>
+                )}
+              </ResponsiveView>
+            ))}
+          </ResponsiveView>
+        )}
       </ResponsiveView>
     </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
+  center: {
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
   header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
     marginBottom: Layout.spacing.lg,
     padding: Layout.spacing.md,
     borderRadius: Layout.borderRadius.lg,
@@ -75,6 +294,7 @@ const styles = StyleSheet.create({
   headerLeft: {
     flexDirection: 'row',
     alignItems: 'center',
+    flex: 1,
   },
   backButton: {
     marginRight: Layout.spacing.sm,
@@ -101,5 +321,53 @@ const styles = StyleSheet.create({
   },
   addButton: {
     marginTop: Layout.spacing.lg,
+  },
+  retryButton: {
+    marginTop: Layout.spacing.md,
+  },
+  addressesList: {
+    gap: Layout.spacing.md,
+  },
+  addressCard: {
+    borderRadius: Layout.borderRadius.lg,
+    padding: Layout.spacing.md,
+    borderWidth: 2,
+  },
+  addressHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: Layout.spacing.sm,
+  },
+  addressTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  defaultBadge: {
+    paddingHorizontal: Layout.spacing.xs,
+    paddingVertical: 2,
+    borderRadius: Layout.borderRadius.xs,
+    marginLeft: Layout.spacing.sm,
+  },
+  addressActions: {
+    flexDirection: 'row',
+    gap: Layout.spacing.sm,
+  },
+  actionButton: {
+    padding: Layout.spacing.xs,
+    borderRadius: Layout.borderRadius.sm,
+  },
+  addressDetails: {
+    marginBottom: Layout.spacing.sm,
+  },
+  setDefaultSection: {
+    marginTop: Layout.spacing.sm,
+    paddingTop: Layout.spacing.sm,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(0,0,0,0.1)',
+  },
+  setDefaultButton: {
+    alignSelf: 'flex-start',
   },
 });

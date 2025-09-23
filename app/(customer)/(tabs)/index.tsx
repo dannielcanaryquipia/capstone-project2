@@ -15,10 +15,10 @@ import { useAuth } from '../../../hooks/useAuth';
 
 export default function HomeScreen() {
   const { colors } = useTheme();
-  const { user } = useAuth();
+  const { user, profile: authProfile } = useAuth();
   const { profile } = useCurrentUserProfile();
   const router = useRouter();
-  const userName = profile?.full_name || user?.user_metadata?.name || 'Guest';
+  const userName = authProfile?.full_name || profile?.full_name || user?.user_metadata?.name || 'Guest';
   const [searchQuery, setSearchQuery] = useState('');
   
   // Ban emoji usage in search input
@@ -88,7 +88,12 @@ export default function HomeScreen() {
                 {getGreeting()}
               </ResponsiveText>
             </ResponsiveView>
-            <ResponsiveView marginBottom="xs">
+            <ResponsiveView marginBottom="xs" style={{ flexDirection: 'row', alignItems: 'center' }}>
+              {/* Small profile avatar beside the name */}
+              <Image
+                source={{ uri: authProfile?.avatar_url || 'https://ui-avatars.com/api/?name=' + encodeURIComponent(userName) }}
+                style={{ width: 32, height: 32, borderRadius: 16, marginRight: 8 }}
+              />
               <ResponsiveText 
                 size="display" 
                 weight="bold" 

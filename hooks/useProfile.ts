@@ -16,7 +16,7 @@ export const useProfile = (userId: string) => {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const { user } = useAuthContext();
+  const { user, setState } = useAuthContext();
 
   const fetchProfile = async () => {
     if (!userId) return;
@@ -42,6 +42,8 @@ export const useProfile = (userId: string) => {
       const updateData = toUpdateProfileData(updates);
       const updatedProfile = await authService.updateProfile(userId, updateData);
       setProfile(updatedProfile);
+      // Propagate to global auth store so other screens (e.g., Home) update immediately
+      setState({ profile: updatedProfile });
       setError(null);
       return updatedProfile;
     } catch (err) {

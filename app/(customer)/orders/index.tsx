@@ -3,6 +3,7 @@ import { useRouter } from 'expo-router';
 import React, { useMemo, useState } from 'react';
 import { FlatList, Image, ListRenderItem, RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import Button from '../../../components/ui/Button';
 import Layout from '../../../constants/Layout';
 import { useTheme } from '../../../contexts/ThemeContext';
 import { useOrders } from '../../../hooks/useOrders';
@@ -86,19 +87,30 @@ export default function OrdersScreen() {
   const { colors } = useTheme();
   const router = useRouter();
   const [activeTab, setActiveTab] = useState('All');
-  
-  // Fetch orders from the backend
-  const { orders, isLoading, error, refresh } = useOrders();
 
-  // Filter orders based on active tab
-  const filteredOrders = useMemo(() => {
-    if (activeTab === 'All') return orders;
-    
-    return orders.filter((order: Order) => {
-      const displayStatus = formatOrderStatus(order.status);
-      return displayStatus === activeTab;
-    });
-  }, [orders, activeTab]);
+  // Map UI tab to backend status filter
+  const statusFilter = useMemo((): OrderStatus[] | undefined => {
+    switch (activeTab) {
+      case 'Pending':
+        return ['pending'];
+      case 'Preparing':
+        return ['confirmed', 'preparing', 'ready_for_pickup'];
+      case 'On the Way':
+        return ['out_for_delivery'];
+      case 'Delivered':
+        return ['delivered'];
+      default:
+        return undefined;
+    }
+  }, [activeTab]);
+
+  // Fetch orders from the backend with status filter
+  const { orders, isLoading, error, refresh } = useOrders(
+    statusFilter ? { status: statusFilter } : undefined
+  );
+
+  // Orders are already filtered in the backend by status
+  const filteredOrders = orders;
 
   const renderOrderItem: ListRenderItem<Order> = ({ item }) => {
     const displayStatus = formatOrderStatus(item.status);
@@ -237,14 +249,7 @@ export default function OrdersScreen() {
           <Text style={[styles.errorSubtitle, { color: colors.textSecondary }]}>
             {error}
           </Text>
-          <TouchableOpacity 
-            style={[styles.retryButton, { backgroundColor: colors.primary }]}
-            onPress={refresh}
-          >
-            <Text style={[styles.retryButtonText, { color: colors.background }]}>
-              Try Again
-            </Text>
-          </TouchableOpacity>
+          <Button title="Try Again" onPress={refresh} fullWidth />
         </View>
       ) : filteredOrders.length > 0 ? (
         <FlatList

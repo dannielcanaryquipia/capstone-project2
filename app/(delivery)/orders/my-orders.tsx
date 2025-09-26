@@ -1,25 +1,29 @@
-import { MaterialIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import {
-    ActivityIndicator,
-    Alert,
-    FlatList,
-    RefreshControl,
-    StyleSheet,
-    TouchableOpacity,
-    View
+  Alert,
+  FlatList,
+  RefreshControl,
+  StyleSheet
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import Button from '../../../components/ui/Button';
+import { EmptyState } from '../../../components/ui/EmptyState';
+import { LoadingState } from '../../../components/ui/LoadingState';
+import { OrderCard } from '../../../components/ui/OrderCard';
 import { ResponsiveText } from '../../../components/ui/ResponsiveText';
 import { ResponsiveView } from '../../../components/ui/ResponsiveView';
+import { TabBar, TabItem } from '../../../components/ui/TabBar';
 import { Strings } from '../../../constants/Strings';
-import { useAuth } from '../../../hooks/useAuth';
 import { useTheme } from '../../../contexts/ThemeContext';
+import { useAuth } from '../../../hooks/useAuth';
 import { Order } from '../../../types/order.types';
 
-const statusTabs = ['All', 'Out for Delivery', 'Delivered', 'Cancelled'];
+const statusTabs: TabItem[] = [
+  { key: 'All', label: 'All' },
+  { key: 'Out for Delivery', label: 'Out for Delivery' },
+  { key: 'Delivered', label: 'Delivered' },
+  { key: 'Cancelled', label: 'Cancelled' },
+];
 
 export default function MyOrdersScreen() {
   const { colors } = useTheme();
@@ -202,130 +206,25 @@ export default function MyOrdersScreen() {
   };
 
   const renderOrderItem = ({ item }: { item: Order }) => (
-    <TouchableOpacity
-      style={[styles.orderCard, { backgroundColor: colors.card, borderColor: colors.border }]}
+    <OrderCard
+      order={item}
       onPress={() => router.push(`/(delivery)/order-details/${item.id}` as any)}
-    >
-      <ResponsiveView style={styles.orderHeader}>
-        <ResponsiveView style={styles.orderInfo}>
-          <ResponsiveText size="lg" weight="semiBold" color={colors.text}>
-            {item.order_number}
-          </ResponsiveText>
-          <ResponsiveView style={[styles.statusBadge, { backgroundColor: `${getStatusColor(item.status)}20` }]}>
-            <MaterialIcons 
-              name={getStatusIcon(item.status)} 
-              size={14} 
-              color={getStatusColor(item.status)} 
-            />
-            <ResponsiveView marginLeft="xs">
-              <ResponsiveText 
-                size="xs" 
-                color={getStatusColor(item.status)}
-                weight="semiBold"
-              >
-                {item.status.replace('_', ' ').toUpperCase()}
-              </ResponsiveText>
-            </ResponsiveView>
-          </ResponsiveView>
-        </ResponsiveView>
-        <MaterialIcons name="keyboard-arrow-right" size={24} color={colors.textSecondary} />
-      </ResponsiveView>
-
-      <ResponsiveView style={styles.customerInfo}>
-        <MaterialIcons name="person" size={16} color={colors.textSecondary} />
-        <ResponsiveView marginLeft="xs">
-          <ResponsiveText size="sm" color={colors.textSecondary}>
-            Customer: {item.delivery_address?.full_address?.split(',')[0] || 'Unknown'}
-          </ResponsiveText>
-        </ResponsiveView>
-      </ResponsiveView>
-
-      <ResponsiveView style={styles.deliveryInfo}>
-        <MaterialIcons name="location-on" size={16} color={colors.textSecondary} />
-        <ResponsiveView marginLeft="xs" style={styles.addressText}>
-          <ResponsiveText 
-            size="sm" 
-            color={colors.textSecondary} 
-            numberOfLines={2}
-          >
-            {item.delivery_address?.full_address || 'No address provided'}
-          </ResponsiveText>
-        </ResponsiveView>
-      </ResponsiveView>
-
-      <ResponsiveView style={styles.orderDetails}>
-        <ResponsiveView style={styles.detailItem}>
-          <MaterialIcons name="restaurant" size={16} color={colors.textSecondary} />
-          <ResponsiveView marginLeft="xs">
-            <ResponsiveText size="sm" color={colors.textSecondary}>
-              {item.items.length} item{item.items.length !== 1 ? 's' : ''}
-            </ResponsiveText>
-          </ResponsiveView>
-        </ResponsiveView>
-        
-        <ResponsiveView style={styles.detailItem}>
-          <MaterialIcons name="schedule" size={16} color={colors.textSecondary} />
-          <ResponsiveView marginLeft="xs">
-            <ResponsiveText size="sm" color={colors.textSecondary}>
-              {formatDate(item.created_at)}
-            </ResponsiveText>
-          </ResponsiveView>
-        </ResponsiveView>
-        
-        <ResponsiveView style={styles.detailItem}>
-          <MaterialIcons name="payment" size={16} color={colors.textSecondary} />
-          <ResponsiveView marginLeft="xs">
-            <ResponsiveText size="sm" color={colors.textSecondary}>
-              {item.payment_method.toUpperCase()}
-            </ResponsiveText>
-          </ResponsiveView>
-        </ResponsiveView>
-      </ResponsiveView>
-
-      <ResponsiveView style={styles.orderFooter}>
-        <ResponsiveView style={styles.totalContainer}>
-          <ResponsiveText size="sm" color={colors.textSecondary}>
-            Total:
-          </ResponsiveText>
-          <ResponsiveText size="lg" weight="semiBold" color={colors.primary}>
-            ₱{item.total_amount.toFixed(2)}
-          </ResponsiveText>
-        </ResponsiveView>
-        
-        {item.status === 'out_for_delivery' && (
-          <Button
-            title="Mark as Delivered"
-            onPress={() => handleUpdateStatus(item.id, 'delivered')}
-            variant="primary"
-            size="small"
-          />
-        )}
-      </ResponsiveView>
-
-      {item.delivery_instructions && (
-        <ResponsiveView style={styles.instructionsContainer}>
-          <MaterialIcons name="info" size={16} color={colors.info} />
-          <ResponsiveView marginLeft="xs">
-            <ResponsiveText size="sm" color={colors.info}>
-              {item.delivery_instructions}
-            </ResponsiveText>
-          </ResponsiveView>
-        </ResponsiveView>
-      )}
-    </TouchableOpacity>
+      showCustomerInfo={true}
+      showDeliveryInfo={true}
+      showActionButton={item.status === 'out_for_delivery'}
+      actionButtonTitle={item.status === 'out_for_delivery' ? 'Mark as Delivered' : undefined}
+      onActionPress={item.status === 'out_for_delivery' ? () => handleUpdateStatus(item.id, 'delivered') : undefined}
+      variant="detailed"
+    />
   );
 
   if (loading) {
     return (
       <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={colors.primary} />
-          <ResponsiveView marginTop="md">
-            <ResponsiveText size="md" color={colors.textSecondary}>
-              {Strings.loading}
-            </ResponsiveText>
-          </ResponsiveView>
-        </View>
+        <LoadingState 
+          message={Strings.loading} 
+          fullScreen 
+        />
       </SafeAreaView>
     );
   }
@@ -342,36 +241,14 @@ export default function MyOrdersScreen() {
       </ResponsiveView>
 
       {/* Status Tabs */}
-      <ResponsiveView style={styles.tabsContainer}>
-        <FlatList
-          data={statusTabs}
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          renderItem={({ item }) => (
-            <TouchableOpacity
-              style={[
-                styles.tab,
-                activeTab === item && { 
-                  backgroundColor: colors.primary,
-                  borderColor: colors.primary,
-                },
-                activeTab !== item && { borderColor: colors.border },
-              ]}
-              onPress={() => setActiveTab(item)}
-            >
-              <ResponsiveText 
-                size="sm" 
-                weight="medium"
-                color={activeTab === item ? colors.background : colors.text}
-              >
-                {item}
-              </ResponsiveText>
-            </TouchableOpacity>
-          )}
-          keyExtractor={(item) => item}
-          contentContainerStyle={styles.tabsList}
-        />
-      </ResponsiveView>
+      <TabBar
+        tabs={statusTabs}
+        activeTab={activeTab}
+        onTabPress={setActiveTab}
+        horizontal
+        showScrollIndicator={false}
+        variant="pills"
+      />
 
       {orders.length > 0 ? (
         <FlatList
@@ -385,30 +262,18 @@ export default function MyOrdersScreen() {
           }
         />
       ) : (
-        <ResponsiveView style={styles.emptyState}>
-          <MaterialIcons name="delivery-dining" size={64} color={colors.textSecondary} />
-          <ResponsiveView marginTop="md">
-            <ResponsiveText size="lg" weight="semiBold" color={colors.text}>
-              No Deliveries Found
-            </ResponsiveText>
-          </ResponsiveView>
-          <ResponsiveView marginTop="sm">
-            <ResponsiveText size="md" color={colors.textSecondary} style={{ textAlign: 'center' }}>
-              {activeTab === 'All' 
-                ? 'No delivery orders assigned to you yet.'
-                : `No ${activeTab.toLowerCase()} deliveries found.`
-              }
-            </ResponsiveText>
-          </ResponsiveView>
-          
-          <ResponsiveView marginTop="lg">
-            <Button
-              title="Check Available Orders"
-              onPress={() => router.push('/(delivery)/orders/available' as any)}
-              variant="primary"
-            />
-          </ResponsiveView>
-        </ResponsiveView>
+        <EmptyState
+          icon="delivery-dining"
+          title="No Deliveries Found"
+          description={activeTab === 'All' 
+            ? 'No delivery orders assigned to you yet.'
+            : `No ${activeTab.toLowerCase()} deliveries found.`
+          }
+          actionTitle="Check Available Orders"
+          onActionPress={() => router.push('/(delivery)/orders/available' as any)}
+          showAction={true}
+          fullScreen
+        />
       )}
     </SafeAreaView>
   );
@@ -418,105 +283,12 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
   header: {
     padding: 20,
     paddingBottom: 16,
   },
-  tabsContainer: {
-    paddingHorizontal: 20,
-    paddingBottom: 16,
-  },
-  tabsList: {
-    gap: 8,
-  },
-  tab: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
-    borderWidth: 1,
-  },
   ordersList: {
     padding: 20,
     paddingTop: 0,
-  },
-  orderCard: {
-    padding: 16,
-    borderRadius: 12,
-    borderWidth: 1,
-    marginBottom: 16,
-  },
-  orderHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    marginBottom: 12,
-  },
-  orderInfo: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  statusBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 12,
-  },
-  customerInfo: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  deliveryInfo: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    marginBottom: 12,
-  },
-  addressText: {
-    flex: 1,
-  },
-  orderDetails: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 16,
-  },
-  detailItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flex: 1,
-  },
-  orderFooter: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingTop: 12,
-    borderTopWidth: 1,
-    borderTopColor: 'rgba(0,0,0,0.1)',
-  },
-  totalContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  instructionsContainer: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    marginTop: 12,
-    padding: 12,
-    backgroundColor: 'rgba(33, 150, 243, 0.1)',
-    borderRadius: 8,
-  },
-  emptyState: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 40,
   },
 });

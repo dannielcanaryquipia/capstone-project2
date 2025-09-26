@@ -490,7 +490,10 @@ export default function ProfileScreen() {
                     styles.orderItem,
                     index < recentOrders.length - 1 && { borderBottomColor: colors.border },
                   ]}
-                  onPress={() => router.push('/(customer)/orders')}
+                  onPress={() => router.push({
+                    pathname: '/(customer)/orders/[id]',
+                    params: { id: order.id }
+                  } as any)}
                   activeOpacity={0.7}
                 >
                   <ResponsiveView style={styles.orderLeft}>

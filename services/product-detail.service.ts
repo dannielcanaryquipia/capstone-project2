@@ -4,10 +4,6 @@ export interface PizzaOption {
   id: string;
   size: string;
   price: number;
-  crust: {
-    id: string;
-    name: string;
-  };
   toppings?: {
     id: string;
     name: string;
@@ -54,46 +50,58 @@ export class ProductDetailService {
       if (productError) throw productError;
       if (!product) return null;
 
-      // Get pizza options with crust information
+      // Get pizza options
       const { data: pizzaOptions, error: pizzaOptionsError } = await supabase
         .from('pizza_options')
         .select(`
           id,
           size,
-          price,
-          crust:crusts(name)
+          price
         `)
         .eq('product_id', productId);
 
       if (pizzaOptionsError) throw pizzaOptionsError;
 
+      // Get all toppings for mapping
+      const { data: allToppings, error: toppingsError } = await supabase
+        .from('toppings')
+        .select('id, name');
+
+      if (toppingsError) {
+        console.warn('Error fetching toppings:', toppingsError);
+      }
+
+      const toppingMap = new Map((allToppings || []).map((topping: any) => [topping.id, topping]));
+
       // Get toppings for each pizza option
       const pizzaOptionsWithToppings = await Promise.all(
-        (pizzaOptions || []).map(async (option) => {
-          const { data: toppings, error: toppingsError } = await supabase
+        (pizzaOptions || []).map(async (option: any) => {
+          const { data: pizzaToppingOptions, error: pizzaToppingError } = await supabase
             .from('pizza_topping_options')
-            .select(`
-              topping:toppings(name)
-            `)
+            .select('topping_id')
             .eq('pizza_option_id', option.id);
 
-          if (toppingsError) {
-            console.warn('Error fetching toppings for pizza option:', toppingsError);
+          if (pizzaToppingError) {
+            console.warn('Error fetching pizza topping options:', pizzaToppingError);
             return {
               ...option,
               toppings: []
             };
           }
 
+          const toppings = (pizzaToppingOptions || [])
+            .map((pto: any) => toppingMap.get(pto.topping_id))
+            .filter(Boolean);
+
           return {
             ...option,
-            toppings: toppings?.map(t => t.topping) || []
+            toppings
           };
         })
       );
 
       return {
-        ...product,
+        ...(product as any),
         pizza_options: pizzaOptionsWithToppings
       };
     } catch (error) {
@@ -137,19 +145,22 @@ export class ProductDetailService {
   // Get pizza options for a specific product
   static async getPizzaOptions(productId: string): Promise<PizzaOption[]> {
     try {
-      const { data, error } = await supabase
+      const { data: pizzaOptions, error } = await supabase
         .from('pizza_options')
         .select(`
           id,
           size,
-          price,
-          crust:crusts(name)
+          price
         `)
         .eq('product_id', productId)
         .order('size');
 
       if (error) throw error;
-      return data || [];
+
+      // Return pizza options without crust information
+      return (pizzaOptions || []).map((option: any) => ({
+        ...option
+      }));
     } catch (error) {
       console.error('Error fetching pizza options:', error);
       throw error;
@@ -159,15 +170,27 @@ export class ProductDetailService {
   // Get toppings for a specific pizza option
   static async getPizzaOptionToppings(pizzaOptionId: string): Promise<{ id: string; name: string }[]> {
     try {
-      const { data, error } = await supabase
+      // Get pizza topping options
+      const { data: pizzaToppingOptions, error: pizzaToppingError } = await supabase
         .from('pizza_topping_options')
-        .select(`
-          topping:toppings(id, name)
-        `)
+        .select('topping_id')
         .eq('pizza_option_id', pizzaOptionId);
 
-      if (error) throw error;
-      return data?.map(item => item.topping) || [];
+      if (pizzaToppingError) throw pizzaToppingError;
+
+      if (!pizzaToppingOptions || pizzaToppingOptions.length === 0) {
+        return [];
+      }
+
+      // Get toppings by IDs
+      const toppingIds = pizzaToppingOptions.map((pto: any) => pto.topping_id);
+      const { data: toppings, error: toppingsError } = await supabase
+        .from('toppings')
+        .select('id, name')
+        .in('id', toppingIds);
+
+      if (toppingsError) throw toppingsError;
+      return toppings || [];
     } catch (error) {
       console.error('Error fetching pizza option toppings:', error);
       throw error;

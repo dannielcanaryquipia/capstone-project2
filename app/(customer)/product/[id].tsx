@@ -2,9 +2,11 @@ import { MaterialIcons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
 import { Dimensions, Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { CartNotification } from '../../../components/ui/CartNotification';
 import SelectablePill from '../../../components/ui/SelectablePill';
 import Layout from '../../../constants/Layout';
 import { useTheme } from '../../../contexts/ThemeContext';
+import { useCart } from '../../../hooks/useCart';
 import { useCrusts, useProductDetail } from '../../../hooks/useProductDetail';
 
 const { width } = Dimensions.get('window');
@@ -29,9 +31,16 @@ export default function ProductScreen() {
   const { id } = useLocalSearchParams();
   const { colors, isDark } = useTheme();
   const router = useRouter();
+  const { addItem } = useCart();
   const [quantity, setQuantity] = useState(1);
   const [selectedSize, setSelectedSize] = useState('');
   const [selectedCrust, setSelectedCrust] = useState('');
+  const [showCartNotification, setShowCartNotification] = useState(false);
+  const [addedItem, setAddedItem] = useState<{
+    name: string;
+    quantity: number;
+    totalPrice: number;
+  } | null>(null);
 
   // Fetch real product data from backend
   const { productDetail, isLoading, error } = useProductDetail(id as string);
@@ -75,8 +84,55 @@ export default function ProductScreen() {
   const decreaseQuantity = () => setQuantity(prev => Math.max(1, prev - 1));
 
   const addToCart = () => {
-    // Add to cart logic here
-    console.log(`Added ${quantity} ${product.name}(s) to cart`);
+    if (!product || product.id === 'loading') return;
+
+    // Convert ProductDetail to Product type for cart
+    const productForCart = {
+      ...product,
+      category_id: (product.category as any)?.id || '',
+      price: selectedSizePrice, // Use the selected size price
+      category: product.category ? {
+        ...product.category,
+        is_active: true,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      } : undefined,
+    };
+
+    // Prepare cart options for pizza items
+    const cartOptions: any = {};
+    if (isPizzaCategory) {
+      if (selectedSize) cartOptions.pizza_size = selectedSize;
+      if (selectedCrust) cartOptions.pizza_crust = selectedCrust;
+    }
+
+    // Add item to cart
+    addItem(productForCart as any, quantity, cartOptions);
+
+    // Store added item info for notification
+    setAddedItem({
+      name: product.name,
+      quantity,
+      totalPrice: selectedSizePrice * quantity,
+    });
+
+    // Show notification
+    setShowCartNotification(true);
+  };
+
+  const handleGoToCart = () => {
+    setShowCartNotification(false);
+    router.push('/(customer)/(tabs)/cart');
+  };
+
+  const handleContinueShopping = () => {
+    setShowCartNotification(false);
+    // Optionally reset quantity
+    setQuantity(1);
+  };
+
+  const handleCloseNotification = () => {
+    setShowCartNotification(false);
   };
 
   if (isLoading) {
@@ -250,6 +306,19 @@ export default function ProductScreen() {
           <Text style={[styles.addToCartText, { color: colors.black }]}>Add to Cart - ₱{(selectedSizePrice * quantity).toFixed(2)}</Text>
         </TouchableOpacity>
       </View>
+
+      {/* Cart Notification Modal */}
+      {addedItem && (
+        <CartNotification
+          visible={showCartNotification}
+          productName={addedItem.name}
+          quantity={addedItem.quantity}
+          totalPrice={addedItem.totalPrice}
+          onGoToCart={handleGoToCart}
+          onContinueShopping={handleContinueShopping}
+          onClose={handleCloseNotification}
+        />
+      )}
     </View>
   );
 }

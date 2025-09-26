@@ -13,8 +13,7 @@ export class ProductService {
           pizza_options:pizza_options(
             id,
             size,
-            price,
-            crust:crusts(name)
+            price
           )
         `)
         .order('created_at', { ascending: false });
@@ -69,8 +68,7 @@ export class ProductService {
           pizza_options:pizza_options(
             id,
             size,
-            price,
-            crust:crusts(name)
+            price
           )
         `)
         .eq('id', productId)
@@ -316,8 +314,7 @@ export class ProductService {
           pizza_options:pizza_options(
             id,
             size,
-            price,
-            crust:crusts(name)
+            price
           )
         `)
         .or(`name.ilike.%${query}%,description.ilike.%${query}%`)

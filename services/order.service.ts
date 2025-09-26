@@ -97,7 +97,7 @@ export class OrderService {
         .single();
 
       if (error) throw error;
-      return data;
+      return data as Order;
     } catch (error) {
       console.error('Error fetching order:', error);
       throw error;

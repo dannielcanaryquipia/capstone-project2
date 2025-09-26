@@ -50,7 +50,7 @@ export default function CartScreen() {
           {item.product_name}
         </ResponsiveText>
         <ResponsiveText size="sm" color={colors.textSecondary}>
-          ${item.unit_price.toFixed(2)} each
+          ₱{item.unit_price.toFixed(2)} each
         </ResponsiveText>
         {item.special_instructions && (
           <ResponsiveView marginTop="xs">
@@ -87,7 +87,7 @@ export default function CartScreen() {
           </TouchableOpacity>
         </ResponsiveView>
         <ResponsiveText size="sm" weight="bold" color={colors.primary}>
-          ${item.total_price.toFixed(2)}
+          ₱{item.total_price.toFixed(2)}
         </ResponsiveText>
       </ResponsiveView>
       <TouchableOpacity 
@@ -133,7 +133,7 @@ export default function CartScreen() {
           </ResponsiveView>
           <TouchableOpacity 
             style={[styles.browseButton, { backgroundColor: colors.primary }]}
-            onPress={() => router.push('/(customer)/(tabs)')}
+            onPress={() => router.push('/(customer)/menu')}
           >
             <ResponsiveText size="md" weight="semiBold" color={colors.background}>
               Browse Menu
@@ -210,7 +210,7 @@ export default function CartScreen() {
                 Subtotal ({totalItems} items)
               </ResponsiveText>
               <ResponsiveText size="md" color={colors.text}>
-                ${subtotal.toFixed(2)}
+                ₱{subtotal.toFixed(2)}
               </ResponsiveText>
             </ResponsiveView>
             
@@ -219,7 +219,7 @@ export default function CartScreen() {
                 Delivery Fee
               </ResponsiveText>
               <ResponsiveText size="md" color={colors.text}>
-                ${deliveryFee.toFixed(2)}
+                ₱{deliveryFee.toFixed(2)}
               </ResponsiveText>
             </ResponsiveView>
             
@@ -228,7 +228,7 @@ export default function CartScreen() {
                 Tax
               </ResponsiveText>
               <ResponsiveText size="md" color={colors.text}>
-                ${tax.toFixed(2)}
+                ₱{tax.toFixed(2)}
               </ResponsiveText>
             </ResponsiveView>
             
@@ -239,7 +239,7 @@ export default function CartScreen() {
                 Total
               </ResponsiveText>
               <ResponsiveText size="lg" weight="bold" color={colors.primary}>
-                ${total.toFixed(2)}
+                ₱{total.toFixed(2)}
               </ResponsiveText>
             </ResponsiveView>
           </ResponsiveView>

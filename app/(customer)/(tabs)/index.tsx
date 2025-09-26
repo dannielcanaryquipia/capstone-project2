@@ -12,6 +12,8 @@ import Responsive from '../../../constants/Responsive';
 import { useTheme } from '../../../contexts/ThemeContext';
 import { useCart, useCurrentUserProfile, useProductCategories, useProducts } from '../../../hooks';
 import { useAuth } from '../../../hooks/useAuth';
+import { useOrders } from '../../../hooks/useOrders';
+import { Order } from '../../../types/order.types';
 
 export default function HomeScreen() {
   const { colors } = useTheme();
@@ -31,6 +33,8 @@ export default function HomeScreen() {
   const { products, isLoading: productsLoading, error: productsError } = useProducts();
   const { categories, isLoading: categoriesLoading } = useProductCategories();
   const { addItem } = useCart();
+  const { orders: allOrders, isLoading: ordersLoading } = useOrders();
+  const recentOrders = allOrders.slice(0, 3);
   
   
   // Filter products for different sections
@@ -62,6 +66,20 @@ export default function HomeScreen() {
   // Handle clear search
   const handleClearSearch = () => {
     setSearchQuery('');
+  };
+
+  // Get status color for order status
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'pending': return colors.warning;
+      case 'confirmed': return colors.info;
+      case 'preparing': return colors.primary;
+      case 'ready_for_pickup': return colors.warning;
+      case 'out_for_delivery': return colors.info;
+      case 'delivered': return colors.success;
+      case 'cancelled': return colors.error;
+      default: return colors.textSecondary;
+    }
   };
 
 
@@ -466,6 +484,70 @@ export default function HomeScreen() {
           </ResponsiveView>
         </ResponsiveView>
 
+        {/* Recent Orders */}
+        {recentOrders && recentOrders.length > 0 && (
+          <ResponsiveView marginTop="sm" paddingHorizontal="lg" marginBottom="lg">
+            <ResponsiveView 
+              flexDirection="row" 
+              justifyContent="space-between" 
+              alignItems="center"
+              marginBottom="lg"
+            >
+              <ResponsiveText size="xxl" weight="bold" color={colors.text}>
+                Recent Orders ({recentOrders.length})
+              </ResponsiveText>
+              <TouchableOpacity onPress={() => router.push('/(customer)/orders')}>
+                <ResponsiveText size="md" weight="semiBold" color={colors.themedViewAll}>
+                  View All
+                </ResponsiveText>
+              </TouchableOpacity>
+            </ResponsiveView>
+            
+            <ResponsiveView style={[styles.ordersCard, { backgroundColor: colors.surface }]}>
+              {recentOrders.map((order: Order, index: number) => (
+                <TouchableOpacity
+                  key={order.id}
+                  style={[
+                    styles.orderItem,
+                    index < recentOrders.length - 1 && { borderBottomColor: colors.border }
+                  ]}
+                  onPress={() => router.push({
+                    pathname: '/(customer)/orders/[id]',
+                    params: { id: order.id }
+                  } as any)}
+                  activeOpacity={0.7}
+                >
+                  <ResponsiveView style={styles.orderLeft}>
+                    <ResponsiveView style={[styles.orderIcon, { backgroundColor: colors.surfaceVariant }]}>
+                      <MaterialIcons name="receipt" size={20} color={colors.primary} />
+                    </ResponsiveView>
+                    <ResponsiveView style={styles.orderDetails}>
+                      <ResponsiveText size="md" weight="medium" color={colors.text}>
+                        Order #{order.order_number || order.id.slice(-8)}
+                      </ResponsiveText>
+                      <ResponsiveView marginTop="xs">
+                        <ResponsiveText size="sm" color={colors.textSecondary}>
+                          {new Date(order.created_at).toLocaleDateString()} • ₱{order.total_amount?.toFixed(2) || '0.00'}
+                        </ResponsiveText>
+                      </ResponsiveView>
+                    </ResponsiveView>
+                  </ResponsiveView>
+                  <ResponsiveView style={styles.orderRight}>
+                    <ResponsiveView style={[styles.statusBadge, { 
+                      backgroundColor: getStatusColor(order.status) + '20' 
+                    }]}>
+                      <ResponsiveText size="xs" color={getStatusColor(order.status)} weight="semiBold">
+                        {order.status.replace('_', ' ').toUpperCase()}
+                      </ResponsiveText>
+                    </ResponsiveView>
+                    <MaterialIcons name="chevron-right" size={20} color={colors.textTertiary} />
+                  </ResponsiveView>
+                </TouchableOpacity>
+              ))}
+            </ResponsiveView>
+          </ResponsiveView>
+        )}
+
       </ScrollView>
     </SafeAreaView>
   );
@@ -535,5 +617,44 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     borderWidth: 1,
     minHeight: 100,
+  },
+  ordersCard: {
+    borderRadius: Layout.borderRadius.lg,
+    ...Layout.shadows.sm,
+    overflow: 'hidden',
+  },
+  orderItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: Layout.spacing.md,
+    paddingVertical: Layout.spacing.md,
+    borderBottomWidth: 1,
+  },
+  orderLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  orderIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: Layout.spacing.sm,
+  },
+  orderDetails: {
+    flex: 1,
+  },
+  orderRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Layout.spacing.sm,
+  },
+  statusBadge: {
+    paddingHorizontal: Layout.spacing.xs,
+    paddingVertical: 2,
+    borderRadius: Layout.borderRadius.xs,
   },
 });

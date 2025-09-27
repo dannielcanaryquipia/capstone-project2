@@ -60,10 +60,13 @@ export default function OrdersScreen() {
   const renderOrderItem = ({ item }: { item: Order }) => (
     <OrderCard
       order={item}
-      onPress={() => router.push({
-        pathname: '/(customer)/orders/[id]',
-        params: { id: item.id }
-      } as any)}
+      onPress={() => {
+        console.log('Order pressed:', item.id, item.order_number);
+        router.push({
+          pathname: '/(customer)/orders/[id]',
+          params: { id: item.id }
+        } as any);
+      }}
       onProductPress={handleProductPress}
       variant="default"
     />

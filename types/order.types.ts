@@ -34,6 +34,11 @@ export interface OrderItem {
   pizza_size?: string;
   pizza_crust?: string;
   toppings?: string[];
+  // Product relationship
+  product?: {
+    name: string;
+    image_url: string;
+  };
 }
 
 export interface DeliveryAddress {

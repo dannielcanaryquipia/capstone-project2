@@ -76,7 +76,9 @@ export class DebugDataService {
           pizza_options:pizza_options(
             id,
             size,
-            price
+            price,
+            crust_id,
+            crust:crusts(name)
           )
         `)
         .limit(3);

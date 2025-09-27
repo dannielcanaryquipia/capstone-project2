@@ -150,16 +150,26 @@ export class ProductDetailService {
         .select(`
           id,
           size,
-          price
+          price,
+          crust_id,
+          crust:crusts(name)
         `)
         .eq('product_id', productId)
         .order('size');
 
       if (error) throw error;
 
-      // Return pizza options without crust information
+      // Return pizza options with crust information
       return (pizzaOptions || []).map((option: any) => ({
-        ...option
+        id: option.id,
+        product_id: productId,
+        size: option.size,
+        price: option.price,
+        crust_id: option.crust_id,
+        crust: option.crust ? {
+          id: option.crust_id,
+          name: option.crust.name
+        } : undefined
       }));
     } catch (error) {
       console.error('Error fetching pizza options:', error);

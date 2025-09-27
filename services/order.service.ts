@@ -50,7 +50,10 @@ export class OrderService {
         .from('orders')
         .select(`
           *,
-          items:order_items(*),
+          items:order_items(
+            *,
+            product:products(name, image_url)
+          ),
           delivery_address:addresses(*)
         `)
         .eq('user_id', userId)
@@ -90,7 +93,10 @@ export class OrderService {
         .from('orders')
         .select(`
           *,
-          items:order_items(*),
+          items:order_items(
+            *,
+            product:products(name, image_url)
+          ),
           delivery_address:addresses(*)
         `)
         .eq('id', orderId)

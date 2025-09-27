@@ -3,6 +3,7 @@ import React from 'react';
 import { Image, StyleSheet, TouchableOpacity } from 'react-native';
 import Layout from '../../constants/Layout';
 import { useTheme } from '../../contexts/ThemeContext';
+import { useResponsive } from '../../hooks/useResponsive';
 import { Order, OrderStatus } from '../../types/order.types';
 import { ResponsiveText } from './ResponsiveText';
 import { ResponsiveView } from './ResponsiveView';
@@ -106,6 +107,7 @@ export const OrderCard: React.FC<OrderCardProps> = ({
   variant = 'default'
 }) => {
   const { colors } = useTheme();
+  const { isTablet, isSmallDevice } = useResponsive();
   
   const displayStatus = formatOrderStatus(order.status);
   const statusColor = getStatusColor(order.status, colors);
@@ -114,10 +116,10 @@ export const OrderCard: React.FC<OrderCardProps> = ({
   
   // Get the first item's image or use a default
   const firstItem = order.items?.[0];
-  const orderImage = firstItem?.product_image || 'https://via.placeholder.com/200x150';
+  const orderImage = firstItem?.product?.image_url || firstItem?.product_image || 'https://via.placeholder.com/200x150';
   
-  // Get restaurant name from the first item or use a default
-  const restaurantName = firstItem?.product_name?.split(' ')[0] + ' Restaurant' || 'Restaurant';
+  // Get product name from the first item or use a default
+  const productName = firstItem?.product?.name || firstItem?.product_name || 'Product';
 
   const renderCompact = () => (
     <TouchableOpacity 
@@ -145,7 +147,7 @@ export const OrderCard: React.FC<OrderCardProps> = ({
           {order.items.length} item{order.items.length !== 1 ? 's' : ''} • {orderTime}
         </ResponsiveText>
         <ResponsiveText size="md" color={colors.primary} weight="semiBold">
-          ₱{order.total_amount.toFixed(2)}
+          ₱{(order.total_amount || 0).toFixed(2)}
         </ResponsiveText>
       </ResponsiveView>
     </TouchableOpacity>
@@ -197,12 +199,16 @@ export const OrderCard: React.FC<OrderCardProps> = ({
       <ResponsiveView style={styles.orderItems}>
         {order.items?.slice(0, 3).map((orderItem, index: number) => (
           <ResponsiveView key={index} style={styles.orderItem}>
-            <ResponsiveText size="sm" color={colors.textSecondary}>
-              {orderItem.quantity}x {orderItem.product_name}
-            </ResponsiveText>
-            <ResponsiveText size="sm" color={colors.text} weight="medium">
-              ₱{orderItem.unit_price.toFixed(2)}
-            </ResponsiveText>
+            <ResponsiveView style={styles.orderItemLeft}>
+              <ResponsiveText size="sm" color={colors.textSecondary}>
+                {orderItem.quantity}x{(orderItem.pizza_size || orderItem.pizza_crust) && (
+                  ` ${orderItem.pizza_size && orderItem.pizza_crust 
+                    ? `${orderItem.pizza_size} • ${orderItem.pizza_crust}`
+                    : orderItem.pizza_size || orderItem.pizza_crust
+                  }`
+                )}
+              </ResponsiveText>
+            </ResponsiveView>
           </ResponsiveView>
         )) || (
           <ResponsiveText size="sm" color={colors.textSecondary}>
@@ -227,7 +233,7 @@ export const OrderCard: React.FC<OrderCardProps> = ({
         <ResponsiveView style={styles.totalContainer}>
           <ResponsiveText size="sm" color={colors.textSecondary}>Total:</ResponsiveText>
           <ResponsiveText size="lg" color={colors.primary} weight="semiBold">
-            ₱{order.total_amount.toFixed(2)}
+            ₱{(order.total_amount || 0).toFixed(2)}
           </ResponsiveText>
         </ResponsiveView>
       </ResponsiveView>
@@ -263,17 +269,36 @@ export const OrderCard: React.FC<OrderCardProps> = ({
   const renderDefault = () => (
     <TouchableOpacity 
       style={[styles.orderCard, styles.defaultCard, { backgroundColor: colors.card, borderColor: colors.border }]}
-      onPress={onPress}
+      onPress={() => {
+        console.log('OrderCard onPress called for order:', order.id);
+        if (onPress) onPress();
+      }}
     >
       <ResponsiveView style={styles.orderHeader}>
         <ResponsiveView style={styles.restaurantInfo}>
-          <Image source={{ uri: orderImage }} style={styles.restaurantImage} />
+          <Image 
+            source={{ uri: orderImage }} 
+            style={[
+              styles.restaurantImage,
+              isTablet && styles.restaurantImageTablet,
+              isSmallDevice && styles.restaurantImageMobile
+            ]} 
+          />
           <ResponsiveView style={styles.orderInfo}>
-            <ResponsiveText size="sm" color={colors.textTertiary} weight="medium">
-              Order #{order.order_number}
+            <ResponsiveText 
+              size={isTablet ? "md" : "sm"} 
+              color={colors.textTertiary} 
+              weight="medium"
+            >
+              Order #{order.order_number || order.id}
             </ResponsiveText>
-            <ResponsiveText size="md" weight="semiBold" color={colors.text}>
-              {restaurantName}
+            <ResponsiveText 
+              size={isTablet ? "lg" : "md"} 
+              weight="semiBold" 
+              color={colors.text}
+              numberOfLines={2}
+            >
+              {productName}
             </ResponsiveText>
             <ResponsiveView style={[styles.statusBadge, { backgroundColor: `${statusColor}20` }]}>
               <MaterialIcons 
@@ -304,19 +329,18 @@ export const OrderCard: React.FC<OrderCardProps> = ({
           >
             <ResponsiveView style={styles.orderItemLeft}>
               <ResponsiveText size="sm" color={colors.textSecondary} numberOfLines={1}>
-                {orderItem.quantity}x {orderItem.product_name}
+                {orderItem.quantity}x{(orderItem.pizza_size || orderItem.pizza_crust) && (
+                  ` ${orderItem.pizza_size && orderItem.pizza_crust 
+                    ? `${orderItem.pizza_size} • ${orderItem.pizza_crust}`
+                    : orderItem.pizza_size || orderItem.pizza_crust
+                  }`
+                )}
               </ResponsiveText>
               {orderItem.special_instructions && (
                 <ResponsiveText size="xs" color={colors.textTertiary} numberOfLines={1}>
                   Note: {orderItem.special_instructions}
                 </ResponsiveText>
               )}
-            </ResponsiveView>
-            <ResponsiveView style={styles.orderItemRight}>
-              <ResponsiveText size="sm" color={colors.text} weight="medium">
-                ₱{orderItem.total_price.toFixed(2)}
-              </ResponsiveText>
-              <MaterialIcons name="chevron-right" size={16} color={colors.textTertiary} />
             </ResponsiveView>
           </TouchableOpacity>
         )) || (
@@ -341,7 +365,7 @@ export const OrderCard: React.FC<OrderCardProps> = ({
         <ResponsiveView style={styles.totalContainer}>
           <ResponsiveText size="sm" color={colors.textSecondary}>Total:</ResponsiveText>
           <ResponsiveText size="md" color={colors.primary} weight="semiBold">
-            ₱{order.total_amount.toFixed(2)}
+            ₱{(order.total_amount || 0).toFixed(2)}
           </ResponsiveText>
         </ResponsiveView>
       </ResponsiveView>
@@ -391,6 +415,14 @@ const styles = StyleSheet.create({
     height: 40,
     borderRadius: Layout.borderRadius.sm,
     marginRight: Layout.spacing.sm,
+  },
+  restaurantImageTablet: {
+    width: 60,
+    height: 60,
+  },
+  restaurantImageMobile: {
+    width: 35,
+    height: 35,
   },
   orderImage: {
     width: 50,

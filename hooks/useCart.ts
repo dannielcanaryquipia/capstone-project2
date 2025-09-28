@@ -17,6 +17,8 @@ export interface CartItem {
   pizza_size?: string;
   pizza_crust?: string;
   toppings?: string[];
+  // Customization details (JSON structure)
+  customization_details?: any;
   // Product details for display
   product?: Product;
 }
@@ -78,18 +80,26 @@ const useCartStore = create<CartState>()(
           return;
         }
 
+        // Create customization_details JSON for pizza items
+        const customization_details = (options.pizza_size || options.pizza_crust || options.toppings) ? {
+          size: options.pizza_size,
+          crust: options.pizza_crust,
+          toppings: options.toppings || []
+        } : undefined;
+
         const newItem: CartItem = {
           id: `${product.id}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
           product_id: product.id,
           product_name: product.name,
           product_image: product.image_url,
-          unit_price: product.price,
+          unit_price: product.price || product.base_price,
           quantity,
-          total_price: product.price * quantity,
+          total_price: (product.price || product.base_price) * quantity,
           special_instructions: options.special_instructions,
           pizza_size: options.pizza_size,
           pizza_crust: options.pizza_crust,
           toppings: options.toppings,
+          customization_details,
           product,
         };
 

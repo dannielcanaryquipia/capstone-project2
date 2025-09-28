@@ -5,6 +5,7 @@ import { Dimensions, Image, ScrollView, StyleSheet, Text, TouchableOpacity, View
 import { CartNotification } from '../../../components/ui/CartNotification';
 import SelectablePill from '../../../components/ui/SelectablePill';
 import Layout from '../../../constants/Layout';
+import { useSavedProducts } from '../../../contexts/SavedProductsContext';
 import { useTheme } from '../../../contexts/ThemeContext';
 import { useCart } from '../../../hooks/useCart';
 import { useCrusts, useProductDetail } from '../../../hooks/useProductDetail';
@@ -45,6 +46,11 @@ export default function ProductScreen() {
   // Fetch real product data from backend
   const { productDetail, isLoading, error } = useProductDetail(id as string);
   const product = productDetail || mockProductData;
+
+  // Check if product is saved and toggle functionality
+  const { isProductSaved, toggleSave } = useSavedProducts();
+  const isSaved = product.id !== 'loading' ? isProductSaved(product.id) : false;
+
 
   // Determine if this is a Pizza category (to show size & crust)
   const isPizzaCategory = useMemo(() => {
@@ -163,8 +169,16 @@ export default function ProductScreen() {
           <MaterialIcons name="arrow-back" size={28} color={isDark ? colors.primary : colors.white} style={styles.iconShadow} />
         </TouchableOpacity>
         <View style={styles.headerIcons}>
-          <TouchableOpacity style={styles.iconButton}>
-            <MaterialIcons name="favorite-border" size={28} color={isDark ? colors.primary : colors.white} style={styles.iconShadow} />
+          <TouchableOpacity 
+            style={styles.iconButton}
+            onPress={() => toggleSave(product.id)}
+          >
+            <MaterialIcons 
+              name={isSaved ? "favorite" : "favorite-border"} 
+              size={28} 
+              color={isDark ? colors.primary : colors.white} 
+              style={styles.iconShadow} 
+            />
           </TouchableOpacity>
         </View>
       </View>

@@ -106,12 +106,7 @@ export default function HomeScreen() {
                 {getGreeting()}
               </ResponsiveText>
             </ResponsiveView>
-            <ResponsiveView marginBottom="xs" style={{ flexDirection: 'row', alignItems: 'center' }}>
-              {/* Small profile avatar beside the name */}
-              <Image
-                source={{ uri: authProfile?.avatar_url || 'https://ui-avatars.com/api/?name=' + encodeURIComponent(userName) }}
-                style={{ width: 32, height: 32, borderRadius: 16, marginRight: 8 }}
-              />
+            <ResponsiveView marginBottom="xs">
               <ResponsiveText 
                 size="display" 
                 weight="bold" 
@@ -134,13 +129,16 @@ export default function HomeScreen() {
             <TouchableOpacity 
               style={styles.notificationButton}
               onPress={() => router.push('/(customer)/notification')}
+              activeOpacity={0.7}
             >
-              <MaterialIcons 
-                name="notifications-none" 
-                size={Responsive.responsiveValue(24, 26, 28, 32)} 
-                color={colors.text} 
-              />
-              <View style={styles.notificationBadge} />
+              <ResponsiveView style={styles.notificationIconContainer}>
+                <MaterialIcons 
+                  name="notifications-none" 
+                  size={Responsive.responsiveValue(28, 30, 32, 36)} 
+                  color={colors.text} 
+                />
+                <View style={styles.notificationBadge} />
+              </ResponsiveView>
             </TouchableOpacity>
           </ResponsiveView>
         </ResponsiveView>
@@ -424,35 +422,6 @@ export default function HomeScreen() {
               </ResponsiveView>
             </TouchableOpacity>
 
-            {/* Track Order Button */}
-            <TouchableOpacity 
-              style={[styles.quickActionCard, { backgroundColor: colors.themedPrice + '10', borderColor: colors.themedPrice + '20' }]}
-              onPress={() => router.push('/(customer)/orders')}
-            >
-              <ResponsiveView alignItems="center" padding="md">
-                <ResponsiveView 
-                  backgroundColor={colors.themedPrice + '20'}
-                  borderRadius="round"
-                  padding="md"
-                  marginBottom="sm"
-                >
-                  <MaterialIcons 
-                    name="local-shipping" 
-                    size={Responsive.responsiveValue(24, 26, 28, 32)} 
-                    color={colors.themedPrice} 
-                  />
-                </ResponsiveView>
-                <ResponsiveText 
-                  size="sm" 
-                  weight="semiBold" 
-                  color={colors.text}
-                  align="center"
-                >
-                  Track Order
-                </ResponsiveText>
-              </ResponsiveView>
-            </TouchableOpacity>
-
             {/* Add Address Button */}
             <TouchableOpacity 
               style={[styles.quickActionCard, { backgroundColor: colors.textSecondary + '10', borderColor: colors.textSecondary + '20' }]}
@@ -519,7 +488,7 @@ export default function HomeScreen() {
                 >
                   <ResponsiveView style={styles.orderLeft}>
                     <ResponsiveView style={[styles.orderIcon, { backgroundColor: colors.surfaceVariant }]}>
-                      <MaterialIcons name="receipt" size={20} color={colors.primary} />
+                      <MaterialIcons name="receipt" size={20} color={colors.themedText} />
                     </ResponsiveView>
                     <ResponsiveView style={styles.orderDetails}>
                       <ResponsiveText size="md" weight="medium" color={colors.text}>
@@ -581,15 +550,29 @@ const styles = StyleSheet.create({
   },
   notificationButton: {
     position: 'relative',
+    zIndex: 10,
+  },
+  notificationIconContainer: {
+    position: 'relative',
+    padding: Responsive.responsiveValue(8, 10, 12, 14),
+    borderRadius: Responsive.responsiveValue(20, 22, 24, 28),
+    backgroundColor: 'rgba(0, 0, 0, 0.05)',
+    zIndex: 10,
   },
   notificationBadge: {
     position: 'absolute',
-    right: 0,
-    top: 0,
-    width: 8,
-    height: 8,
-    borderRadius: 4,
+    right: Responsive.responsiveValue(6, 8, 10, 12),
+    top: Responsive.responsiveValue(6, 8, 10, 12),
+    width: Responsive.responsiveValue(10, 12, 14, 16),
+    height: Responsive.responsiveValue(10, 12, 14, 16),
+    borderRadius: Responsive.responsiveValue(5, 6, 7, 8),
     backgroundColor: '#FF6B6B',
+    zIndex: 11,
+    shadowColor: '#FF6B6B',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 4,
   },
   searchInput: {
     flex: 1,

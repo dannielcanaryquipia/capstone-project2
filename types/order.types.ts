@@ -34,6 +34,8 @@ export interface OrderItem {
   pizza_size?: string;
   pizza_crust?: string;
   toppings?: string[];
+  // Customization details (JSON stored in database)
+  customization_details?: any;
   // Product relationship
   product?: {
     name: string;

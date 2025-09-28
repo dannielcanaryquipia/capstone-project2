@@ -1,3 +1,4 @@
+import { Notification } from '../lib/database.types';
 import { supabase } from '../lib/supabase';
 import { Database } from '../types/database.types';
 
@@ -437,19 +438,6 @@ export const promoCodeService = {
   },
 };
 
-// Define the Notification type based on your database schema
-type Notification = {
-  id: string;
-  user_id: string;
-  title: string;
-  message: string;
-  type: 'order_update' | 'promotion' | 'system' | 'other';
-  related_id: string | null;
-  is_read: boolean;
-  created_at: string;
-  updated_at: string;
-};
-
 // Notification Service
 export const notificationService = {
   // Get user notifications
@@ -463,6 +451,18 @@ export const notificationService = {
     
     if (error) throw error;
     return data || [];
+  },
+
+  // Get unread notifications count
+  getUnreadCount: async (userId: string): Promise<number> => {
+    const { count, error } = await supabase
+      .from('notifications')
+      .select('*', { count: 'exact', head: true })
+      .eq('user_id', userId)
+      .eq('is_read', false);
+    
+    if (error) throw error;
+    return count || 0;
   },
 
   // Mark notification as read
@@ -491,7 +491,7 @@ export const notificationService = {
     userId: string;
     title: string;
     message: string;
-    type: 'order_update' | 'promotion' | 'system' | 'other';
+    type: 'order_update' | 'payment' | 'delivery' | 'system';
     relatedId?: string;
   }): Promise<Notification> => {
     const notificationData = {
@@ -512,5 +512,52 @@ export const notificationService = {
     if (error) throw error;
     if (!data) throw new Error('Failed to create notification');
     return data as Notification;
+  },
+
+  // Send notification to multiple users
+  sendBulkNotification: async (userIds: string[], notification: {
+    title: string;
+    message: string;
+    type: 'order_update' | 'payment' | 'delivery' | 'system';
+    relatedId?: string;
+  }): Promise<void> => {
+    const notifications = userIds.map(userId => ({
+      user_id: userId,
+      title: notification.title,
+      message: notification.message,
+      type: notification.type,
+      related_id: notification.relatedId || null,
+      is_read: false,
+    }));
+
+    const { error } = await supabase
+      .from('notifications')
+      .insert(notifications as never[]);
+    
+    if (error) throw error;
+  },
+
+  // Delete notification
+  deleteNotification: async (notificationId: string): Promise<void> => {
+    const { error } = await supabase
+      .from('notifications')
+      .delete()
+      .eq('id', notificationId);
+    
+    if (error) throw error;
+  },
+
+  // Clear old notifications (older than 30 days)
+  clearOldNotifications: async (userId: string): Promise<void> => {
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+    const { error } = await supabase
+      .from('notifications')
+      .delete()
+      .eq('user_id', userId)
+      .lt('created_at', thirtyDaysAgo.toISOString());
+    
+    if (error) throw error;
   },
 };

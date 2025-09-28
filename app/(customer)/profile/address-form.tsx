@@ -2,11 +2,11 @@ import { MaterialIcons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import {
-    Alert,
-    ScrollView,
-    StyleSheet,
-    TextInput,
-    TouchableOpacity
+  Alert,
+  ScrollView,
+  StyleSheet,
+  TextInput,
+  TouchableOpacity
 } from 'react-native';
 import Button from '../../../components/ui/Button';
 import ResponsiveText from '../../../components/ui/ResponsiveText';
@@ -14,12 +14,12 @@ import ResponsiveView from '../../../components/ui/ResponsiveView';
 import Layout from '../../../constants/Layout';
 import { useTheme } from '../../../contexts/ThemeContext';
 import {
-    CreateAddressData,
-    UpdateAddressData,
-    useAddress,
-    useAddressValidation,
-    useCreateAddress,
-    useUpdateAddress
+  CreateAddressData,
+  UpdateAddressData,
+  useAddress,
+  useAddressValidation,
+  useCreateAddress,
+  useUpdateAddress
 } from '../../../hooks/useAddresses';
 import global from '../../../styles/global';
 
@@ -36,16 +36,8 @@ export default function AddressFormScreen() {
   
   const [formData, setFormData] = useState<CreateAddressData>({
     label: '',
-    full_name: '',
-    phone_number: '',
-    address_line_1: '',
-    address_line_2: '',
-    city: '',
-    state: '',
-    postal_code: '',
-    country: 'United States',
+    full_address: '',
     is_default: false,
-    delivery_instructions: '',
   });
 
   const isLoading = isCreating || isUpdating || (isEditing && loadingAddress);
@@ -55,16 +47,8 @@ export default function AddressFormScreen() {
     if (isEditing && address) {
       setFormData({
         label: address.label,
-        full_name: address.full_name,
-        phone_number: address.phone_number,
-        address_line_1: address.address_line_1,
-        address_line_2: address.address_line_2 || '',
-        city: address.city,
-        state: address.state,
-        postal_code: address.postal_code,
-        country: address.country,
+        full_address: address.full_address,
         is_default: address.is_default,
-        delivery_instructions: address.delivery_instructions || '',
       });
     }
   }, [isEditing, address]);
@@ -99,7 +83,7 @@ export default function AddressFormScreen() {
   };
 
   const handleCancel = () => {
-    if (formData.label || formData.full_name || formData.address_line_1) {
+    if (formData.label || formData.full_address) {
       Alert.alert(
         'Discard Changes',
         'Are you sure you want to discard your changes?',
@@ -132,7 +116,7 @@ export default function AddressFormScreen() {
         <ResponsiveView marginBottom="xs">
           <ResponsiveText size="md" weight="medium" color={colors.text}>
             {label}
-            {['label', 'full_name', 'phone_number', 'address_line_1', 'city', 'state', 'postal_code', 'country'].includes(field) && ' *'}
+            {['label', 'full_address'].includes(field) && ' *'}
           </ResponsiveText>
         </ResponsiveView>
         <TextInput
@@ -190,17 +174,6 @@ export default function AddressFormScreen() {
           {/* Address Label */}
           {renderInput('label', 'Address Label', 'e.g., Home, Work, Office')}
 
-          {/* Recipient Information */}
-          <ResponsiveView style={styles.section}>
-            <ResponsiveView marginBottom="md">
-              <ResponsiveText size="lg" weight="semiBold" color={colors.text}>
-                Recipient Information
-              </ResponsiveText>
-            </ResponsiveView>
-            {renderInput('full_name', 'Full Name', 'Enter recipient name')}
-            {renderInput('phone_number', 'Phone Number', 'Enter phone number', { keyboardType: 'phone-pad' })}
-          </ResponsiveView>
-
           {/* Address Information */}
           <ResponsiveView style={styles.section}>
             <ResponsiveView marginBottom="md">
@@ -208,26 +181,10 @@ export default function AddressFormScreen() {
                 Address Information
               </ResponsiveText>
             </ResponsiveView>
-            {renderInput('address_line_1', 'Address Line 1', 'Street address, P.O. box, company name')}
-            {renderInput('address_line_2', 'Address Line 2', 'Apartment, suite, unit, building, floor, etc. (optional)')}
-            
-            <ResponsiveView style={styles.row}>
-              <ResponsiveView style={styles.halfWidth}>
-                {renderInput('city', 'City', 'Enter city')}
-              </ResponsiveView>
-              <ResponsiveView style={styles.halfWidth}>
-                {renderInput('state', 'State/Province', 'Enter state')}
-              </ResponsiveView>
-            </ResponsiveView>
-            
-            <ResponsiveView style={styles.row}>
-              <ResponsiveView style={styles.halfWidth}>
-                {renderInput('postal_code', 'Postal Code', 'Enter postal code', { keyboardType: 'numeric' })}
-              </ResponsiveView>
-              <ResponsiveView style={styles.halfWidth}>
-                {renderInput('country', 'Country', 'Enter country')}
-              </ResponsiveView>
-            </ResponsiveView>
+            {renderInput('full_address', 'Full Address', 'House number (optional), Street, Brgy., Municipality, Province, City, Country, Zip Code', {
+              multiline: true,
+              numberOfLines: 4
+            })}
           </ResponsiveView>
 
           {/* Additional Information */}
@@ -237,11 +194,6 @@ export default function AddressFormScreen() {
                 Additional Information
               </ResponsiveText>
             </ResponsiveView>
-            
-            {renderInput('delivery_instructions', 'Delivery Instructions', 'Any special instructions for delivery (optional)', {
-              multiline: true,
-              numberOfLines: 3
-            })}
 
             {/* Set as Default */}
             <TouchableOpacity

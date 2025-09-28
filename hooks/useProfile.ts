@@ -37,9 +37,11 @@ export const useProfile = (userId: string) => {
   const updateProfile = async (updates: Partial<Profile>) => {
     if (!userId) return;
     
+    console.log('useProfile updateProfile called with:', updates);
     setIsLoading(true);
     try {
       const updateData = toUpdateProfileData(updates);
+      console.log('Converted updateData:', updateData);
       const updatedProfile = await authService.updateProfile(userId, updateData);
       setProfile(updatedProfile);
       // Propagate to global auth store so other screens (e.g., Home) update immediately

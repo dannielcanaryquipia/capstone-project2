@@ -100,6 +100,7 @@ export const authService = {
 
     console.log('Updating profile for user:', userId, 'with data:', dbUpdates);
 
+    // Update profile in database
     const { data, error } = await supabase
       .from('profiles')
       .update(dbUpdates)
@@ -111,6 +112,7 @@ export const authService = {
       console.error('Profile update error:', error);
       throw error;
     }
+
     
     console.log('Profile updated successfully:', data);
     return data;

@@ -13,34 +13,33 @@ import {
 export class OrderService {
   // Helper function to convert app status to database status
   private static convertStatusToDb(status: string): string {
-    // Try different possible ENUM value formats
-    const statusMap: { [key: string]: string[] } = {
-      'pending': ['Pending', 'pending', 'PENDING'],
-      'confirmed': ['Confirmed', 'confirmed', 'CONFIRMED'],
-      'preparing': ['Preparing', 'preparing', 'PREPARING'],
-      'ready_for_pickup': ['Ready for Pickup', 'ready_for_pickup', 'READY_FOR_PICKUP'],
-      'out_for_delivery': ['Out for Delivery', 'out_for_delivery', 'OUT_FOR_DELIVERY'],
-      'delivered': ['Delivered', 'delivered', 'DELIVERED'],
-      'cancelled': ['Cancelled', 'cancelled', 'CANCELLED']
+    // Database expects capitalized values
+    const statusMap: { [key: string]: string } = {
+      'pending': 'Pending',
+      'confirmed': 'Preparing', // Note: 'confirmed' maps to 'Preparing' in your DB
+      'preparing': 'Preparing',
+      'ready_for_pickup': 'Ready for Pickup',
+      'out_for_delivery': 'Out for Delivery',
+      'delivered': 'Delivered',
+      'cancelled': 'Cancelled'
     };
     
-    const possibleValues = statusMap[status] || [status];
-    // Return the first possible value (most likely to work)
-    return possibleValues[0];
+    return statusMap[status] || status;
   }
 
   // Helper function to convert database status to app status
   private static convertStatusFromDb(status: string): string {
+    // Convert database capitalized values back to app lowercase values
     const statusMap: { [key: string]: string } = {
       'Pending': 'pending',
-      'Confirmed': 'confirmed',
-      'Preparing': 'preparing', 
+      'Preparing': 'preparing', // Both 'confirmed' and 'preparing' map to 'Preparing' in DB
       'Ready for Pickup': 'ready_for_pickup',
       'Out for Delivery': 'out_for_delivery',
       'Delivered': 'delivered',
       'Cancelled': 'cancelled'
     };
-    return statusMap[status] || status;
+    
+    return statusMap[status] || status.toLowerCase();
   }
 
   // Get orders for a user
@@ -79,7 +78,14 @@ export class OrderService {
       const { data, error } = await query;
 
       if (error) throw error;
-      return data || [];
+      
+      // Convert database status back to app format
+      const convertedData = (data || []).map((order: any) => ({
+        ...order,
+        status: this.convertStatusFromDb(order.status)
+      }));
+      
+      return convertedData;
     } catch (error) {
       console.error('Error fetching user orders:', error);
       throw error;
@@ -103,7 +109,14 @@ export class OrderService {
         .single();
 
       if (error) throw error;
-      return data as Order;
+      
+      // Convert database status back to app format
+      const convertedOrder = {
+        ...data,
+        status: this.convertStatusFromDb(data.status)
+      };
+      
+      return convertedOrder as Order;
     } catch (error) {
       console.error('Error fetching order:', error);
       throw error;
@@ -130,10 +143,10 @@ export class OrderService {
       const { data: order, error: orderError } = await supabase
         .from('orders')
         .insert({
-          user_id: orderData.user_id,
-          order_number: this.generateOrderNumber(),
-          status: 'pending',
-          payment_status: 'pending',
+        user_id: orderData.user_id,
+        order_number: this.generateOrderNumber(),
+        status: 'Pending',
+        payment_status: 'Pending',
           payment_method: orderData.payment_method,
           subtotal,
           delivery_fee,
@@ -161,6 +174,7 @@ export class OrderService {
         pizza_size: item.pizza_size,
         pizza_crust: item.pizza_crust,
         toppings: item.toppings,
+        customization_details: item.customization_details,
       }));
 
       const { error: itemsError } = await supabase
@@ -185,8 +199,9 @@ export class OrderService {
     notes?: string
   ): Promise<void> {
     try {
+      const dbStatus = this.convertStatusToDb(status);
       const updateData: any = {
-        status,
+        status: dbStatus,
         updated_at: new Date().toISOString(),
       };
 
@@ -217,7 +232,7 @@ export class OrderService {
       if (error) throw error;
 
       // Add tracking entry
-      await this.addOrderTracking(orderId, status, updatedBy, notes);
+      await this.addOrderTracking(orderId, dbStatus, updatedBy, notes);
     } catch (error) {
       console.error('Error updating order status:', error);
       throw error;
@@ -227,7 +242,7 @@ export class OrderService {
   // Add order tracking entry
   static async addOrderTracking(
     orderId: string,
-    status: OrderStatus,
+    status: string, // This will be the database status format
     updatedBy: string,
     notes?: string
   ): Promise<void> {
@@ -284,7 +299,14 @@ export class OrderService {
       const { data, error } = await query;
 
       if (error) throw error;
-      return data || [];
+      
+      // Convert database status back to app format
+      const convertedData = (data || []).map((order: any) => ({
+        ...order,
+        status: this.convertStatusFromDb(order.status)
+      }));
+      
+      return convertedData;
     } catch (error) {
       console.error('Error fetching admin orders:', error);
       throw error;

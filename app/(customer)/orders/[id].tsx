@@ -2,7 +2,6 @@ import { MaterialIcons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  Alert,
   Image,
   RefreshControl,
   ScrollView,
@@ -21,6 +20,46 @@ import { useTheme } from '../../../contexts/ThemeContext';
 import { useResponsive } from '../../../hooks/useResponsive';
 import { OrderService } from '../../../services/order.service';
 import { Order, OrderStatus } from '../../../types/order.types';
+
+// Helper function to extract pizza details from customization_details
+const getPizzaDetails = (orderItem: any): string | null => {
+  if (!orderItem.customization_details) return null;
+  
+  try {
+    const details = typeof orderItem.customization_details === 'string' 
+      ? JSON.parse(orderItem.customization_details) 
+      : orderItem.customization_details;
+    
+    const parts = [];
+    if (details.size) parts.push(details.size);
+    if (details.crust) parts.push(details.crust);
+    
+    return parts.length > 0 ? parts.join(' • ') : null;
+  } catch (error) {
+    console.warn('Error parsing customization_details:', error);
+    return null;
+  }
+};
+
+// Helper function to extract pizza toppings from customization_details
+const getPizzaToppings = (orderItem: any): string | null => {
+  if (!orderItem.customization_details) return null;
+  
+  try {
+    const details = typeof orderItem.customization_details === 'string' 
+      ? JSON.parse(orderItem.customization_details) 
+      : orderItem.customization_details;
+    
+    if (details.toppings && Array.isArray(details.toppings) && details.toppings.length > 0) {
+      return details.toppings.join(', ');
+    }
+    
+    return null;
+  } catch (error) {
+    console.warn('Error parsing customization_details for toppings:', error);
+    return null;
+  }
+};
 
 // Reusable components for better organization
 const OrderStatusBadge: React.FC<{ status: OrderStatus; colors: any }> = ({ status, colors }) => {
@@ -82,58 +121,31 @@ const OrderItemCard: React.FC<{
           {item.product?.name || item.product_name || 'Product'}
         </ResponsiveText>
         
-        {/* Special Instructions */}
-        {item.special_instructions && (
+        {/* Pizza Size and Crust - Right below product name */}
+        {getPizzaDetails(item) && (
           <ResponsiveView marginTop="xs">
             <ResponsiveText size="sm" color={colors.textSecondary}>
-              Note: {item.special_instructions}
+              {getPizzaDetails(item)}
             </ResponsiveText>
           </ResponsiveView>
         )}
         
-        {/* Pizza Details */}
-        <ResponsiveView marginTop="xs" flexDirection="row" style={{ flexWrap: 'wrap' }}>
-          {item.pizza_size && (
-            <ResponsiveView style={[styles.pizzaDetail, { backgroundColor: colors.surface }]} marginRight="xs" marginBottom="xs">
-              <ResponsiveText size="xs" color={colors.textSecondary}>
-                Size: {item.pizza_size}
-              </ResponsiveText>
-            </ResponsiveView>
-          )}
-          {item.pizza_crust && (
-            <ResponsiveView style={[styles.pizzaDetail, { backgroundColor: colors.surface }]} marginRight="xs" marginBottom="xs">
-              <ResponsiveText size="xs" color={colors.textSecondary}>
-                Crust: {item.pizza_crust}
-              </ResponsiveText>
-            </ResponsiveView>
-          )}
-          {item.toppings && item.toppings.length > 0 && (
-            <ResponsiveView style={[styles.pizzaDetail, { backgroundColor: colors.surface }]} marginRight="xs" marginBottom="xs">
-              <ResponsiveText size="xs" color={colors.textSecondary} numberOfLines={1}>
-                Toppings: {item.toppings.join(', ')}
-              </ResponsiveText>
-            </ResponsiveView>
-          )}
-        </ResponsiveView>
         
-        {/* Product Size and Crust Info */}
-        {(item.pizza_size || item.pizza_crust) && (
-          <ResponsiveView marginTop="xs" flexDirection="row" alignItems="center">
-            <MaterialIcons name="restaurant" size={14} color={colors.textTertiary} />
-            <ResponsiveView marginLeft="xs" flexDirection="row" style={{ flexWrap: 'wrap' }}>
-              {item.pizza_size && (
-                <ResponsiveView marginRight="sm">
-                  <ResponsiveText size="sm" color={colors.textSecondary}>
-                    {item.pizza_size}
-                  </ResponsiveText>
-                </ResponsiveView>
-              )}
-              {item.pizza_crust && (
-                <ResponsiveText size="sm" color={colors.textSecondary}>
-                  {item.pizza_crust}
-                </ResponsiveText>
-              )}
-            </ResponsiveView>
+        {/* Toppings */}
+        {getPizzaToppings(item) && (
+          <ResponsiveView marginTop="xs">
+            <ResponsiveText size="sm" color={colors.textSecondary}>
+              Toppings: {getPizzaToppings(item)}
+            </ResponsiveText>
+          </ResponsiveView>
+        )}
+        
+        {/* Special Instructions */}
+        {item.special_instructions && (
+          <ResponsiveView marginTop="xs">
+            <ResponsiveText size="sm" color={colors.textSecondary} style={{ fontStyle: 'italic' }}>
+              Note: {item.special_instructions}
+            </ResponsiveText>
           </ResponsiveView>
         )}
       </ResponsiveView>
@@ -286,17 +298,6 @@ export default function OrderDetailScreen() {
     }
   }, [order?.items, router]);
 
-  const handleContactSupport = useCallback(() => {
-    Alert.alert(
-      'Contact Support',
-      'Need help with your order? Contact our support team.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'Call Support', onPress: () => console.log('Call support') },
-        { text: 'Email Support', onPress: () => console.log('Email support') }
-      ]
-    );
-  }, []);
 
   useEffect(() => {
     if (id) {
@@ -501,13 +502,6 @@ export default function OrderDetailScreen() {
               variant="outline"
               style={[styles.actionButton, isTablet && styles.actionButtonTablet]}
               icon={<MaterialIcons name="refresh" size={20} color={colors.primary} />}
-            />
-            <Button
-              title="Contact Support"
-              onPress={handleContactSupport}
-              variant="secondary"
-              style={[styles.actionButton, isTablet && styles.actionButtonTablet]}
-              icon={<MaterialIcons name="support-agent" size={20} color={colors.textInverse} />}
             />
           </ResponsiveView>
         </ResponsiveView>

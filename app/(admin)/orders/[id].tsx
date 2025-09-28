@@ -276,27 +276,29 @@ export default function OrderDetailScreen() {
                 <ResponsiveText size="md" color={colors.text} weight="medium">
                   {item.product_name}
                 </ResponsiveText>
-                <ResponsiveText size="sm" color={colors.textSecondary}>
-                  Quantity: {item.quantity}
-                </ResponsiveText>
-                {item.special_instructions && (
-                  <ResponsiveText size="sm" color={colors.warning}>
-                    Note: {item.special_instructions}
-                  </ResponsiveText>
-                )}
-                {item.pizza_size && (
+                
+                {/* Pizza Size and Crust - Right below product name */}
+                {(item.pizza_size || item.pizza_crust) && (
                   <ResponsiveText size="sm" color={colors.textSecondary}>
-                    Size: {item.pizza_size}
+                    {[item.pizza_size, item.pizza_crust].filter(Boolean).join(' • ')}
                   </ResponsiveText>
                 )}
-                {item.pizza_crust && (
-                  <ResponsiveText size="sm" color={colors.textSecondary}>
-                    Crust: {item.pizza_crust}
-                  </ResponsiveText>
-                )}
+                
+                {/* Toppings */}
                 {item.toppings && item.toppings.length > 0 && (
                   <ResponsiveText size="sm" color={colors.textSecondary}>
                     Toppings: {item.toppings.join(', ')}
+                  </ResponsiveText>
+                )}
+                
+                <ResponsiveText size="sm" color={colors.textSecondary}>
+                  Quantity: {item.quantity}
+                </ResponsiveText>
+                
+                {/* Special Instructions */}
+                {item.special_instructions && (
+                  <ResponsiveText size="sm" color={colors.warning} style={{ fontStyle: 'italic' }}>
+                    Note: {item.special_instructions}
                   </ResponsiveText>
                 )}
               </ResponsiveView>

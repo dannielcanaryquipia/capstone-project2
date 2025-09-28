@@ -151,26 +151,39 @@ export class ProductDetailService {
           id,
           size,
           price,
-          crust_id,
-          crust:crusts(name)
+          crust_id
         `)
         .eq('product_id', productId)
         .order('size');
 
       if (error) throw error;
 
+      // Get all crusts for mapping
+      const { data: crusts, error: crustsError } = await supabase
+        .from('crusts')
+        .select('id, name');
+
+      if (crustsError) {
+        console.warn('Error fetching crusts:', crustsError);
+      }
+
+      const crustMap = new Map((crusts || []).map((crust: any) => [crust.id, crust]));
+
       // Return pizza options with crust information
-      return (pizzaOptions || []).map((option: any) => ({
-        id: option.id,
-        product_id: productId,
-        size: option.size,
-        price: option.price,
-        crust_id: option.crust_id,
-        crust: option.crust ? {
-          id: option.crust_id,
-          name: option.crust.name
-        } : undefined
-      }));
+      return (pizzaOptions || []).map((option: any) => {
+        const crust = crustMap.get(option.crust_id);
+        return {
+          id: option.id,
+          product_id: productId,
+          size: option.size,
+          price: option.price,
+          crust_id: option.crust_id,
+          crust: crust ? {
+            id: option.crust_id,
+            name: crust.name
+          } : undefined
+        };
+      });
     } catch (error) {
       console.error('Error fetching pizza options:', error);
       throw error;

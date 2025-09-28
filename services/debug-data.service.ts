@@ -77,8 +77,7 @@ export class DebugDataService {
             id,
             size,
             price,
-            crust_id,
-            crust:crusts(name)
+            crust_id
           )
         `)
         .limit(3);

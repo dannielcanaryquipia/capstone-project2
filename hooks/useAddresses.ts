@@ -6,32 +6,15 @@ export interface Address {
   id: string;
   user_id: string;
   label: string;
-  full_name: string;
-  phone_number: string;
-  address_line_1: string;
-  address_line_2?: string;
-  city: string;
-  state: string;
-  postal_code: string;
-  country: string;
+  full_address: string;
   is_default: boolean;
-  delivery_instructions?: string;
   created_at: string;
-  updated_at: string;
 }
 
 export interface CreateAddressData {
   label: string;
-  full_name: string;
-  phone_number: string;
-  address_line_1: string;
-  address_line_2?: string;
-  city: string;
-  state: string;
-  postal_code: string;
-  country: string;
+  full_address: string;
   is_default?: boolean;
-  delivery_instructions?: string;
 }
 
 export interface UpdateAddressData extends Partial<CreateAddressData> {
@@ -232,7 +215,6 @@ export const useUpdateAddress = () => {
         .from('addresses')
         .update({
           ...addressData,
-          updated_at: new Date().toISOString(),
         })
         .eq('id', addressData.id)
         .eq('user_id', user.id)
@@ -361,36 +343,8 @@ export const useAddressValidation = () => {
       errors.label = 'Label is required';
     }
 
-    if (!addressData.full_name?.trim()) {
-      errors.full_name = 'Full name is required';
-    }
-
-    if (!addressData.phone_number?.trim()) {
-      errors.phone_number = 'Phone number is required';
-    } else if (!/^[\+]?[1-9][\d]{0,15}$/.test(addressData.phone_number.replace(/\s/g, ''))) {
-      errors.phone_number = 'Please enter a valid phone number';
-    }
-
-    if (!addressData.address_line_1?.trim()) {
-      errors.address_line_1 = 'Address line 1 is required';
-    }
-
-    if (!addressData.city?.trim()) {
-      errors.city = 'City is required';
-    }
-
-    if (!addressData.state?.trim()) {
-      errors.state = 'State is required';
-    }
-
-    if (!addressData.postal_code?.trim()) {
-      errors.postal_code = 'Postal code is required';
-    } else if (!/^\d{4,6}$/.test(addressData.postal_code.replace(/\s/g, ''))) {
-      errors.postal_code = 'Please enter a valid postal code';
-    }
-
-    if (!addressData.country?.trim()) {
-      errors.country = 'Country is required';
+    if (!addressData.full_address?.trim()) {
+      errors.full_address = 'Address is required';
     }
 
     setValidationErrors(errors);

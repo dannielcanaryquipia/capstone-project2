@@ -20,6 +20,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { ThemeProvider as AppThemeProvider, useTheme } from '../contexts/ThemeContext';
 import { useAuth } from '../hooks/useAuth';
+import { NotificationTriggersService } from '../services/notification-triggers.service';
 
 export {
   // Catch any errors thrown by the Layout component.
@@ -209,6 +210,8 @@ function AppContent() {
   useEffect(() => {
     if (loaded) {
       SplashScreen.hideAsync();
+      // Initialize notification triggers
+      NotificationTriggersService.initializeNotificationTriggers();
     }
   }, [loaded]);
 

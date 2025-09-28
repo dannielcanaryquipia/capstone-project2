@@ -14,8 +14,7 @@ export class ProductService {
             id,
             size,
             price,
-            crust_id,
-            crust:crusts(name)
+            crust_id
           )
         `)
         .order('created_at', { ascending: false });
@@ -50,9 +49,34 @@ export class ProductService {
         console.error('ProductService Error:', error);
         throw error;
       }
+
+      // Get all crusts for mapping
+      const { data: crusts, error: crustsError } = await supabase
+        .from('crusts')
+        .select('id, name');
+
+      if (crustsError) {
+        console.warn('Error fetching crusts:', crustsError);
+      }
+
+      const crustMap = new Map((crusts || []).map((crust: any) => [crust.id, crust]));
+
+      // Map pizza options with crust information
+      const productsWithCrusts = (data || []).map((product: any) => ({
+        ...product,
+        pizza_options: (product.pizza_options || []).map((option: any) => {
+          const crust = crustMap.get(option.crust_id);
+          return {
+            ...option,
+            crust: crust ? {
+              id: option.crust_id,
+              name: crust.name
+            } : undefined
+          };
+        })
+      }));
       
-      
-      return data || [];
+      return productsWithCrusts;
     } catch (error) {
       console.error('Error fetching products:', error);
       throw error;
@@ -71,15 +95,42 @@ export class ProductService {
             id,
             size,
             price,
-            crust_id,
-            crust:crusts(name)
+            crust_id
           )
         `)
         .eq('id', productId)
         .single();
 
       if (error) throw error;
-      return data;
+      if (!data) return null;
+
+      // Get all crusts for mapping
+      const { data: crusts, error: crustsError } = await supabase
+        .from('crusts')
+        .select('id, name');
+
+      if (crustsError) {
+        console.warn('Error fetching crusts:', crustsError);
+      }
+
+      const crustMap = new Map((crusts || []).map((crust: any) => [crust.id, crust]));
+
+      // Map pizza options with crust information
+      const productWithCrusts = {
+        ...(data as any),
+        pizza_options: ((data as any).pizza_options || []).map((option: any) => {
+          const crust = crustMap.get(option.crust_id);
+          return {
+            ...option,
+            crust: crust ? {
+              id: option.crust_id,
+              name: crust.name
+            } : undefined
+          };
+        })
+      };
+
+      return productWithCrusts;
     } catch (error) {
       console.error('Error fetching product:', error);
       throw error;
@@ -319,8 +370,7 @@ export class ProductService {
             id,
             size,
             price,
-            crust_id,
-            crust:crusts(name)
+            crust_id
           )
         `)
         .or(`name.ilike.%${query}%,description.ilike.%${query}%`)
@@ -328,7 +378,34 @@ export class ProductService {
         .order('name', { ascending: true });
 
       if (error) throw error;
-      return data || [];
+
+      // Get all crusts for mapping
+      const { data: crusts, error: crustsError } = await supabase
+        .from('crusts')
+        .select('id, name');
+
+      if (crustsError) {
+        console.warn('Error fetching crusts:', crustsError);
+      }
+
+      const crustMap = new Map((crusts || []).map((crust: any) => [crust.id, crust]));
+
+      // Map pizza options with crust information
+      const productsWithCrusts = (data || []).map((product: any) => ({
+        ...product,
+        pizza_options: (product.pizza_options || []).map((option: any) => {
+          const crust = crustMap.get(option.crust_id);
+          return {
+            ...option,
+            crust: crust ? {
+              id: option.crust_id,
+              name: crust.name
+            } : undefined
+          };
+        })
+      }));
+
+      return productsWithCrusts;
     } catch (error) {
       console.error('Error searching products:', error);
       throw error;

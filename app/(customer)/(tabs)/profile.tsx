@@ -22,7 +22,6 @@ import Strings from '../../../constants/Strings';
 import { useTheme } from '../../../contexts/ThemeContext';
 import { useAuth } from '../../../hooks/useAuth';
 import { useAvatar } from '../../../hooks/useAvatar';
-import { useOrders } from '../../../hooks/useOrders';
 import { useCurrentUserProfile } from '../../../hooks/useProfile';
 import global from '../../../styles/global';
 
@@ -37,16 +36,14 @@ interface ProfileActionItem {
 }
 
 export default function ProfileScreen() {
-  const { user, signOut } = useAuth();
+  const { user, signOut, refreshSession } = useAuth();
   const { profile, isLoading, error, refresh, updateProfile } = useCurrentUserProfile();
-  const { orders, isLoading: ordersLoading } = useOrders();
   const { colors } = useTheme();
   const router = useRouter();
   const [refreshing, setRefreshing] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [editForm, setEditForm] = useState({
     fullName: '',
-    username: '',
     phoneNumber: '',
   });
   const [isUpdating, setIsUpdating] = useState(false);
@@ -61,7 +58,6 @@ export default function ProfileScreen() {
   const handleEditPress = () => {
     setEditForm({
       fullName: profile?.full_name || '',
-      username: profile?.full_name || '', // For now, username maps to full_name
       phoneNumber: profile?.phone_number || '',
     });
     setShowEditModal(true);
@@ -73,10 +69,6 @@ export default function ProfileScreen() {
       return;
     }
 
-    if (!editForm.username.trim()) {
-      Alert.alert('Error', 'Username is required');
-      return;
-    }
 
     setIsUpdating(true);
     try {
@@ -84,6 +76,8 @@ export default function ProfileScreen() {
         full_name: editForm.fullName.trim(),
         phone_number: editForm.phoneNumber.trim() || null,
       });
+      // Refresh the auth state to get updated user metadata
+      await refreshSession();
       setShowEditModal(false);
       Alert.alert('Success', 'Profile updated successfully');
     } catch (error) {
@@ -99,7 +93,6 @@ export default function ProfileScreen() {
     setShowEditModal(false);
     setEditForm({
       fullName: '',
-      username: '',
       phoneNumber: '',
     });
   };
@@ -174,25 +167,6 @@ export default function ProfileScreen() {
     }
   };
 
-  const formatOrderDate = (dateString: string) => {
-    const date = new Date(dateString);
-    return date.toLocaleDateString('en-US', { 
-      month: 'short', 
-      day: 'numeric',
-      year: 'numeric'
-    });
-  };
-
-  const getOrderStatusColor = (status: string) => {
-    switch (status) {
-      case 'completed': return colors.success;
-      case 'cancelled': return colors.error;
-      case 'pending': return colors.warning;
-      default: return colors.textSecondary;
-    }
-  };
-
-  const recentOrders = orders?.slice(0, 3) || [];
 
   const handleSignOut = () => {
     Alert.alert(
@@ -380,7 +354,7 @@ export default function ProfileScreen() {
             onPress={handleEditPress}
             activeOpacity={0.7}
           >
-            <MaterialIcons name="edit" size={24} color={colors.primary} />
+            <MaterialIcons name="edit" size={24} color={colors.themedText} />
           </TouchableOpacity>
         </ResponsiveView>
 
@@ -397,10 +371,10 @@ export default function ProfileScreen() {
             borderColor: colors.border,
             ...Layout.shadows.sm
           }]}>
-            <ResponsiveView style={[styles.infoRow, { borderBottomColor: colors.border }]}>
+            <ResponsiveView style={[styles.infoRow]}>
               <ResponsiveView style={styles.infoLabel}>
                 <ResponsiveView style={[styles.infoIcon, { backgroundColor: colors.surfaceVariant }]}>
-                  <MaterialIcons name="person" size={20} color={colors.primary} />
+                  <MaterialIcons name="person" size={20} color={colors.themedText} />
                 </ResponsiveView>
                 <ResponsiveView marginLeft="sm">
                   <ResponsiveText size="md" color={colors.textSecondary}>
@@ -413,26 +387,11 @@ export default function ProfileScreen() {
               </ResponsiveText>
             </ResponsiveView>
 
-            <ResponsiveView style={[styles.infoRow, { borderBottomColor: colors.border }]}>
-              <ResponsiveView style={styles.infoLabel}>
-                <ResponsiveView style={[styles.infoIcon, { backgroundColor: colors.surfaceVariant }]}>
-                  <MaterialIcons name="alternate-email" size={20} color={colors.primary} />
-                </ResponsiveView>
-                <ResponsiveView marginLeft="sm">
-                  <ResponsiveText size="md" color={colors.textSecondary}>
-                    Username
-                  </ResponsiveText>
-                </ResponsiveView>
-              </ResponsiveView>
-              <ResponsiveText size="md" weight="medium" color={colors.text}>
-                {user?.email?.split('@')[0] || 'Not provided'}
-              </ResponsiveText>
-            </ResponsiveView>
 
-            <ResponsiveView style={[styles.infoRow, { borderBottomColor: colors.border }]}>
+            <ResponsiveView style={[styles.infoRow]}>
               <ResponsiveView style={styles.infoLabel}>
                 <ResponsiveView style={[styles.infoIcon, { backgroundColor: colors.surfaceVariant }]}>
-                  <MaterialIcons name="email" size={20} color={colors.primary} />
+                  <MaterialIcons name="email" size={20} color={colors.themedText} />
                 </ResponsiveView>
                 <ResponsiveView marginLeft="sm">
                   <ResponsiveText size="md" color={colors.textSecondary}>
@@ -448,7 +407,7 @@ export default function ProfileScreen() {
             <ResponsiveView style={styles.infoRow}>
               <ResponsiveView style={styles.infoLabel}>
                 <ResponsiveView style={[styles.infoIcon, { backgroundColor: colors.surfaceVariant }]}>
-                  <MaterialIcons name="phone" size={20} color={colors.primary} />
+                  <MaterialIcons name="phone" size={20} color={colors.themedText} />
                 </ResponsiveView>
                 <ResponsiveView marginLeft="sm">
                   <ResponsiveText size="md" color={colors.textSecondary}>
@@ -463,73 +422,6 @@ export default function ProfileScreen() {
           </ResponsiveView>
         </ResponsiveView>
 
-        {/* Recent Orders Section */}
-        {recentOrders.length > 0 && (
-          <ResponsiveView style={styles.section}>
-            <ResponsiveView marginBottom="md">
-              <ResponsiveView style={styles.sectionHeader}>
-                <ResponsiveText size="lg" weight="semiBold" color={colors.text}>
-                  Recent Orders
-                </ResponsiveText>
-                <TouchableOpacity onPress={() => router.push('/(customer)/orders')}>
-                  <ResponsiveText size="md" color={colors.primary}>
-                    View All
-                  </ResponsiveText>
-                </TouchableOpacity>
-              </ResponsiveView>
-            </ResponsiveView>
-            
-            <ResponsiveView style={[styles.ordersCard, { 
-              backgroundColor: colors.surface,
-              ...Layout.shadows.sm
-            }]}>
-              {recentOrders.map((order, index) => (
-                <TouchableOpacity
-                  key={order.id}
-                  style={[
-                    styles.orderItem,
-                    index < recentOrders.length - 1 && { borderBottomColor: colors.border },
-                  ]}
-                  onPress={() => router.push({
-                    pathname: '/(customer)/orders/[id]',
-                    params: { id: order.id }
-                  } as any)}
-                  activeOpacity={0.7}
-                >
-                  <ResponsiveView style={styles.orderLeft}>
-                    <ResponsiveView style={[styles.orderIcon, { backgroundColor: colors.surfaceVariant }]}>
-                      <MaterialIcons name="receipt" size={20} color={colors.primary} />
-                    </ResponsiveView>
-                    <ResponsiveView style={styles.orderDetails}>
-                      <ResponsiveText size="md" weight="medium" color={colors.text}>
-                        Order #{order.id.slice(-8)}
-                      </ResponsiveText>
-                      <ResponsiveView marginTop="xs">
-                        <ResponsiveText size="sm" color={colors.textSecondary}>
-                          {formatOrderDate(order.created_at)} • ${order.total_amount}
-                        </ResponsiveText>
-                      </ResponsiveView>
-                    </ResponsiveView>
-                  </ResponsiveView>
-                  <ResponsiveView style={styles.orderRight}>
-                    <ResponsiveView style={[styles.statusBadge, { 
-                      backgroundColor: getOrderStatusColor(order.status) + '20' 
-                    }]}>
-                      <ResponsiveText 
-                        size="xs" 
-                        weight="medium" 
-                        color={getOrderStatusColor(order.status)}
-                      >
-                        {order.status.toUpperCase()}
-                      </ResponsiveText>
-                    </ResponsiveView>
-                    <MaterialIcons name="chevron-right" size={20} color={colors.textTertiary} />
-                  </ResponsiveView>
-                </TouchableOpacity>
-              ))}
-            </ResponsiveView>
-          </ResponsiveView>
-        )}
 
         {/* Account Actions Section */}
         <ResponsiveView style={styles.section}>
@@ -548,7 +440,6 @@ export default function ProfileScreen() {
                 key={action.id}
                 style={[
                   styles.actionItem,
-                  index < profileActions.length - 1 && { borderBottomColor: colors.border },
                   action.variant === 'danger' && styles.dangerAction
                 ]}
                 onPress={action.onPress}
@@ -563,7 +454,7 @@ export default function ProfileScreen() {
                       <MaterialIcons 
                         name={action.icon} 
                         size={24} 
-                        color={action.variant === 'danger' ? colors.error : colors.primary} 
+                        color={action.variant === 'danger' ? colors.error : colors.themedText} 
                       />
                     </ResponsiveView>
                     <ResponsiveView style={styles.actionText}>
@@ -664,26 +555,6 @@ export default function ProfileScreen() {
               />
             </ResponsiveView>
 
-            <ResponsiveView style={styles.formSection}>
-              <ResponsiveView marginBottom="sm">
-                <ResponsiveText size="md" weight="medium" color={colors.text}>
-                  Username *
-                </ResponsiveText>
-              </ResponsiveView>
-              <TextInput
-                style={[styles.textInput, { 
-                  borderColor: colors.border,
-                  color: colors.text,
-                  backgroundColor: colors.surface 
-                }]}
-                value={editForm.username}
-                onChangeText={(text: string) => setEditForm(prev => ({ ...prev, username: text }))}
-                placeholder="Enter your username"
-                placeholderTextColor={colors.textTertiary}
-                autoCapitalize="none"
-                autoCorrect={false}
-              />
-            </ResponsiveView>
 
             <ResponsiveView style={styles.formSection}>
               <ResponsiveView marginBottom="sm">
@@ -794,7 +665,6 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingVertical: Layout.spacing.sm,
-    borderBottomWidth: 1,
   },
   infoLabel: {
     flexDirection: 'row',
@@ -815,7 +685,6 @@ const styles = StyleSheet.create({
   actionItem: {
     paddingHorizontal: Layout.spacing.md,
     paddingVertical: Layout.spacing.md,
-    borderBottomWidth: 1,
   },
   actionContent: {
     flexDirection: 'row',
@@ -892,48 +761,6 @@ const styles = StyleSheet.create({
   },
   disabledInput: {
     opacity: 0.6,
-  },
-  sectionHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  ordersCard: {
-    borderRadius: Layout.borderRadius.lg,
-  },
-  orderItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: Layout.spacing.md,
-    paddingVertical: Layout.spacing.md,
-    borderBottomWidth: 1,
-  },
-  orderLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flex: 1,
-  },
-  orderIcon: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: Layout.spacing.sm,
-  },
-  orderDetails: {
-    flex: 1,
-  },
-  orderRight: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Layout.spacing.sm,
-  },
-  statusBadge: {
-    paddingHorizontal: Layout.spacing.xs,
-    paddingVertical: 2,
-    borderRadius: Layout.borderRadius.xs,
   },
 });
 

@@ -51,7 +51,7 @@ const getStatusIcon = (status: OrderStatus | string): keyof typeof MaterialIcons
     'completed': 'done',
     'failed': 'error',
   };
-  return iconMap[status] || 'help';
+  return iconMap[status] || 'help-outline';
 };
 
 // Helper function to format status text
@@ -159,7 +159,7 @@ export const StatusBadge: React.FC<StatusBadgeProps> = ({
     >
       {showIcon && (
         <MaterialIcons
-          name={statusIcon}
+          name={statusIcon as any}
           size={sizeStyles.iconSize}
           color={variantStyles.textColor}
           style={styles.icon}

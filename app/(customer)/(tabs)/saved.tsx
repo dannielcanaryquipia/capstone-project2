@@ -1,20 +1,51 @@
 import { MaterialIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import React from 'react';
-import { FlatList, StyleSheet, TouchableOpacity } from 'react-native';
+import React, { useState } from 'react';
+import { Alert, FlatList, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import ProductCard from '../../../components/ui/ProductCard';
 import { ResponsiveText } from '../../../components/ui/ResponsiveText';
 import { ResponsiveView } from '../../../components/ui/ResponsiveView';
 import Responsive from '../../../constants/Responsive';
 import { useTheme } from '../../../contexts/ThemeContext';
-import { useSavedProducts, useToggleSaveProduct } from '../../../hooks';
+import { useSavedProducts, useUnsaveProduct } from '../../../hooks/useSavedProducts';
 
 export default function SavedScreen() {
   const { colors } = useTheme();
-  const { savedProducts, isLoading, error } = useSavedProducts();
-  const { toggleSaveProduct } = useToggleSaveProduct();
+  const { savedProducts, isLoading, error, refresh } = useSavedProducts();
+  const { unsaveProduct, isLoading: isRemoving } = useUnsaveProduct();
   const router = useRouter();
+  const [removingProductId, setRemovingProductId] = useState<string | null>(null);
+
+  const handleRemoveProduct = async (productId: string, productName: string) => {
+    Alert.alert(
+      'Remove Product',
+      `Are you sure you want to remove "${productName}" from your saved products?`,
+      [
+        {
+          text: 'Cancel',
+          style: 'cancel',
+        },
+        {
+          text: 'Remove',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              setRemovingProductId(productId);
+              await unsaveProduct(productId);
+              // Refresh the saved products list
+              await refresh();
+            } catch (error) {
+              console.error('Error removing product:', error);
+              Alert.alert('Error', 'Failed to remove product. Please try again.');
+            } finally {
+              setRemovingProductId(null);
+            }
+          },
+        },
+      ]
+    );
+  };
 
   const renderEmptyState = () => (
     <ResponsiveView 
@@ -57,15 +88,11 @@ export default function SavedScreen() {
         </ResponsiveText>
       </ResponsiveView>
       
-      <TouchableOpacity
+      <TouchableOpacity 
         style={[styles.browseButton, { backgroundColor: colors.primary }]}
         onPress={() => router.push('/(customer)/menu')}
       >
-        <ResponsiveText 
-          size="md" 
-          weight="semiBold" 
-          color="#FFFFFF"
-        >
+        <ResponsiveText size="md" weight="semiBold" color={colors.background}>
           Browse Menu
         </ResponsiveText>
       </TouchableOpacity>
@@ -74,23 +101,44 @@ export default function SavedScreen() {
 
   const renderProduct = ({ item }: { item: any }) => {
     const product = item.product || item; // Handle both structures
+    const isRemoving = removingProductId === product.id;
+    
     return (
-      <ProductCard
-        id={product.id}
-        name={product.name}
-        description={product.description}
-        price={product.base_price || product.price}
-        image={product.image_url || product.image}
-        tags={product.is_recommended ? ['Recommended'] : []}
-        variant="vertical"
-        backgroundColor={colors.card}
-        textColor={colors.text}
-        priceColor={colors.themedPrice}
-        onPress={() => router.push({
-          pathname: '/(customer)/product/[id]',
-          params: { id: product.id }
-        } as any)}
-      />
+      <View style={styles.productContainer}>
+        <ProductCard
+          id={product.id}
+          name={product.name}
+          description={product.description}
+          price={product.base_price || product.price}
+          image={product.image_url || product.image}
+          tags={product.is_recommended ? ['Recommended'] : []}
+          variant="vertical"
+          backgroundColor={colors.card}
+          textColor={colors.text}
+          priceColor={colors.themedPrice}
+          onPress={() => router.push({
+            pathname: '/(customer)/product/[id]',
+            params: { id: product.id }
+          } as any)}
+        />
+        <TouchableOpacity
+          style={[
+            styles.removeButton,
+            { 
+              backgroundColor: colors.error || '#FF4444',
+              opacity: isRemoving ? 0.6 : 1
+            }
+          ]}
+          onPress={() => handleRemoveProduct(product.id, product.name)}
+          disabled={isRemoving}
+        >
+          <MaterialIcons 
+            name="close" 
+            size={Responsive.responsiveValue(16, 18, 20, 22)} 
+            color="#FFFFFF" 
+          />
+        </TouchableOpacity>
+      </View>
     );
   };
 
@@ -169,14 +217,28 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   browseButton: {
-    paddingHorizontal: Responsive.responsiveValue(24, 28, 32, 36),
-    paddingVertical: Responsive.responsiveValue(12, 14, 16, 18),
-    borderRadius: Responsive.responsiveValue(12, 14, 16, 20),
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 8,
+  },
+  productContainer: {
+    position: 'relative',
+    marginBottom: Responsive.responsiveValue(8, 10, 12, 16),
+  },
+  removeButton: {
+    position: 'absolute',
+    top: Responsive.responsiveValue(8, 10, 12, 14),
+    right: Responsive.responsiveValue(8, 10, 12, 14),
+    width: Responsive.responsiveValue(28, 32, 36, 40),
+    height: Responsive.responsiveValue(28, 32, 36, 40),
+    borderRadius: Responsive.responsiveValue(14, 16, 18, 20),
+    justifyContent: 'center',
+    alignItems: 'center',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: Responsive.responsiveValue(2, 3, 4, 6) },
-    shadowOpacity: 0.15,
-    shadowRadius: Responsive.responsiveValue(6, 8, 10, 12),
-    elevation: Responsive.responsiveValue(4, 5, 6, 8),
+    shadowOpacity: 0.25,
+    shadowRadius: Responsive.responsiveValue(4, 5, 6, 8),
+    elevation: Responsive.responsiveValue(3, 4, 5, 6),
   },
 });
 

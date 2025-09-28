@@ -93,6 +93,46 @@ const formatOrderDate = (dateString: string): string => {
   }
 };
 
+// Helper function to extract pizza details from customization_details
+const getPizzaDetails = (orderItem: any): string | null => {
+  if (!orderItem.customization_details) return null;
+  
+  try {
+    const details = typeof orderItem.customization_details === 'string' 
+      ? JSON.parse(orderItem.customization_details) 
+      : orderItem.customization_details;
+    
+    const parts = [];
+    if (details.size) parts.push(details.size);
+    if (details.crust) parts.push(details.crust);
+    
+    return parts.length > 0 ? parts.join(' • ') : null;
+  } catch (error) {
+    console.warn('Error parsing customization_details:', error);
+    return null;
+  }
+};
+
+// Helper function to extract pizza toppings from customization_details
+const getPizzaToppings = (orderItem: any): string | null => {
+  if (!orderItem.customization_details) return null;
+  
+  try {
+    const details = typeof orderItem.customization_details === 'string' 
+      ? JSON.parse(orderItem.customization_details) 
+      : orderItem.customization_details;
+    
+    if (details.toppings && Array.isArray(details.toppings) && details.toppings.length > 0) {
+      return details.toppings.join(', ');
+    }
+    
+    return null;
+  } catch (error) {
+    console.warn('Error parsing customization_details for toppings:', error);
+    return null;
+  }
+};
+
 export const OrderCard: React.FC<OrderCardProps> = ({
   order,
   onPress,
@@ -200,14 +240,17 @@ export const OrderCard: React.FC<OrderCardProps> = ({
         {order.items?.slice(0, 3).map((orderItem, index: number) => (
           <ResponsiveView key={index} style={styles.orderItem}>
             <ResponsiveView style={styles.orderItemLeft}>
-              <ResponsiveText size="sm" color={colors.textSecondary}>
-                {orderItem.quantity}x{(orderItem.pizza_size || orderItem.pizza_crust) && (
-                  ` ${orderItem.pizza_size && orderItem.pizza_crust 
-                    ? `${orderItem.pizza_size} • ${orderItem.pizza_crust}`
-                    : orderItem.pizza_size || orderItem.pizza_crust
-                  }`
-                )}
-              </ResponsiveText>
+               <ResponsiveText size="sm" color={colors.textSecondary}>
+                 {orderItem.quantity}x {orderItem.product_name}
+                 {getPizzaDetails(orderItem) && (
+                   ` • ${getPizzaDetails(orderItem)}`
+                 )}
+               </ResponsiveText>
+               {getPizzaToppings(orderItem) && (
+                 <ResponsiveText size="xs" color={colors.textTertiary} numberOfLines={1}>
+                   Toppings: {getPizzaToppings(orderItem)}
+                 </ResponsiveText>
+               )}
             </ResponsiveView>
           </ResponsiveView>
         )) || (
@@ -329,13 +372,16 @@ export const OrderCard: React.FC<OrderCardProps> = ({
           >
             <ResponsiveView style={styles.orderItemLeft}>
               <ResponsiveText size="sm" color={colors.textSecondary} numberOfLines={1}>
-                {orderItem.quantity}x{(orderItem.pizza_size || orderItem.pizza_crust) && (
-                  ` ${orderItem.pizza_size && orderItem.pizza_crust 
-                    ? `${orderItem.pizza_size} • ${orderItem.pizza_crust}`
-                    : orderItem.pizza_size || orderItem.pizza_crust
-                  }`
+                {orderItem.quantity}x {orderItem.product_name}
+                {getPizzaDetails(orderItem) && (
+                  ` • ${getPizzaDetails(orderItem)}`
                 )}
               </ResponsiveText>
+              {getPizzaToppings(orderItem) && (
+                <ResponsiveText size="xs" color={colors.textTertiary} numberOfLines={1}>
+                  Toppings: {getPizzaToppings(orderItem)}
+                </ResponsiveText>
+              )}
               {orderItem.special_instructions && (
                 <ResponsiveText size="xs" color={colors.textTertiary} numberOfLines={1}>
                   Note: {orderItem.special_instructions}

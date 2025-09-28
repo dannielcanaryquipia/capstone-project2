@@ -36,9 +36,6 @@ export default function AddressesScreen() {
     setRefreshing(false);
   };
 
-  const handleAddAddress = () => {
-    router.push('/(customer)/profile/address-form');
-  };
 
   const handleEditAddress = (address: Address) => {
     router.push({
@@ -79,15 +76,7 @@ export default function AddressesScreen() {
   };
 
   const formatAddress = (address: Address) => {
-    const parts = [
-      address.address_line_1,
-      address.address_line_2,
-      address.city,
-      address.state,
-      address.postal_code,
-      address.country
-    ].filter(Boolean);
-    return parts.join(', ');
+    return address.full_address;
   };
 
   if (isLoading && !addresses.length) {
@@ -154,13 +143,6 @@ export default function AddressesScreen() {
               Manage Addresses
             </ResponsiveText>
           </ResponsiveView>
-          <Button
-            title="Add Address"
-            onPress={handleAddAddress}
-            variant="primary"
-            size="small"
-            icon={<MaterialIcons name="add" size={16} color={colors.textInverse} />}
-          />
         </ResponsiveView>
 
         {/* Addresses List */}
@@ -176,16 +158,9 @@ export default function AddressesScreen() {
             </ResponsiveView>
             <ResponsiveView marginTop="sm">
               <ResponsiveText size="md" color={colors.textSecondary} align="center">
-                Add your first delivery address to get started
+                No addresses available
               </ResponsiveText>
             </ResponsiveView>
-            <Button
-              title="Add Address"
-              onPress={handleAddAddress}
-              variant="primary"
-              size="large"
-              style={styles.addButton}
-            />
           </ResponsiveView>
         ) : (
           <ResponsiveView style={styles.addressesList}>
@@ -235,24 +210,11 @@ export default function AddressesScreen() {
 
                 {/* Address Details */}
                 <ResponsiveView style={styles.addressDetails}>
-                  <ResponsiveText size="sm" color={colors.textSecondary}>
-                    {address.full_name}
-                  </ResponsiveText>
-                  <ResponsiveText size="sm" color={colors.textSecondary}>
-                    {address.phone_number}
-                  </ResponsiveText>
                   <ResponsiveView marginTop="xs">
                     <ResponsiveText size="md" color={colors.text}>
                       {formatAddress(address)}
                     </ResponsiveText>
                   </ResponsiveView>
-                  {address.delivery_instructions && (
-                    <ResponsiveView marginTop="xs">
-                      <ResponsiveText size="sm" color={colors.textSecondary}>
-                        Instructions: {address.delivery_instructions}
-                      </ResponsiveText>
-                    </ResponsiveView>
-                  )}
                 </ResponsiveView>
 
                 {/* Set Default Button */}
@@ -318,9 +280,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: Layout.spacing.md,
-  },
-  addButton: {
-    marginTop: Layout.spacing.lg,
   },
   retryButton: {
     marginTop: Layout.spacing.md,

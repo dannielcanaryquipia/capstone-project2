@@ -12,6 +12,41 @@ import { useTheme } from '../../../contexts/ThemeContext';
 import { useOrders } from '../../../hooks/useOrders';
 import { Order, OrderStatus } from '../../../types/order.types';
 
+// Helper functions for dynamic empty state messages
+const getEmptyStateTitle = (activeTab: string): string => {
+  switch (activeTab) {
+    case 'All':
+      return 'No Orders Found';
+    case 'Pending':
+      return 'No Pending Orders';
+    case 'Preparing':
+      return 'No Orders Being Prepared';
+    case 'On the Way':
+      return 'No Orders On the Way';
+    case 'Delivered':
+      return 'No Delivered Orders';
+    default:
+      return 'No Orders Found';
+  }
+};
+
+const getEmptyStateDescription = (activeTab: string): string => {
+  switch (activeTab) {
+    case 'All':
+      return 'You haven\'t placed any orders yet. Start ordering your favorite dishes!';
+    case 'Pending':
+      return 'No orders are currently pending. Your new orders will appear here.';
+    case 'Preparing':
+      return 'No orders are being prepared right now. Check back when you place an order!';
+    case 'On the Way':
+      return 'No orders are currently on the way. Your prepared orders will appear here.';
+    case 'Delivered':
+      return 'You haven\'t received any orders yet. Your completed orders will appear here.';
+    default:
+      return 'Your orders will appear here once you place them.';
+  }
+};
+
 // Status tabs configuration
 const statusTabs: TabItem[] = [
   { key: 'All', label: 'All' },
@@ -119,8 +154,8 @@ export default function OrdersScreen() {
       ) : (
         <EmptyState
           icon="receipt-long"
-          title={`No ${activeTab.toLowerCase() === 'all' ? 'orders' : activeTab.toLowerCase()} found`}
-          description="Your orders will appear here once you place them"
+          title={getEmptyStateTitle(activeTab)}
+          description={getEmptyStateDescription(activeTab)}
           showAction={false}
           fullScreen
         />

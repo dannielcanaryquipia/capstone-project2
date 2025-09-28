@@ -1,9 +1,9 @@
 import { useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import {
-  Alert,
-  ScrollView,
-  StyleSheet
+    Alert,
+    ScrollView,
+    StyleSheet
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Address, AddressCard } from '../../components/ui/AddressCard';
@@ -101,6 +101,7 @@ export default function CheckoutScreen() {
           pizza_size: item.pizza_size,
           pizza_crust: item.pizza_crust,
           toppings: item.toppings,
+          customization_details: item.customization_details,
         })),
         delivery_address_id: selectedAddress.id,
         payment_method: selectedPaymentMethod,

@@ -24,7 +24,7 @@ export const useOrders = (filters?: OrderFilters) => {
     } finally {
       setIsLoading(false);
     }
-  }, [user?.id, filters]);
+  }, [user?.id, JSON.stringify(filters)]);
 
   useEffect(() => {
     fetchOrders();
@@ -46,6 +46,7 @@ export const useOrders = (filters?: OrderFilters) => {
         },
         (payload) => {
           console.log('Order change received:', payload);
+          // Refetch orders when any order changes
           fetchOrders();
         }
       )
@@ -54,7 +55,7 @@ export const useOrders = (filters?: OrderFilters) => {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [user?.id, fetchOrders]);
+  }, [user?.id]);
 
   const refresh = useCallback(() => {
     fetchOrders();
@@ -296,7 +297,7 @@ export const useAdminOrders = (filters?: OrderFilters) => {
     } finally {
       setIsLoading(false);
     }
-  }, [filters]);
+  }, [JSON.stringify(filters)]);
 
   useEffect(() => {
     fetchOrders();
@@ -315,6 +316,7 @@ export const useAdminOrders = (filters?: OrderFilters) => {
         },
         (payload) => {
           console.log('Admin order change received:', payload);
+          // Refetch orders when any order changes
           fetchOrders();
         }
       )
@@ -323,7 +325,7 @@ export const useAdminOrders = (filters?: OrderFilters) => {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [fetchOrders]);
+  }, []);
 
   const refresh = useCallback(() => {
     fetchOrders();

@@ -3,7 +3,9 @@ import { BottomTabBarProps } from '@react-navigation/bottom-tabs';
 import React from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import Layout from '../../constants/Layout';
+import { useNotificationContext } from '../../contexts/NotificationContext';
 import { useTheme } from '../../contexts/ThemeContext';
+import { NotificationBadge } from './NotificationBadge';
 
 const ICON_MAP: Record<string, { focused: React.ComponentProps<typeof MaterialCommunityIcons>['name']; unfocused: React.ComponentProps<typeof MaterialCommunityIcons>['name']; label: string }> = {
   index: { focused: 'home', unfocused: 'home-outline', label: 'Home' },
@@ -14,6 +16,7 @@ const ICON_MAP: Record<string, { focused: React.ComponentProps<typeof MaterialCo
 
 const BottomTabBar: React.FC<BottomTabBarProps> = ({ state, descriptors, navigation }) => {
   const { colors, isDark } = useTheme();
+  const { unreadCount } = useNotificationContext();
   
   return (
     <View
@@ -63,11 +66,17 @@ const BottomTabBar: React.FC<BottomTabBarProps> = ({ state, descriptors, navigat
             activeOpacity={0.8}
           >
             <View style={styles.item}>
-              <MaterialCommunityIcons
-                name={isFocused ? iconConf.focused : iconConf.unfocused}
-                color={isFocused ? (isDark ? colors.primary : colors.black) : colors.textTertiary}
-                size={26}
-              />
+              <View style={styles.iconContainer}>
+                <MaterialCommunityIcons
+                  name={isFocused ? iconConf.focused : iconConf.unfocused}
+                  color={isFocused ? (isDark ? colors.primary : colors.black) : colors.textTertiary}
+                  size={26}
+                />
+                {/* Show notification badge on profile tab */}
+                {route.name === 'profile' && unreadCount > 0 && (
+                  <NotificationBadge count={unreadCount} size="small" />
+                )}
+              </View>
               <Text
                 style={[
                   styles.label,
@@ -115,6 +124,9 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingVertical: 8,
     paddingHorizontal: 12,
+  },
+  iconContainer: {
+    position: 'relative',
   },
   label: {
     fontSize: 12,

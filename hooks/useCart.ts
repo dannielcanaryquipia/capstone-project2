@@ -21,6 +21,8 @@ export interface CartItem {
   customization_details?: any;
   // Product details for display
   product?: Product;
+  // Selection state
+  isSelected?: boolean;
 }
 
 interface CartState {
@@ -32,6 +34,11 @@ interface CartState {
   total: number;
   isLoading: boolean;
   error: string | null;
+  
+  // Selection state
+  selectedItems: string[];
+  selectedSubtotal: number;
+  selectedTotal: number;
   
   // Actions
   addItem: (product: Product, quantity?: number, options?: {
@@ -52,6 +59,13 @@ interface CartState {
   setError: (error: string | null) => void;
   setLoading: (loading: boolean) => void;
   
+  // Selection actions
+  toggleItemSelection: (itemId: string) => void;
+  selectAllItems: () => void;
+  clearSelection: () => void;
+  getSelectedItems: () => CartItem[];
+  calculateSelectedTotals: () => void;
+  
   // Computed values
   getItemById: (itemId: string) => CartItem | undefined;
   getItemByProductId: (productId: string) => CartItem | undefined;
@@ -64,11 +78,16 @@ const useCartStore = create<CartState>()(
       items: [],
       totalItems: 0,
       subtotal: 0,
-      deliveryFee: 50, // Fixed delivery fee
+      deliveryFee: 0, // Temporary: 0, will be set from admin config later
       tax: 0,
       total: 0,
       isLoading: false,
       error: null,
+      
+      // Selection state
+      selectedItems: [],
+      selectedSubtotal: 0,
+      selectedTotal: 0,
 
       addItem: (product, quantity = 1, options = {}) => {
         const state = get();
@@ -117,12 +136,15 @@ const useCartStore = create<CartState>()(
       removeItem: (itemId) => {
         set((state) => {
           const newItems = state.items.filter(item => item.id !== itemId);
+          const newSelected = state.selectedItems.filter(id => id !== itemId);
           return {
             items: newItems,
             totalItems: newItems.reduce((sum, item) => sum + item.quantity, 0),
+            selectedItems: newSelected,
           };
         });
         get().calculateTotals();
+        get().calculateSelectedTotals();
       },
 
       updateQuantity: (itemId, quantity) => {
@@ -143,6 +165,7 @@ const useCartStore = create<CartState>()(
           };
         });
         get().calculateTotals();
+        get().calculateSelectedTotals();
       },
 
       updateItemOptions: (itemId, options) => {
@@ -163,6 +186,9 @@ const useCartStore = create<CartState>()(
           tax: 0,
           total: 0,
           error: null,
+          selectedItems: [],
+          selectedSubtotal: 0,
+          selectedTotal: 0,
         });
       },
 
@@ -180,13 +206,83 @@ const useCartStore = create<CartState>()(
       calculateTotals: () => {
         const state = get();
         const subtotal = state.items.reduce((sum, item) => sum + item.total_price, 0);
-        const tax = subtotal * 0.12; // 12% tax
+        const tax = 0; // No tax for now
         const total = subtotal + state.deliveryFee + tax;
 
         set({
           subtotal,
           tax,
           total,
+        });
+      },
+
+      // Selection methods
+      toggleItemSelection: (itemId: string) => {
+        const state = get();
+        const isSelected = state.selectedItems.includes(itemId);
+        
+        if (isSelected) {
+          set({
+            selectedItems: state.selectedItems.filter(id => id !== itemId)
+          });
+        } else {
+          set({
+            selectedItems: [...state.selectedItems, itemId]
+          });
+        }
+        
+        // Update item selection state
+        set({
+          items: state.items.map(item => 
+            item.id === itemId 
+              ? { ...item, isSelected: !isSelected }
+              : item
+          )
+        });
+        
+        get().calculateSelectedTotals();
+      },
+
+      selectAllItems: () => {
+        const state = get();
+        const allItemIds = state.items.map(item => item.id);
+        
+        set({
+          selectedItems: allItemIds,
+          items: state.items.map(item => ({ ...item, isSelected: true }))
+        });
+        
+        get().calculateSelectedTotals();
+      },
+
+      clearSelection: () => {
+        const state = get();
+        
+        set({
+          selectedItems: [],
+          items: state.items.map(item => ({ ...item, isSelected: false })),
+          selectedSubtotal: 0,
+          selectedTotal: 0
+        });
+      },
+
+      getSelectedItems: () => {
+        const state = get();
+        return state.items.filter(item => state.selectedItems.includes(item.id));
+      },
+
+      calculateSelectedTotals: () => {
+        const state = get();
+        const selectedItems = state.items.filter(item => state.selectedItems.includes(item.id));
+        const selectedSubtotal = selectedItems.reduce((sum, item) => sum + item.total_price, 0);
+        const hasSelection = selectedItems.length > 0;
+        const selectedTax = 0; // No tax for now
+        const appliedDeliveryFee = hasSelection ? state.deliveryFee : 0; // currently 0
+        const selectedTotal = selectedSubtotal + appliedDeliveryFee + selectedTax;
+
+        set({
+          selectedSubtotal,
+          selectedTotal: selectedTotal
         });
       },
     }),
@@ -241,6 +337,10 @@ export const useCartActions = () => {
     clearCart: state.clearCart,
     setError: state.setError,
     setLoading: state.setLoading,
+    toggleItemSelection: state.toggleItemSelection,
+    selectAllItems: state.selectAllItems,
+    clearSelection: state.clearSelection,
+    getSelectedItems: state.getSelectedItems,
   }));
 };
 

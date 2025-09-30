@@ -1,9 +1,9 @@
 import { useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import {
-    Alert,
-    ScrollView,
-    StyleSheet
+  Alert,
+  ScrollView,
+  StyleSheet
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Address, AddressCard } from '../../components/ui/AddressCard';
@@ -52,9 +52,25 @@ const paymentMethods: PaymentMethod[] = [
 export default function CheckoutScreen() {
   const { colors } = useTheme();
   const router = useRouter();
-  const { items, subtotal, deliveryFee, tax, total, clearCart } = useCart();
+  const { getSelectedItems, selectedSubtotal, selectedTotal, clearCart } = useCart();
+  const items = getSelectedItems();
+  const subtotal = selectedSubtotal;
+  const deliveryFee = 0; // Temporary: zero, will come from admin config later
+  const tax = 0; // No tax
+  const total = selectedTotal; // already computed with current delivery fee (0)
   const { validationErrors, isValid } = useCartValidation();
   const { addresses, isLoading: addressesLoading, error: addressesError } = useAddresses();
+  // Map backend address shape to UI AddressCard shape
+  const uiAddresses: Address[] = (addresses || []).map((addr: any) => ({
+    id: addr.id,
+    label: addr.label,
+    address_line_1: addr.full_address,
+    address_line_2: undefined,
+    city: '',
+    state: '',
+    postal_code: '',
+    is_default: !!addr.is_default,
+  }));
   const { createOrder, isLoading: isCreatingOrder } = useCreateOrder();
   
   const [selectedAddress, setSelectedAddress] = useState<Address | null>(null);
@@ -64,11 +80,11 @@ export default function CheckoutScreen() {
   const [checkoutError, setCheckoutError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (addresses.length > 0 && !selectedAddress) {
-      const defaultAddress = addresses.find(addr => addr.is_default) || addresses[0];
+    if (uiAddresses.length > 0 && !selectedAddress) {
+      const defaultAddress = uiAddresses.find(addr => addr.is_default) || uiAddresses[0];
       setSelectedAddress(defaultAddress);
     }
-  }, [addresses, selectedAddress]);
+  }, [uiAddresses, selectedAddress]);
 
   const handlePlaceOrder = async () => {
     setCheckoutError(null);
@@ -206,9 +222,9 @@ export default function CheckoutScreen() {
         >
           {addressesLoading ? (
             <CheckoutLoadingState message="Loading addresses..." />
-          ) : addresses.length > 0 ? (
+          ) : uiAddresses.length > 0 ? (
             <ResponsiveView style={styles.addressesList}>
-              {addresses.map((address) => (
+              {uiAddresses.map((address) => (
                 <AddressCard
                   key={address.id}
                   address={address}

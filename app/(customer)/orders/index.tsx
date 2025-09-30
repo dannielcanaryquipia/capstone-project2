@@ -1,6 +1,7 @@
+import { MaterialIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import React, { useMemo, useState } from 'react';
-import { FlatList, RefreshControl, StyleSheet, Text, View } from 'react-native';
+import { FlatList, RefreshControl, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { EmptyState } from '../../../components/ui/EmptyState';
 import { ErrorState } from '../../../components/ui/ErrorState';
@@ -110,7 +111,11 @@ export default function OrdersScreen() {
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
       <View style={styles.header}>
+        <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+          <MaterialIcons name="arrow-back" size={24} color={colors.text} />
+        </TouchableOpacity>
         <Text style={[styles.headerTitle, { color: colors.text }]}>My Orders</Text>
+        <View style={{ width: 24 }} />
       </View>
 
       <TabBar
@@ -169,14 +174,22 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   header: {
-    padding: Layout.spacing.lg,
+    paddingHorizontal: Layout.spacing.lg,
+    paddingTop: Layout.spacing.lg,
+    paddingBottom: Layout.spacing.sm,
     borderBottomWidth: 1,
     borderBottomColor: 'rgba(0,0,0,0.1)',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
   },
   headerTitle: {
     fontSize: 24,
     fontWeight: 'bold',
-    marginTop: Layout.spacing.sm,
+  },
+  backButton: {
+    padding: Layout.spacing.sm,
+    marginRight: Layout.spacing.sm,
   },
   ordersList: {
     padding: Layout.spacing.lg,

@@ -9,6 +9,7 @@ import { ResponsiveText } from '../../../components/ui/ResponsiveText';
 import { ResponsiveView } from '../../../components/ui/ResponsiveView';
 import Layout from '../../../constants/Layout';
 import Responsive from '../../../constants/Responsive';
+import { useNotificationContext } from '../../../contexts/NotificationContext';
 import { useTheme } from '../../../contexts/ThemeContext';
 import { useCart, useCurrentUserProfile, useProductCategories, useProducts } from '../../../hooks';
 import { useAuth } from '../../../hooks/useAuth';
@@ -16,7 +17,7 @@ import { useOrders } from '../../../hooks/useOrders';
 import { Order } from '../../../types/order.types';
 
 export default function HomeScreen() {
-  const { colors } = useTheme();
+  const { colors, isDark } = useTheme();
   const { user, profile: authProfile } = useAuth();
   const { profile } = useCurrentUserProfile();
   const router = useRouter();
@@ -33,6 +34,7 @@ export default function HomeScreen() {
   const { products, isLoading: productsLoading, error: productsError } = useProducts();
   const { categories, isLoading: categoriesLoading } = useProductCategories();
   const { addItem } = useCart();
+  const { unreadCount } = useNotificationContext();
   const { orders: allOrders, isLoading: ordersLoading } = useOrders();
   const recentOrders = allOrders.slice(0, 3);
   
@@ -131,13 +133,22 @@ export default function HomeScreen() {
               onPress={() => router.push('/(customer)/notification')}
               activeOpacity={0.7}
             >
-              <ResponsiveView style={styles.notificationIconContainer}>
+              <ResponsiveView style={[
+                styles.notificationIconContainer,
+                {
+                  backgroundColor: unreadCount > 0
+                    ? (isDark ? '#FFD700' : 'rgba(0,0,0,0.08)')
+                    : 'transparent',
+                }
+              ]}>
                 <MaterialIcons 
                   name="notifications-none" 
                   size={Responsive.responsiveValue(28, 30, 32, 36)} 
-                  color={colors.text} 
+                  color={unreadCount > 0 ? colors.error : colors.text} 
                 />
-                <View style={styles.notificationBadge} />
+                {unreadCount > 0 && (
+                  <View style={styles.notificationBadge} />
+                )}
               </ResponsiveView>
             </TouchableOpacity>
           </ResponsiveView>
@@ -209,21 +220,16 @@ export default function HomeScreen() {
 
         {/* Special Offers */}
         <ResponsiveView marginBottom="lg" paddingHorizontal="lg">
-          <ResponsiveView 
-            flexDirection="row" 
-            justifyContent="space-between" 
-            alignItems="center"
-            marginBottom="lg"
-          >
-            <ResponsiveText size="xxl" weight="bold" color={colors.text}>
-              Special Offers
-            </ResponsiveText>
-            <TouchableOpacity>
-              <ResponsiveText size="md" weight="semiBold" color={colors.themedViewAll}>
-                View All
-              </ResponsiveText>
-            </TouchableOpacity>
-          </ResponsiveView>
+        <ResponsiveView 
+          flexDirection="row" 
+          justifyContent="flex-start" 
+          alignItems="center"
+          marginBottom="lg"
+        >
+          <ResponsiveText size="xxl" weight="bold" color={colors.text}>
+            Special Offers
+          </ResponsiveText>
+        </ResponsiveView>
           <ResponsiveView 
             backgroundColor={colors.primary + '10'}
             borderRadius="lg"

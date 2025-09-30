@@ -92,9 +92,12 @@ export const AddressCard: React.FC<AddressCardProps> = ({
           {address.address_line_1}
           {address.address_line_2 && `, ${address.address_line_2}`}
         </ResponsiveText>
-        <ResponsiveText size="sm" color={colors.textSecondary} style={styles.addressText}>
-          {address.city}, {address.state} {address.postal_code}
-        </ResponsiveText>
+        {(!!address.city || !!address.state || !!address.postal_code) && (
+          <ResponsiveText size="sm" color={colors.textSecondary} style={styles.addressText}>
+            {address.city}{address.city && (address.state || address.postal_code) ? ', ' : ''}
+            {address.state} {address.postal_code}
+          </ResponsiveText>
+        )}
       </ResponsiveView>
     </TouchableOpacity>
   );

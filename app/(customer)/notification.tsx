@@ -3,6 +3,7 @@ import { useRouter } from 'expo-router';
 import React, { useCallback } from 'react';
 import { ActivityIndicator, Alert, RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { EmptyState } from '../../components/ui/EmptyState';
 import Layout from '../../constants/Layout';
 import { useNotificationContext } from '../../contexts/NotificationContext';
 import { useTheme } from '../../contexts/ThemeContext';
@@ -153,66 +154,68 @@ export default function NotificationScreen() {
         </View>
       )}
 
-      {/* Notifications List */}
-      <ScrollView 
-        style={styles.content} 
-        showsVerticalScrollIndicator={false}
-        refreshControl={
-          <RefreshControl
-            refreshing={isLoading}
-            onRefresh={handleRefresh}
-            colors={[colors.primary]}
-            tintColor={colors.primary}
-          />
-        }
-      >
-        {notifications.map((notification) => (
-          <TouchableOpacity 
-            key={notification.id} 
-            style={[
-              styles.notificationItem,
-              { backgroundColor: colors.surface, borderBottomColor: colors.border },
-              !notification.is_read && { backgroundColor: colors.primaryLight + '10' }
-            ]}
-            onPress={() => handleNotificationPress(notification)}
-            activeOpacity={0.7}
-          >
-            <View style={[styles.notificationIcon, { backgroundColor: colors.background }]}>
-              <MaterialIcons 
-                name={getNotificationIcon(notification.type)} 
-                size={24} 
-                color={getNotificationColor(notification.type, isDark)} 
-              />
-            </View>
-            <View style={styles.notificationContent}>
-              <Text style={[
-                styles.notificationTitle,
-                { color: colors.text },
-                !notification.is_read && styles.unreadTitle
-              ]}>
-                {notification.title}
-              </Text>
-              <Text style={[styles.notificationMessage, { color: colors.textSecondary }]}>
-                {notification.message}
-              </Text>
-              <Text style={[styles.notificationTime, { color: colors.textTertiary }]}>
-                {formatTimeAgo(notification.created_at)}
-              </Text>
-            </View>
-            {!notification.is_read && <View style={[styles.unreadDot, { backgroundColor: colors.primary }]} />}
-          </TouchableOpacity>
-        ))}
-      </ScrollView>
-
-      {/* Empty State (if no notifications) */}
-      {notifications.length === 0 && (
-        <View style={styles.emptyState}>
-          <MaterialIcons name="notifications-none" size={64} color={colors.textSecondary} />
-          <Text style={[styles.emptyTitle, { color: colors.text }]}>No Notifications</Text>
-          <Text style={[styles.emptyMessage, { color: colors.textSecondary }]}>
-            You're all caught up! We'll notify you when something new happens.
-          </Text>
-        </View>
+      {/* Notifications List or Empty State */}
+      {notifications.length > 0 ? (
+        <ScrollView 
+          style={styles.content} 
+          showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl
+              refreshing={isLoading}
+              onRefresh={handleRefresh}
+              colors={[colors.primary]}
+              tintColor={colors.primary}
+            />
+          }
+        >
+          {notifications.map((notification) => (
+            <TouchableOpacity 
+              key={notification.id} 
+              style={[
+                styles.notificationItem,
+                { backgroundColor: colors.surface, borderBottomColor: colors.border },
+                !notification.is_read && { backgroundColor: colors.primaryLight + '10' }
+              ]}
+              onPress={() => handleNotificationPress(notification)}
+              activeOpacity={0.7}
+            >
+              <View style={[styles.notificationIcon, { backgroundColor: colors.background }]}>
+                <MaterialIcons 
+                  name={getNotificationIcon(notification.type)} 
+                  size={24} 
+                  color={getNotificationColor(notification.type, isDark)} 
+                />
+              </View>
+              <View style={styles.notificationContent}>
+                <Text style={[
+                  styles.notificationTitle,
+                  { color: colors.text },
+                  !notification.is_read && styles.unreadTitle
+                ]}>
+                  {notification.title}
+                </Text>
+                <Text style={[styles.notificationMessage, { color: colors.textSecondary }]}>
+                  {notification.message}
+                </Text>
+                <Text style={[styles.notificationTime, { color: colors.textTertiary }]}>
+                  {formatTimeAgo(notification.created_at)}
+                </Text>
+              </View>
+              {!notification.is_read && <View style={[styles.unreadDot, { backgroundColor: colors.primary }]} />}
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
+      ) : (
+        <EmptyState
+          fullScreen
+          size="medium"
+          icon="notifications-none"
+          title="No Notifications"
+          description="You're all caught up! We'll notify you when something new happens."
+          showAction
+          actionTitle="Refresh"
+          onActionPress={handleRefresh}
+        />
       )}
     </SafeAreaView>
   );

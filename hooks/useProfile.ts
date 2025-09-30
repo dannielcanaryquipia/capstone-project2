@@ -19,8 +19,14 @@ export const useProfile = (userId: string) => {
   const { user, setState } = useAuthContext();
 
   const fetchProfile = async () => {
-    if (!userId) return;
-    
+    // If no user id yet, ensure we don't get stuck in loading state
+    if (!userId) {
+      setProfile(null);
+      setError(null);
+      setIsLoading(false);
+      return;
+    }
+
     setIsLoading(true);
     try {
       const data = await authService.getProfile(userId);

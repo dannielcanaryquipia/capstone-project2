@@ -151,8 +151,18 @@ export const useCreateAddress = () => {
       setIsLoading(true);
       setError(null);
 
-      // If this is set as default, unset other default addresses
-      if (addressData.is_default) {
+      // Determine if this is the first address for the user
+      const { count, error: countError } = await supabase
+        .from('addresses')
+        .select('*', { count: 'exact', head: true })
+        .eq('user_id', user.id);
+
+      if (countError) throw countError;
+
+      const shouldBeDefault = count === 0 || !!addressData.is_default;
+
+      // If this should be default, unset other default addresses (safety for second case)
+      if (shouldBeDefault) {
         await supabase
           .from('addresses')
           .update({ is_default: false })
@@ -165,6 +175,8 @@ export const useCreateAddress = () => {
         .insert({
           user_id: user.id,
           ...addressData,
+          // Ensure default flag is set for first address
+          is_default: shouldBeDefault,
         })
         .select()
         .single();

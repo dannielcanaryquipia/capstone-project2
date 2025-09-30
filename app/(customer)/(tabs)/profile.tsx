@@ -36,7 +36,7 @@ interface ProfileActionItem {
 }
 
 export default function ProfileScreen() {
-  const { user, signOut, refreshSession } = useAuth();
+  const { user, signOut } = useAuth();
   const { profile, isLoading, error, refresh, updateProfile } = useCurrentUserProfile();
   const { colors } = useTheme();
   const router = useRouter();
@@ -76,8 +76,8 @@ export default function ProfileScreen() {
         full_name: editForm.fullName.trim(),
         phone_number: editForm.phoneNumber.trim() || null,
       });
-      // Refresh the auth state to get updated user metadata
-      await refreshSession();
+      // Immediately refresh profile data and close modal for smooth UX
+      await refresh();
       setShowEditModal(false);
       Alert.alert('Success', 'Profile updated successfully');
     } catch (error) {

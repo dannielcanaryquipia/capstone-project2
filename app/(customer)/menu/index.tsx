@@ -165,40 +165,53 @@ export default function MenuScreen() {
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
-      {/* Search Bar */}
-      <ResponsiveView 
-        flexDirection="row" 
-        alignItems="center" 
-        backgroundColor={colors.surface}
-        marginHorizontal="lg"
-        marginVertical="md"
-        borderRadius="md"
-        paddingHorizontal="md"
-        height={Responsive.InputSizes.medium.height}
-        style={[styles.searchBarShadow, { borderColor: colors.border, borderWidth: 1 }]}
-      >
-        <MaterialIcons 
-          name="search" 
-          size={Responsive.responsiveValue(20, 22, 24, 26)} 
-          color={colors.textSecondary}
-          style={{ marginRight: Responsive.ResponsiveSpacing.sm }}
-        />
-        <TextInput
-          style={[
-            styles.searchInput, 
-            { 
-              color: colors.text,
-              fontSize: Responsive.InputSizes.medium.fontSize
-            }
-          ]}
-          placeholder="Search for food"
-          placeholderTextColor={colors.textSecondary}
-          value={searchQuery}
-          onChangeText={handleSearchChange}
-          onSubmitEditing={handleSearchSubmit}
-          returnKeyType="search"
-        />
-        {/* Clear icon temporarily removed for debugging */}
+      {/* Back + Search Bar */}
+      <ResponsiveView flexDirection="row" alignItems="center" paddingHorizontal="lg" marginVertical="md">
+        <TouchableOpacity
+          onPress={() => router.back()}
+          style={{ marginRight: Responsive.ResponsiveSpacing.sm, padding: Responsive.responsiveValue(4, 6, 8, 10) }}
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          activeOpacity={0.7}
+        >
+          <MaterialIcons 
+            name="arrow-back" 
+            size={Responsive.responsiveValue(20, 22, 24, 26)} 
+            color={colors.text}
+          />
+        </TouchableOpacity>
+        <ResponsiveView 
+          flex={1}
+          flexDirection="row" 
+          alignItems="center" 
+          backgroundColor={colors.surface}
+          borderRadius="md"
+          paddingHorizontal="md"
+          height={Responsive.InputSizes.medium.height}
+          style={[styles.searchBarShadow, { borderColor: colors.border, borderWidth: 1 }]}
+        >
+          <MaterialIcons 
+            name="search" 
+            size={Responsive.responsiveValue(20, 22, 24, 26)} 
+            color={colors.textSecondary}
+            style={{ marginRight: Responsive.ResponsiveSpacing.sm }}
+          />
+          <TextInput
+            style={[
+              styles.searchInput, 
+              { 
+                color: colors.text,
+                fontSize: Responsive.InputSizes.medium.fontSize
+              }
+            ]}
+            placeholder="Search for food"
+            placeholderTextColor={colors.textSecondary}
+            value={searchQuery}
+            onChangeText={handleSearchChange}
+            onSubmitEditing={handleSearchSubmit}
+            returnKeyType="search"
+          />
+          {/* Clear icon temporarily removed for debugging */}
+        </ResponsiveView>
       </ResponsiveView>
 
       {/* Categories */}

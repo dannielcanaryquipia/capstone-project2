@@ -143,6 +143,12 @@ export default function AddressesScreen() {
               Manage Addresses
             </ResponsiveText>
           </ResponsiveView>
+          <Button
+            title="Add Address"
+            onPress={() => router.push('/(customer)/profile/address-form')}
+            variant="primary"
+            size="medium"
+          />
         </ResponsiveView>
 
         {/* Addresses List */}
@@ -161,6 +167,7 @@ export default function AddressesScreen() {
                 No addresses available
               </ResponsiveText>
             </ResponsiveView>
+            {/* Removed inner Add Address button to avoid duplication with header action */}
           </ResponsiveView>
         ) : (
           <ResponsiveView style={styles.addressesList}>

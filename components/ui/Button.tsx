@@ -60,7 +60,7 @@ const Button: React.FC<ButtonProps> = memo(({
 
     const variantStyles: Record<ButtonVariant, ViewStyle> = {
       primary: {
-        backgroundColor: theme.colors.primary,
+        backgroundColor: '#FEDC00', // Fixed yellow background for primary buttons
       },
       secondary: {
         backgroundColor: theme.colors.secondary,
@@ -95,7 +95,7 @@ const Button: React.FC<ButtonProps> = memo(({
 
     const variantTextStyles: Record<ButtonVariant, TextStyle> = {
       primary: {
-        color: '#000000', // Constant black for primary buttons
+        color: '#000000', // Fixed black text for primary buttons (yellow background)
       },
       secondary: {
         color: theme.colors.textInverse,
@@ -127,7 +127,7 @@ const Button: React.FC<ButtonProps> = memo(({
       {loading ? (
         <ActivityIndicator 
           color={variant === 'primary' 
-            ? '#000000' // Constant black for primary buttons
+            ? '#000000' // Fixed black for primary buttons (yellow background)
             : variant === 'secondary' || variant === 'danger' 
             ? theme.colors.textInverse 
             : theme.colors.primary} 

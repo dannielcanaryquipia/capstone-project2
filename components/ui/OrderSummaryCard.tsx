@@ -1,10 +1,10 @@
 import { MaterialIcons } from '@expo/vector-icons';
 import React from 'react';
-import { Image, StyleSheet, View } from 'react-native';
+import { Image, StyleSheet, TouchableOpacity, View } from 'react-native';
+import Layout from '../../constants/Layout';
 import { useTheme } from '../../contexts/ThemeContext';
 import { ResponsiveText } from './ResponsiveText';
 import { ResponsiveView } from './ResponsiveView';
-import Layout from '../../constants/Layout';
 
 export interface OrderItem {
   id: string;
@@ -25,6 +25,7 @@ export interface OrderSummary {
   subtotal: number;
   deliveryFee: number;
   tax: number;
+  processingFee?: number;
   total: number;
   currency?: string;
 }
@@ -48,11 +49,17 @@ export const OrderSummaryCard: React.FC<OrderSummaryCardProps> = ({
   const renderOrderItem = (item: OrderItem, index: number) => (
     <ResponsiveView key={item.id} style={[styles.orderItem, compact && styles.compactItem]}>
       {showImages && (
-        <Image
-          source={{ uri: item.product_image || 'https://via.placeholder.com/60x60' }}
-          style={styles.itemImage}
-          defaultSource={{ uri: 'https://via.placeholder.com/60x60' }}
-        />
+        <TouchableOpacity
+          onPress={() => onItemPress?.(item)}
+          style={styles.imageContainer}
+          activeOpacity={0.7}
+        >
+          <Image
+            source={{ uri: item.product_image || 'https://via.placeholder.com/60x60' }}
+            style={styles.itemImage}
+            defaultSource={{ uri: 'https://via.placeholder.com/60x60' }}
+          />
+        </TouchableOpacity>
       )}
       
       <ResponsiveView style={styles.itemInfo}>
@@ -137,8 +144,9 @@ export const OrderSummaryCard: React.FC<OrderSummaryCardProps> = ({
 
       <ResponsiveView style={styles.summaryContainer}>
         {renderSummaryRow('Subtotal', summary.subtotal)}
-        {renderSummaryRow('Delivery Fee', summary.deliveryFee)}
-        {renderSummaryRow('Tax (12%)', summary.tax)}
+        {summary.deliveryFee > 0 ? renderSummaryRow('Delivery Fee', summary.deliveryFee) : null}
+        {summary.tax > 0 ? renderSummaryRow('Tax', summary.tax) : null}
+        {summary.processingFee && summary.processingFee > 0 ? renderSummaryRow('Processing Fee', summary.processingFee) : null}
         {renderSummaryRow('Total', summary.total, true)}
       </ResponsiveView>
     </ResponsiveView>
@@ -148,8 +156,7 @@ export const OrderSummaryCard: React.FC<OrderSummaryCardProps> = ({
 const styles = StyleSheet.create({
   container: {
     borderRadius: Layout.borderRadius.md,
-    marginHorizontal: Layout.spacing.lg,
-    marginBottom: Layout.spacing.lg,
+    padding: Layout.spacing.md,
     shadowColor: '#000',
     shadowOffset: {
       width: 0,
@@ -162,15 +169,13 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: Layout.spacing.md,
-    paddingTop: Layout.spacing.md,
     paddingBottom: Layout.spacing.sm,
   },
   title: {
     marginLeft: Layout.spacing.sm,
   },
   itemsContainer: {
-    paddingHorizontal: Layout.spacing.md,
+    // Remove horizontal padding since container now has padding
   },
   orderItem: {
     flexDirection: 'row',
@@ -182,11 +187,13 @@ const styles = StyleSheet.create({
   compactItem: {
     paddingVertical: Layout.spacing.xs,
   },
+  imageContainer: {
+    marginRight: Layout.spacing.sm,
+  },
   itemImage: {
     width: 60,
     height: 60,
     borderRadius: Layout.borderRadius.sm,
-    marginRight: Layout.spacing.sm,
   },
   itemInfo: {
     flex: 1,
@@ -205,8 +212,7 @@ const styles = StyleSheet.create({
     marginVertical: Layout.spacing.md,
   },
   summaryContainer: {
-    paddingHorizontal: Layout.spacing.md,
-    paddingBottom: Layout.spacing.md,
+    paddingTop: Layout.spacing.sm,
   },
   summaryRow: {
     flexDirection: 'row',

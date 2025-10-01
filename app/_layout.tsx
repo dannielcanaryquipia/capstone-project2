@@ -1,4 +1,5 @@
 import FontAwesome from '@expo/vector-icons/FontAwesome';
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import {
   DarkTheme as NavigationDarkTheme,
   DefaultTheme as NavigationDefaultTheme,
@@ -201,6 +202,7 @@ function AppContent() {
     PoppinsLight: require('../assets/fonts/Poppins-Light.ttf'),
     PlayfairDisplay: require('../assets/fonts/PlayfairDisplay-VariableFont_wght.ttf'),
     ...FontAwesome.font,
+    ...MaterialIcons.font,
   });
 
   useEffect(() => {

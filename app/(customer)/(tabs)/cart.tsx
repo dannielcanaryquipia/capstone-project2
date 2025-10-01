@@ -23,7 +23,6 @@ export default function CartScreen() {
     total,
     selectedItems,
     selectedSubtotal,
-    selectedTotal,
     removeItem, 
     updateQuantity, 
     clearCart,
@@ -32,6 +31,9 @@ export default function CartScreen() {
     clearSelection,
     getSelectedItems
   } = useCart();
+  
+  // Calculate total directly to avoid cart store discrepancies
+  const selectedTotal = selectedSubtotal + 0 + 0; // subtotal + deliveryFee(0) + tax(0)
   const { validationErrors, isValid } = useCartValidation();
   
   const handleCheckout = () => {
@@ -43,6 +45,11 @@ export default function CartScreen() {
     if (isValid) {
       router.push('/(customer)/checkout');
     }
+  };
+
+  const handleItemPress = (item: any) => {
+    // Navigate to product detail page
+    router.push(`/(customer)/product/${item.product_id}`);
   };
 
   const renderCartItem = ({ item }: { item: any }) => {
@@ -74,16 +81,44 @@ export default function CartScreen() {
         </TouchableOpacity>
 
         {/* Product Image */}
-        <Image 
-          source={{ uri: item.product_image || 'https://via.placeholder.com/80x80' }}
-          style={styles.itemImage}
-        />
+        <TouchableOpacity
+          onPress={() => handleItemPress(item)}
+          style={styles.imageContainer}
+          activeOpacity={0.7}
+        >
+          <Image 
+            source={{ uri: item.product_image || 'https://via.placeholder.com/80x80' }}
+            style={styles.itemImage}
+          />
+        </TouchableOpacity>
 
         {/* Product Details */}
         <ResponsiveView flex={1} marginLeft="md">
           <ResponsiveText size="md" weight="semiBold" color={colors.text}>
             {item.product_name}
           </ResponsiveText>
+          
+          {/* Customization Details */}
+          {(item.pizza_size || item.pizza_crust || (item.toppings && item.toppings.length > 0)) && (
+            <ResponsiveView marginTop="xs">
+              {item.pizza_size && (
+                <ResponsiveText size="xs" color={colors.textSecondary}>
+                  Size: {item.pizza_size}
+                </ResponsiveText>
+              )}
+              {item.pizza_crust && (
+                <ResponsiveText size="xs" color={colors.textSecondary}>
+                  Crust: {item.pizza_crust}
+                </ResponsiveText>
+              )}
+              {item.toppings && item.toppings.length > 0 && (
+                <ResponsiveText size="xs" color={colors.textSecondary} numberOfLines={1}>
+                  Toppings: {item.toppings.join(', ')}
+                </ResponsiveText>
+              )}
+            </ResponsiveView>
+          )}
+          
           <ResponsiveText size="sm" color={colors.textSecondary}>
             ₱{item.unit_price.toFixed(2)} each
           </ResponsiveText>
@@ -196,9 +231,16 @@ export default function CartScreen() {
           paddingVertical="md"
           style={{ borderBottomWidth: 1, borderBottomColor: colors.border }}
         >
-          <ResponsiveText size="xl" weight="bold" color={colors.text}>
-            Cart ({totalItems})
-          </ResponsiveText>
+          <ResponsiveView>
+            <ResponsiveText size="xl" weight="bold" color={colors.text}>
+              Cart ({items.length})
+            </ResponsiveText>
+            {items.length >= 8 && (
+              <ResponsiveText size="xs" color={colors.textSecondary}>
+                {items.length === 10 ? 'Cart is full' : `${10 - items.length} slots remaining`}
+              </ResponsiveText>
+            )}
+          </ResponsiveView>
           <TouchableOpacity onPress={clearSelection}>
             <ResponsiveText size="sm" color={colors.textSecondary}>
               Clear Selection
@@ -220,7 +262,7 @@ export default function CartScreen() {
             marginBottom="sm"
           >
             <ResponsiveText size="sm" color={colors.textSecondary}>
-              {selectedItems.length} of {totalItems} selected
+              {selectedItems.length} of {items.length} selected
             </ResponsiveText>
             <TouchableOpacity onPress={selectAllItems}>
               <ResponsiveText size="sm" color={colors.text}>
@@ -278,15 +320,6 @@ export default function CartScreen() {
               </ResponsiveText>
             </ResponsiveView>
             
-            <ResponsiveView flexDirection="row" justifyContent="space-between" marginBottom="xs">
-              <ResponsiveText size="md" color={colors.textSecondary}>
-                Delivery Fee
-              </ResponsiveText>
-              <ResponsiveText size="md" color={colors.text}>
-                ₱{(0).toFixed(2)}
-              </ResponsiveText>
-            </ResponsiveView>
-            
             <View style={[styles.divider, { backgroundColor: colors.border }]} />
             
             <ResponsiveView flexDirection="row" justifyContent="space-between" marginTop="sm">
@@ -324,6 +357,9 @@ const styles = StyleSheet.create({
   radioButton: {
     padding: 8,
     marginRight: 8,
+  },
+  imageContainer: {
+    // Container for clickable image
   },
   itemImage: {
     width: 80,

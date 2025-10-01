@@ -15,9 +15,10 @@ import { EmptyState } from '../../components/ui/EmptyState';
 import { ErrorState } from '../../components/ui/ErrorState';
 import { OrderSummary, OrderSummaryCard } from '../../components/ui/OrderSummaryCard';
 import { PaymentMethod, PaymentMethodCard } from '../../components/ui/PaymentMethodCard';
-import { ResponsiveInput } from '../../components/ui/ResponsiveInput';
+import { ResponsiveText } from '../../components/ui/ResponsiveText';
 import { ResponsiveView } from '../../components/ui/ResponsiveView';
-import Layout from '../../constants/Layout';
+import TextAreaForm from '../../components/ui/TextAreaForm';
+import Responsive from '../../constants/Responsive';
 import { useTheme } from '../../contexts/ThemeContext';
 import { useAddresses } from '../../hooks/useAddresses';
 import { useCart, useCartValidation } from '../../hooks/useCart';
@@ -30,6 +31,7 @@ const paymentMethods: PaymentMethod[] = [
     icon: 'money',
     description: 'Pay when your order arrives',
     isAvailable: true,
+    color: '#4CAF50',
   },
   {
     id: 'gcash',
@@ -38,6 +40,7 @@ const paymentMethods: PaymentMethod[] = [
     description: 'Pay using your GCash account',
     isAvailable: true,
     processingFee: 5.00,
+    color: '#0070F3',
   },
   {
     id: 'paymaya',
@@ -46,18 +49,18 @@ const paymentMethods: PaymentMethod[] = [
     description: 'Pay using your PayMaya account',
     isAvailable: true,
     processingFee: 5.00,
+    color: '#00D4AA',
   }
 ];
 
 export default function CheckoutScreen() {
   const { colors } = useTheme();
   const router = useRouter();
-  const { getSelectedItems, selectedSubtotal, selectedTotal, clearCart } = useCart();
+  const { getSelectedItems, selectedSubtotal, clearCart, resetDeliveryFee } = useCart();
   const items = getSelectedItems();
   const subtotal = selectedSubtotal;
   const deliveryFee = 0; // Temporary: zero, will come from admin config later
   const tax = 0; // No tax
-  const total = selectedTotal; // already computed with current delivery fee (0)
   const { validationErrors, isValid } = useCartValidation();
   const { addresses, isLoading: addressesLoading, error: addressesError } = useAddresses();
   // Map backend address shape to UI AddressCard shape
@@ -75,9 +78,34 @@ export default function CheckoutScreen() {
   
   const [selectedAddress, setSelectedAddress] = useState<Address | null>(null);
   const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<string>('cod');
-  const [deliveryInstructions, setDeliveryInstructions] = useState('');
   const [orderNotes, setOrderNotes] = useState('');
   const [checkoutError, setCheckoutError] = useState<string | null>(null);
+  const [paymentProcessing, setPaymentProcessing] = useState(false);
+  const [paymentRetryCount, setPaymentRetryCount] = useState(0);
+  const [lastPaymentError, setLastPaymentError] = useState<string | null>(null);
+
+  // Calculate processing fee based on selected payment method
+  const selectedPaymentMethodData = paymentMethods.find(method => method.id === selectedPaymentMethod);
+  const processingFee = selectedPaymentMethodData?.processingFee || 0;
+  
+  const total = subtotal + deliveryFee + tax + processingFee; // Include processing fee
+
+  // Debug logging to identify the issue
+  console.log('Checkout Debug:', {
+    itemsCount: items.length,
+    subtotal,
+    deliveryFee,
+    tax,
+    processingFee,
+    total,
+    selectedPaymentMethod,
+    items: items.map(item => ({ name: item.product_name, price: item.total_price }))
+  });
+
+  useEffect(() => {
+    // Reset delivery fee to 0 to ensure no hidden fees
+    resetDeliveryFee();
+  }, []);
 
   useEffect(() => {
     if (uiAddresses.length > 0 && !selectedAddress) {
@@ -104,7 +132,76 @@ export default function CheckoutScreen() {
       return;
     }
 
+    // Validate payment method availability
+    const paymentMethodData = paymentMethods.find(method => method.id === selectedPaymentMethod);
+    if (!paymentMethodData?.isAvailable) {
+      setCheckoutError('Selected payment method is not available. Please choose another option.');
+      return;
+    }
+
     try {
+      // Process payment based on method
+      let paymentResult = null;
+      
+      if (selectedPaymentMethod === 'cod') {
+        // Cash on Delivery - no payment processing needed
+        paymentResult = { success: true, method: 'cod' };
+      } else if (selectedPaymentMethod === 'gcash' || selectedPaymentMethod === 'paymaya') {
+        // Online payment processing with retry logic
+        setPaymentProcessing(true);
+        setLastPaymentError(null);
+        
+        try {
+          paymentResult = await processOnlinePayment(selectedPaymentMethod, total);
+          
+          if (!paymentResult.success) {
+            setLastPaymentError(paymentResult.error || 'Unknown error');
+            
+            // Show retry dialog for payment failures
+            Alert.alert(
+              'Payment Failed',
+              `${paymentResult.error || 'Payment could not be processed'}. Would you like to try again?`,
+              [
+                {
+                  text: 'Try Different Method',
+                  onPress: () => {
+                    setPaymentRetryCount(0);
+                    setLastPaymentError(null);
+                  }
+                },
+                {
+                  text: 'Retry Payment',
+                  onPress: () => {
+                    if (paymentRetryCount < 2) {
+                      setPaymentRetryCount(prev => prev + 1);
+                      // Retry payment by calling handlePlaceOrder again
+                      setTimeout(() => handlePlaceOrder(), 1000);
+                    } else {
+                      setCheckoutError('Payment failed after multiple attempts. Please try a different payment method.');
+                    }
+                  }
+                },
+                {
+                  text: 'Cancel',
+                  style: 'cancel',
+                  onPress: () => {
+                    setPaymentRetryCount(0);
+                    setLastPaymentError(null);
+                  }
+                }
+              ]
+            );
+            return;
+          } else {
+            // Payment successful, reset retry count
+            setPaymentRetryCount(0);
+            setLastPaymentError(null);
+          }
+        } finally {
+          setPaymentProcessing(false);
+        }
+      }
+
       const orderData = {
         items: items.map(item => ({
           product_id: item.product_id,
@@ -121,8 +218,11 @@ export default function CheckoutScreen() {
         })),
         delivery_address_id: selectedAddress.id,
         payment_method: selectedPaymentMethod,
-        delivery_instructions: deliveryInstructions,
+        payment_reference: paymentResult?.reference,
+        processing_fee: processingFee,
         notes: orderNotes,
+        subtotal,
+        total,
       };
 
       const order = await createOrder(orderData);
@@ -130,9 +230,15 @@ export default function CheckoutScreen() {
       // Clear cart after successful order
       clearCart();
       
+      // Show different confirmation messages based on payment method
+      const paymentMethodName = selectedPaymentMethodData?.name || 'Unknown';
+      const isOnlinePayment = selectedPaymentMethod !== 'cod';
+      
       Alert.alert(
         'Order Placed Successfully!',
-        `Your order ${order.order_number} has been placed and will be processed shortly.`,
+        isOnlinePayment 
+          ? `Your order ${order.order_number} has been placed and payment processed via ${paymentMethodName}.`
+          : `Your order ${order.order_number} has been placed and will be processed shortly. Please prepare cash payment upon delivery.`,
         [
           {
             text: 'View Order',
@@ -162,11 +268,49 @@ export default function CheckoutScreen() {
     setSelectedPaymentMethod(method.id);
   };
 
+  const handleItemPress = (item: any) => {
+    // Navigate to product detail page
+    router.push(`/(customer)/product/${item.product_id}`);
+  };
+
+  const processOnlinePayment = async (method: string, amount: number) => {
+    // Simulate payment processing
+    // In a real app, this would integrate with payment gateways like GCash, PayMaya APIs
+    
+    try {
+      // Simulate API call delay
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      
+      // Simulate payment success/failure (90% success rate for demo)
+      const isSuccess = Math.random() > 0.1;
+      
+      if (isSuccess) {
+        return {
+          success: true,
+          reference: `PAY_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+          method,
+          amount,
+        };
+      } else {
+        return {
+          success: false,
+          error: 'Payment was declined. Please try again or use a different payment method.',
+        };
+      }
+    } catch (error) {
+      return {
+        success: false,
+        error: 'Payment processing failed. Please try again.',
+      };
+    }
+  };
+
   const orderSummary: OrderSummary = {
     items,
     subtotal,
     deliveryFee,
     tax,
+    processingFee,
     total,
     currency: '₱',
   };
@@ -178,15 +322,17 @@ export default function CheckoutScreen() {
           title="Checkout"
           onBack={() => router.back()}
         />
-        <EmptyState
-          icon="shopping-cart"
-          title="Your cart is empty"
-          description="Add some items to your cart to proceed with checkout"
-          actionTitle="Continue Shopping"
-          onActionPress={() => router.push('/(customer)/(tabs)')}
-          showAction
-          fullScreen
-        />
+        <ResponsiveView flex={1} justifyContent="center" alignItems="center" paddingHorizontal="lg">
+          <EmptyState
+            icon="shopping-cart"
+            title="Your cart is empty"
+            description="Add some items to your cart to proceed with checkout"
+            actionTitle="Continue Shopping"
+            onActionPress={() => router.push('/(customer)/(tabs)')}
+            showAction
+            fullScreen
+          />
+        </ResponsiveView>
       </SafeAreaView>
     );
   }
@@ -201,116 +347,218 @@ export default function CheckoutScreen() {
         totalSteps={3}
       />
 
-      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-        {/* Error Display */}
-        {checkoutError && (
-          <ErrorState
-            title="Checkout Error"
-            message={checkoutError}
-            actionTitle="Try Again"
-            onActionPress={() => setCheckoutError(null)}
-          />
+      <ResponsiveView flex={1} flexDirection={Responsive.isTablet ? 'row' : 'column'}>
+        {/* Main Content */}
+        <ResponsiveView 
+          flex={Responsive.isTablet ? 2 : 1} 
+          paddingHorizontal={Responsive.isTablet ? "lg" : "md"}
+        >
+          <ScrollView 
+            style={styles.content} 
+            showsVerticalScrollIndicator={false}
+            contentContainerStyle={styles.scrollContent}
+          >
+                 {/* Error Display */}
+                 {(checkoutError || lastPaymentError) && (
+                   <ResponsiveView marginBottom="md">
+                     <ErrorState
+                       title={lastPaymentError ? "Payment Error" : "Checkout Error"}
+                       message={lastPaymentError || checkoutError || 'Unknown error'}
+                       actionTitle={lastPaymentError ? "Try Different Method" : "Try Again"}
+                       onActionPress={() => {
+                         setCheckoutError(null);
+                         setLastPaymentError(null);
+                         setPaymentRetryCount(0);
+                       }}
+                     />
+                     {paymentRetryCount > 0 && (
+                       <ResponsiveView marginTop="sm" paddingHorizontal="md">
+                         <ResponsiveText size="sm" color={colors.textSecondary}>
+                           Retry attempt: {paymentRetryCount}/2
+                         </ResponsiveText>
+                       </ResponsiveView>
+                     )}
+                   </ResponsiveView>
+                 )}
+
+            {/* Delivery Address */}
+            <ResponsiveView marginBottom="lg">
+              <CheckoutSection
+                title="Delivery Address"
+                subtitle="Select where you want your order delivered"
+                required
+                loading={addressesLoading}
+                error={addressesError ? 'Failed to load addresses' : undefined}
+              >
+                {addressesLoading ? (
+                  <CheckoutLoadingState message="Loading addresses..." />
+                ) : uiAddresses.length > 0 ? (
+                  <ResponsiveView 
+                    style={[
+                      styles.addressesList,
+                      Responsive.isTablet && styles.addressesGrid
+                    ]}
+                  >
+                    {uiAddresses.map((address) => (
+                      <ResponsiveView 
+                        key={address.id}
+                        style={Responsive.isTablet ? styles.gridItem : undefined}
+                      >
+                        <AddressCard
+                          address={address}
+                          selected={selectedAddress?.id === address.id}
+                          onSelect={handleAddressSelect}
+                          onEdit={handleAddressEdit}
+                          showEditButton
+                        />
+                      </ResponsiveView>
+                    ))}
+                  </ResponsiveView>
+                ) : (
+                  <EmptyState
+                    icon="location-off"
+                    title="No addresses found"
+                    description="Please add an address to continue with checkout"
+                    actionTitle="Add Address"
+                    onActionPress={() => router.push('/profile/addresses')}
+                    showAction
+                  />
+                )}
+              </CheckoutSection>
+            </ResponsiveView>
+
+            {/* Payment Method */}
+            <ResponsiveView marginBottom="lg">
+              <CheckoutSection
+                title="Payment Method"
+                subtitle="Choose how you want to pay"
+                required
+              >
+                <ResponsiveView 
+                  style={[
+                    styles.paymentMethodsList,
+                    Responsive.isTablet && styles.paymentMethodsGrid
+                  ]}
+                >
+                  {paymentMethods.map((method) => (
+                    <ResponsiveView 
+                      key={method.id}
+                      style={Responsive.isTablet ? styles.gridItem : undefined}
+                    >
+                      <PaymentMethodCard
+                        method={method}
+                        selected={selectedPaymentMethod === method.id}
+                        onSelect={handlePaymentMethodSelect}
+                        disabled={paymentProcessing}
+                      />
+                    </ResponsiveView>
+                  ))}
+                </ResponsiveView>
+              </CheckoutSection>
+            </ResponsiveView>
+
+            {/* Order Notes */}
+            <ResponsiveView marginBottom="lg">
+              <TextAreaForm
+                label="Order Notes"
+                subtitle="Any special requests or notes? (Optional)"
+                placeholder="Any special requests or notes..."
+                value={orderNotes}
+                onChangeText={setOrderNotes}
+                numberOfLines={3}
+                maxLength={500}
+                fullWidth
+                variant="outline"
+                size="medium"
+              />
+            </ResponsiveView>
+
+            {/* Order Summary - Mobile: Inside ScrollView, Tablet: Outside */}
+            {!Responsive.isTablet && (
+              <ResponsiveView marginBottom="lg">
+                <OrderSummaryCard
+                  summary={orderSummary}
+                  showImages={true}
+                  compact={false}
+                  onItemPress={handleItemPress}
+                />
+              </ResponsiveView>
+            )}
+          </ScrollView>
+        </ResponsiveView>
+
+        {/* Order Summary Sidebar (Tablet Only) */}
+        {Responsive.isTablet && (
+          <ResponsiveView 
+            flex={1}
+            backgroundColor={colors.surface}
+            paddingHorizontal="lg"
+            paddingVertical="lg"
+            style={styles.sidebar}
+          >
+            <OrderSummaryCard
+              summary={orderSummary}
+              showImages={false}
+              compact={true}
+              onItemPress={handleItemPress}
+            />
+          </ResponsiveView>
         )}
 
-        {/* Delivery Address */}
-        <CheckoutSection
-          title="Delivery Address"
-          subtitle="Select where you want your order delivered"
-          required
-          loading={addressesLoading}
-          error={addressesError ? 'Failed to load addresses' : undefined}
-        >
-          {addressesLoading ? (
-            <CheckoutLoadingState message="Loading addresses..." />
-          ) : uiAddresses.length > 0 ? (
-            <ResponsiveView style={styles.addressesList}>
-              {uiAddresses.map((address) => (
-                <AddressCard
-                  key={address.id}
-                  address={address}
-                  selected={selectedAddress?.id === address.id}
-                  onSelect={handleAddressSelect}
-                  onEdit={handleAddressEdit}
-                  showEditButton
-                />
-              ))}
-            </ResponsiveView>
-          ) : (
-            <EmptyState
-              icon="location-off"
-              title="No addresses found"
-              description="Please add an address to continue with checkout"
-              actionTitle="Add Address"
-              onActionPress={() => router.push('/profile/addresses')}
-              showAction
+        {/* Place Order Button - Mobile: Sticky Footer, Tablet: In Sidebar */}
+        {!Responsive.isTablet && (
+          <ResponsiveView 
+            paddingHorizontal="md"
+            paddingVertical="md"
+            backgroundColor={colors.surface}
+            style={[styles.stickyFooter, { borderTopColor: colors.border }]}
+          >
+            <Button
+              title={
+                paymentProcessing 
+                  ? `Processing ${selectedPaymentMethodData?.name}...` 
+                  : isCreatingOrder 
+                    ? "Placing Order..." 
+                    : paymentRetryCount > 0
+                      ? `Retry Payment - ₱${total.toFixed(2)} (${paymentRetryCount}/2)`
+                      : `Place Order - ₱${total.toFixed(2)}`
+              }
+              onPress={handlePlaceOrder}
+              variant="primary"
+              fullWidth
+              size="large"
+              loading={isCreatingOrder}
+              disabled={!isValid || !selectedAddress || isCreatingOrder || paymentProcessing}
             />
-          )}
-        </CheckoutSection>
-
-        {/* Payment Method */}
-        <CheckoutSection
-          title="Payment Method"
-          subtitle="Choose how you want to pay"
-          required
-        >
-          <ResponsiveView style={styles.paymentMethodsList}>
-            {paymentMethods.map((method) => (
-              <PaymentMethodCard
-                key={method.id}
-                method={method}
-                selected={selectedPaymentMethod === method.id}
-                onSelect={handlePaymentMethodSelect}
-              />
-            ))}
           </ResponsiveView>
-        </CheckoutSection>
+        )}
 
-        {/* Delivery Instructions */}
-        <CheckoutSection
-          title="Delivery Instructions"
-          subtitle="Any special delivery requests? (Optional)"
-        >
-          <ResponsiveInput
-            placeholder="Special delivery instructions..."
-            value={deliveryInstructions}
-            onChangeText={setDeliveryInstructions}
-            multiline
-            numberOfLines={3}
-            style={styles.textArea}
-          />
-        </CheckoutSection>
-
-        {/* Order Notes */}
-        <CheckoutSection
-          title="Order Notes"
-          subtitle="Any special requests or notes? (Optional)"
-        >
-          <ResponsiveInput
-            placeholder="Any special requests or notes..."
-            value={orderNotes}
-            onChangeText={setOrderNotes}
-            multiline
-            numberOfLines={3}
-            style={styles.textArea}
-          />
-        </CheckoutSection>
-
-        {/* Order Summary */}
-        <OrderSummaryCard
-          summary={orderSummary}
-          showImages={true}
-        />
-      </ScrollView>
-
-      <ResponsiveView style={styles.footer}>
-        <Button
-          title={isCreatingOrder ? "Placing Order..." : `Place Order - ₱${total.toFixed(2)}`}
-          onPress={handlePlaceOrder}
-          variant="primary"
-          fullWidth
-          loading={isCreatingOrder}
-          disabled={!isValid || !selectedAddress || isCreatingOrder}
-        />
+        {Responsive.isTablet && (
+          <ResponsiveView 
+            paddingHorizontal="lg"
+            paddingVertical="md"
+            backgroundColor={colors.surface}
+            style={[styles.sidebar, { borderLeftColor: colors.border }]}
+          >
+            <Button
+              title={
+                paymentProcessing 
+                  ? `Processing ${selectedPaymentMethodData?.name}...` 
+                  : isCreatingOrder 
+                    ? "Placing Order..." 
+                    : paymentRetryCount > 0
+                      ? `Retry Payment - ₱${total.toFixed(2)} (${paymentRetryCount}/2)`
+                      : `Place Order - ₱${total.toFixed(2)}`
+              }
+              onPress={handlePlaceOrder}
+              variant="primary"
+              fullWidth
+              size="large"
+              loading={isCreatingOrder}
+              disabled={!isValid || !selectedAddress || isCreatingOrder || paymentProcessing}
+            />
+          </ResponsiveView>
+        )}
       </ResponsiveView>
     </SafeAreaView>
   );
@@ -323,20 +571,35 @@ const styles = StyleSheet.create({
   content: {
     flex: 1,
   },
+  scrollContent: {
+    paddingBottom: Responsive.responsiveValue(20, 24, 28, 32),
+  },
   addressesList: {
-    gap: Layout.spacing.sm,
+    gap: Responsive.ResponsiveSpacing.sm,
+  },
+  addressesGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
   },
   paymentMethodsList: {
-    gap: Layout.spacing.sm,
+    gap: Responsive.ResponsiveSpacing.sm,
   },
-  textArea: {
-    minHeight: 80,
-    textAlignVertical: 'top',
+  paymentMethodsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
   },
-  footer: {
-    paddingHorizontal: Layout.spacing.lg,
-    paddingVertical: Layout.spacing.md,
+  gridItem: {
+    width: Responsive.isTablet ? '48%' : '100%',
+    marginBottom: Responsive.ResponsiveSpacing.sm,
+  },
+  sidebar: {
+    borderLeftWidth: 1,
+    maxHeight: '100%',
+  },
+  stickyFooter: {
     borderTopWidth: 1,
-    borderTopColor: 'rgba(0,0,0,0.1)',
+    // backgroundColor and borderTopColor are now set dynamically via props
   },
 });

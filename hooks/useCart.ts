@@ -65,6 +65,7 @@ interface CartState {
   clearSelection: () => void;
   getSelectedItems: () => CartItem[];
   calculateSelectedTotals: () => void;
+  resetDeliveryFee: () => void;
   
   // Computed values
   getItemById: (itemId: string) => CartItem | undefined;
@@ -91,7 +92,24 @@ const useCartStore = create<CartState>()(
 
       addItem: (product, quantity = 1, options = {}) => {
         const state = get();
-        const existingItem = state.getItemByProductId(product.id);
+        
+        // Check cart limit (10 items maximum)
+        if (state.items.length >= 10) {
+          throw new Error('Cart limit reached. You can only add up to 10 different items to your cart.');
+        }
+        
+        // Create customization details for comparison
+        const customization_details = (options.pizza_size || options.pizza_crust || options.toppings) ? {
+          size: options.pizza_size,
+          crust: options.pizza_crust,
+          toppings: options.toppings || []
+        } : undefined;
+        
+        // Find existing item with same product ID AND same customization
+        const existingItem = state.items.find(item => 
+          item.product_id === product.id && 
+          JSON.stringify(item.customization_details) === JSON.stringify(customization_details)
+        );
         
         if (existingItem) {
           // Update existing item quantity
@@ -99,12 +117,7 @@ const useCartStore = create<CartState>()(
           return;
         }
 
-        // Create customization_details JSON for pizza items
-        const customization_details = (options.pizza_size || options.pizza_crust || options.toppings) ? {
-          size: options.pizza_size,
-          crust: options.pizza_crust,
-          toppings: options.toppings || []
-        } : undefined;
+        // Use the customization_details already created above
 
         const newItem: CartItem = {
           id: `${product.id}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
@@ -266,6 +279,14 @@ const useCartStore = create<CartState>()(
         });
       },
 
+      resetDeliveryFee: () => {
+        set({
+          deliveryFee: 0,
+          tax: 0
+        });
+        get().calculateSelectedTotals();
+      },
+
       getSelectedItems: () => {
         const state = get();
         return state.items.filter(item => state.selectedItems.includes(item.id));
@@ -275,14 +296,16 @@ const useCartStore = create<CartState>()(
         const state = get();
         const selectedItems = state.items.filter(item => state.selectedItems.includes(item.id));
         const selectedSubtotal = selectedItems.reduce((sum, item) => sum + item.total_price, 0);
+        
+        // Only apply fees if there are selected items
         const hasSelection = selectedItems.length > 0;
-        const selectedTax = 0; // No tax for now
-        const appliedDeliveryFee = hasSelection ? state.deliveryFee : 0; // currently 0
-        const selectedTotal = selectedSubtotal + appliedDeliveryFee + selectedTax;
+        const selectedTax = hasSelection ? state.tax : 0;
+        const selectedDeliveryFee = hasSelection ? state.deliveryFee : 0;
+        const selectedTotal = selectedSubtotal + selectedDeliveryFee + selectedTax;
 
         set({
           selectedSubtotal,
-          selectedTotal: selectedTotal
+          selectedTotal
         });
       },
     }),

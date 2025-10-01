@@ -13,6 +13,7 @@ export interface PaymentMethod {
   description: string;
   isAvailable?: boolean;
   processingFee?: number;
+  color?: string;
 }
 
 interface PaymentMethodCardProps {
@@ -59,7 +60,7 @@ export const PaymentMethodCard: React.FC<PaymentMethodCardProps> = ({
             <MaterialIcons 
               name={method.icon as any} 
               size={24} 
-              color={isDisabled ? colors.textSecondary : colors.primary} 
+              color={isDisabled ? colors.textSecondary : (method.color || colors.primary)} 
             />
           </ResponsiveView>
           

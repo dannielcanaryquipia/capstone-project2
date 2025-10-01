@@ -1,7 +1,8 @@
 import React from 'react';
-import { StyleSheet, Text, TouchableOpacity, ViewStyle } from 'react-native';
-import Layout from '../../constants/Layout';
+import { StyleSheet, TouchableOpacity, ViewStyle } from 'react-native';
+import Responsive from '../../constants/Responsive';
 import { useTheme } from '../../contexts/ThemeContext';
+import { ResponsiveText } from './ResponsiveText';
 
 type SelectablePillProps = {
   label: string;
@@ -35,19 +36,14 @@ export default function SelectablePill({
         style,
       ]}
     >
-      <Text
-        style={[
-          size === 'sm' ? styles.textSm : styles.textMd,
-          {
-            color: selected ? colors.categoryButtonActiveText : colors.categoryButtonText,
-            fontFamily: selected ? Layout.fontFamily.semiBold : Layout.fontFamily.regular,
-          },
-        ]}
-        numberOfLines={1}
-        ellipsizeMode="tail"
+      <ResponsiveText
+        size="sm"
+        color={selected ? colors.categoryButtonActiveText : colors.categoryButtonText}
+        weight={selected ? 'semiBold' : 'regular'}
+        style={{ textAlign: 'center', lineHeight: undefined }}
       >
         {label}
-      </Text>
+      </ResponsiveText>
     </TouchableOpacity>
   );
 }
@@ -57,22 +53,24 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: 20,
-    marginHorizontal: 5,
+    borderRadius: Responsive.responsiveValue(16, 18, 20, 22),
+    marginRight: Responsive.responsiveValue(6, 8, 10, 12),
+    minWidth: Responsive.responsiveValue(72, 80, 88, 100),
+    minHeight: Responsive.responsiveValue(36, 40, 44, 48),
   },
   pillSm: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    minWidth: 64,
-    minHeight: 32,
-    borderRadius: 16,
+    paddingHorizontal: Responsive.responsiveValue(12, 14, 16, 18),
+    paddingVertical: Responsive.responsiveValue(6, 8, 10, 12),
+    minWidth: Responsive.responsiveValue(64, 72, 80, 88),
+    minHeight: Responsive.responsiveValue(32, 36, 40, 44),
+    borderRadius: Responsive.responsiveValue(14, 16, 18, 20),
   },
   pillMd: {
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    minWidth: 80,
-    minHeight: 40,
-    borderRadius: 20,
+    paddingHorizontal: Responsive.responsiveValue(14, 16, 18, 20),
+    paddingVertical: Responsive.responsiveValue(8, 10, 12, 14),
+    minWidth: Responsive.responsiveValue(72, 80, 88, 100),
+    minHeight: Responsive.responsiveValue(36, 40, 44, 48),
+    borderRadius: Responsive.responsiveValue(16, 18, 20, 22),
   },
   pillActive: {
     shadowColor: '#FFE44D',
@@ -80,22 +78,6 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.2,
     shadowRadius: 3,
     elevation: 0,
-  },
-  textSm: {
-    fontSize: 14,
-    textAlign: 'center',
-    lineHeight: undefined as unknown as number,
-    includeFontPadding: false as unknown as boolean,
-    textAlignVertical: 'center' as unknown as 'auto',
-    letterSpacing: 0.2,
-  },
-  textMd: {
-    fontSize: 16,
-    textAlign: 'center',
-    lineHeight: undefined as unknown as number,
-    includeFontPadding: false as unknown as boolean,
-    textAlignVertical: 'center' as unknown as 'auto',
-    letterSpacing: 0.2,
   },
 });
 

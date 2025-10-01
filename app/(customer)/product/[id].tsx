@@ -1,10 +1,11 @@
 import { MaterialIcons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
-import { Dimensions, Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Alert, Dimensions, Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { CartNotification } from '../../../components/ui/CartNotification';
 import SelectablePill from '../../../components/ui/SelectablePill';
 import Layout from '../../../constants/Layout';
+import Responsive from '../../../constants/Responsive';
 import { useSavedProducts } from '../../../contexts/SavedProductsContext';
 import { useTheme } from '../../../contexts/ThemeContext';
 import { useCart } from '../../../hooks/useCart';
@@ -92,38 +93,47 @@ export default function ProductScreen() {
   const addToCart = () => {
     if (!product || product.id === 'loading') return;
 
-    // Convert ProductDetail to Product type for cart
-    const productForCart = {
-      ...product,
-      category_id: (product.category as any)?.id || '',
-      price: selectedSizePrice, // Use the selected size price
-      category: product.category ? {
-        ...product.category,
-        is_active: true,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      } : undefined,
-    };
+    try {
+      // Convert ProductDetail to Product type for cart
+      const productForCart = {
+        ...product,
+        category_id: (product.category as any)?.id || '',
+        price: selectedSizePrice, // Use the selected size price
+        category: product.category ? {
+          ...product.category,
+          is_active: true,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        } : undefined,
+      };
 
-    // Prepare cart options for pizza items
-    const cartOptions: any = {};
-    if (isPizzaCategory) {
-      if (selectedSize) cartOptions.pizza_size = selectedSize;
-      if (selectedCrust) cartOptions.pizza_crust = selectedCrust;
+      // Prepare cart options for pizza items
+      const cartOptions: any = {};
+      if (isPizzaCategory) {
+        if (selectedSize) cartOptions.pizza_size = selectedSize;
+        if (selectedCrust) cartOptions.pizza_crust = selectedCrust;
+      }
+
+      // Add item to cart
+      addItem(productForCart as any, quantity, cartOptions);
+
+      // Store added item info for notification
+      setAddedItem({
+        name: product.name,
+        quantity,
+        totalPrice: selectedSizePrice * quantity,
+      });
+
+      // Show notification
+      setShowCartNotification(true);
+    } catch (error: any) {
+      // Handle cart limit error
+      Alert.alert(
+        'Cart Limit Reached',
+        error.message || 'You can only add up to 10 different items to your cart.',
+        [{ text: 'OK' }]
+      );
     }
-
-    // Add item to cart
-    addItem(productForCart as any, quantity, cartOptions);
-
-    // Store added item info for notification
-    setAddedItem({
-      name: product.name,
-      quantity,
-      totalPrice: selectedSizePrice * quantity,
-    });
-
-    // Show notification
-    setShowCartNotification(true);
   };
 
   const handleGoToCart = () => {
@@ -212,17 +222,21 @@ export default function ProductScreen() {
           {isPizzaCategory && availableSizes.length > 0 && (
             <View style={styles.section}>
               <Text style={[styles.sectionTitle, { color: colors.text }]}>Size</Text>
-              <View style={styles.sizeContainer}>
-                {availableSizes.map(size => (
-                  <SelectablePill
-                    key={String(size)}
-                    label={String(size).charAt(0).toUpperCase() + String(size).slice(1)}
-                    selected={selectedSize === size}
-                    onPress={() => setSelectedSize(size)}
-                    size="md"
-                  />
-                ))}
-              </View>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={{ paddingHorizontal: Responsive.ResponsiveSpacing.md }}
+            >
+              {availableSizes.map(size => (
+                <SelectablePill
+                  key={String(size)}
+                  label={String(size).charAt(0).toUpperCase() + String(size).slice(1)}
+                  selected={selectedSize === size}
+                  onPress={() => setSelectedSize(size)}
+                  size="md"
+                />
+              ))}
+            </ScrollView>
             </View>
           )}
 
@@ -230,17 +244,21 @@ export default function ProductScreen() {
           {isPizzaCategory && availableCrustsForSize.length > 0 && (
             <View style={styles.section}>
               <Text style={[styles.sectionTitle, { color: colors.text }]}>Crust</Text>
-              <View style={styles.sizeContainer}>
-                {availableCrustsForSize.map(crust => (
-                  <SelectablePill
-                    key={String(crust)}
-                    label={String(crust).charAt(0).toUpperCase() + String(crust).slice(1)}
-                    selected={selectedCrust === crust}
-                    onPress={() => setSelectedCrust(crust)}
-                    size="md"
-                  />
-                ))}
-              </View>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={{ paddingHorizontal: Responsive.ResponsiveSpacing.md }}
+            >
+              {availableCrustsForSize.map(crust => (
+                <SelectablePill
+                  key={String(crust)}
+                  label={String(crust).charAt(0).toUpperCase() + String(crust).slice(1)}
+                  selected={selectedCrust === crust}
+                  onPress={() => setSelectedCrust(crust)}
+                  size="md"
+                />
+              ))}
+            </ScrollView>
             </View>
           )}
 

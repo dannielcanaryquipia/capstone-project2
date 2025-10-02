@@ -166,10 +166,13 @@ const useCartStore = create<CartState>()(
           return;
         }
 
+        // Limit quantity to maximum of 10
+        const limitedQuantity = Math.min(10, quantity);
+
         set((state) => {
           const newItems = state.items.map(item =>
             item.id === itemId
-              ? { ...item, quantity, total_price: item.unit_price * quantity }
+              ? { ...item, quantity: limitedQuantity, total_price: item.unit_price * limitedQuantity }
               : item
           );
           return {

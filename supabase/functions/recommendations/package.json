@@ -1,0 +1,12 @@
+{
+  "name": "recommendations",
+  "version": "1.0.0",
+  "description": "Supabase Edge Function for AI-based product recommendations",
+  "main": "index.ts",
+  "scripts": {
+    "start": "deno run --allow-all index.ts"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.0.0"
+  }
+}

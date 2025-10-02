@@ -6,12 +6,12 @@ export { useCurrentUserProfile, useProfile } from './useProfile';
 // Product hooks
 export {
     useLowStockProducts, useProduct,
-    useProductCategories, useProducts, useProductSearch, useProductStats
+    useProductCategories, useProductSearch, useProductStats, useProducts
 } from './useProducts';
 
 // Order hooks
 export {
-    useAdminOrders, useCancelOrder, useCreateOrder, useOrder, useOrders, useOrderStats, useOrderTracking, useUpdateOrderStatus
+    useAdminOrders, useCancelOrder, useCreateOrder, useOrder, useOrderStats, useOrderTracking, useOrders, useUpdateOrderStatus
 } from './useOrders';
 
 // Cart hooks
@@ -21,12 +21,12 @@ export {
 
 // Address hooks
 export {
-    useAddress, useAddresses, useAddressValidation, useCreateAddress, useDefaultAddress, useDeleteAddress, useSetDefaultAddress, useUpdateAddress
+    useAddress, useAddressValidation, useAddresses, useCreateAddress, useDefaultAddress, useDeleteAddress, useSetDefaultAddress, useUpdateAddress
 } from './useAddresses';
 
 // Saved products hooks
 export {
-    useIsProductSaved, useSavedProductIds, useSavedProducts, useSavedProductsCount, useSaveProduct, useToggleSaveProduct, useUnsaveProduct
+    useIsProductSaved, useSaveProduct, useSavedProductIds, useSavedProducts, useSavedProductsCount, useToggleSaveProduct, useUnsaveProduct
 } from './useSavedProducts';
 
 // Admin hooks
@@ -47,4 +47,7 @@ export { useAvatar } from './useAvatar';
 
 // Form validation hook
 export { useFormValidation } from './useFormValidation';
+
+// Recommendation hooks
+export { useRecommendations } from './useRecommendations';
 

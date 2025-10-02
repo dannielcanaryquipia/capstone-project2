@@ -10,6 +10,7 @@ import { useSavedProducts } from '../../../contexts/SavedProductsContext';
 import { useTheme } from '../../../contexts/ThemeContext';
 import { useCart } from '../../../hooks/useCart';
 import { useCrusts, useProductDetail } from '../../../hooks/useProductDetail';
+import { useRecommendations } from '../../../hooks/useRecommendations';
 
 const { width } = Dimensions.get('window');
 
@@ -47,6 +48,11 @@ export default function ProductScreen() {
   // Fetch real product data from backend
   const { productDetail, isLoading, error } = useProductDetail(id as string);
   const product = productDetail || mockProductData;
+
+  // AI Recommendations
+  const { getCategoryRecommendations } = useRecommendations();
+  const [categoryRecommendations, setCategoryRecommendations] = useState<any[]>([]);
+  const [isLoadingRecommendations, setIsLoadingRecommendations] = useState(false);
 
   // Check if product is saved and toggle functionality
   const { isProductSaved, toggleSave } = useSavedProducts();
@@ -87,7 +93,32 @@ export default function ProductScreen() {
     }
   }, [availableCrustsForSize, selectedCrust]);
 
-  const increaseQuantity = () => setQuantity(prev => prev + 1);
+  // Load category recommendations when product is loaded
+  useEffect(() => {
+    if (product && product.id !== 'loading' && (product as any).category_id) {
+      loadCategoryRecommendations();
+    }
+  }, [product]);
+
+  const loadCategoryRecommendations = async () => {
+    if (!product || product.id === 'loading' || !(product as any).category_id) return;
+    
+    setIsLoadingRecommendations(true);
+    try {
+      const recommendations = await getCategoryRecommendations(
+        (product as any).category_id, 
+        product.id, 
+        4
+      );
+      setCategoryRecommendations(recommendations);
+    } catch (error) {
+      console.error('Failed to load category recommendations:', error);
+    } finally {
+      setIsLoadingRecommendations(false);
+    }
+  };
+
+  const increaseQuantity = () => setQuantity(prev => Math.min(10, prev + 1));
   const decreaseQuantity = () => setQuantity(prev => Math.max(1, prev - 1));
 
   const addToCart = () => {
@@ -298,24 +329,45 @@ export default function ProductScreen() {
           </View>
         </View>
 
-        {/* You May Also Like (mockup) */}
+        {/* You May Also Like - AI Powered */}
         <View style={styles.relatedSection}>
-          <Text style={[styles.sectionTitle, { color: colors.text }]}>You may also like</Text>
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>You May Also Like</Text>
           <ScrollView
             horizontal
             showsHorizontalScrollIndicator={false}
             contentContainerStyle={styles.relatedItemsContainer}
           >
-            {[1, 2, 3].map((i) => (
-              <View key={i} style={[styles.relatedItem, { backgroundColor: colors.card }]}>
-                <Image
-                  source={{ uri: 'https://via.placeholder.com/200x120' }}
-                  style={styles.relatedItemImage}
-                />
-                <Text style={[styles.relatedItemName, { color: colors.text }]}>Sample Product {i}</Text>
-                <Text style={[styles.relatedItemPrice, { color: colors.themedPrice }]}>₱{(product.base_price + i * 10).toFixed(2)}</Text>
+            {isLoadingRecommendations ? (
+              <View style={[styles.relatedItem, { backgroundColor: colors.card, justifyContent: 'center', alignItems: 'center' }]}>
+                <Text style={[styles.relatedItemName, { color: colors.textSecondary }]}>Loading recommendations...</Text>
               </View>
-            ))}
+            ) : categoryRecommendations.length > 0 ? (
+              categoryRecommendations.map((recommendedProduct) => (
+                <TouchableOpacity
+                  key={recommendedProduct.id}
+                  style={[styles.relatedItem, { backgroundColor: colors.card }]}
+                  onPress={() => router.push({
+                    pathname: '/(customer)/product/[id]',
+                    params: { id: recommendedProduct.id }
+                  } as any)}
+                >
+                  <Image
+                    source={{ uri: recommendedProduct.image_url || 'https://via.placeholder.com/200x120' }}
+                    style={styles.relatedItemImage}
+                  />
+                  <Text style={[styles.relatedItemName, { color: colors.text }]} numberOfLines={2}>
+                    {recommendedProduct.name}
+                  </Text>
+                  <Text style={[styles.relatedItemPrice, { color: colors.themedPrice }]}>
+                    ₱{recommendedProduct.base_price.toFixed(2)}
+                  </Text>
+                </TouchableOpacity>
+              ))
+            ) : (
+              <View style={[styles.relatedItem, { backgroundColor: colors.card, justifyContent: 'center', alignItems: 'center' }]}>
+                <Text style={[styles.relatedItemName, { color: colors.textSecondary }]}>No recommendations available</Text>
+              </View>
+            )}
           </ScrollView>
         </View>
       </ScrollView>
@@ -327,8 +379,19 @@ export default function ProductScreen() {
             <MaterialIcons name="remove" size={20} color={colors.primary} />
           </TouchableOpacity>
           <Text style={[styles.quantityText, { color: colors.text }]}>{quantity}</Text>
-          <TouchableOpacity onPress={increaseQuantity} style={styles.quantityButton}>
-            <MaterialIcons name="add" size={20} color={colors.primary} />
+          <TouchableOpacity 
+            onPress={increaseQuantity} 
+            style={[
+              styles.quantityButton,
+              quantity >= 10 && { opacity: 0.5 }
+            ]}
+            disabled={quantity >= 10}
+          >
+            <MaterialIcons 
+              name="add" 
+              size={20} 
+              color={quantity >= 10 ? colors.textSecondary : colors.primary} 
+            />
           </TouchableOpacity>
         </View>
         <TouchableOpacity

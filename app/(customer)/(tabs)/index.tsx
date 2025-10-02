@@ -14,6 +14,7 @@ import { useTheme } from '../../../contexts/ThemeContext';
 import { useCart, useCurrentUserProfile, useProductCategories, useProducts } from '../../../hooks';
 import { useAuth } from '../../../hooks/useAuth';
 import { useOrders } from '../../../hooks/useOrders';
+import { useRecommendations } from '../../../hooks/useRecommendations';
 import { Order } from '../../../types/order.types';
 
 export default function HomeScreen() {
@@ -38,10 +39,17 @@ export default function HomeScreen() {
   const { orders: allOrders, isLoading: ordersLoading } = useOrders();
   const recentOrders = allOrders.slice(0, 3);
   
+  // Add AI recommendations
+  const { 
+    featuredProducts, 
+    personalizedProducts, 
+    isLoading: recommendationsLoading,
+    error: recommendationsError 
+  } = useRecommendations();
   
-  // Filter products for different sections
-  const popularProducts = products.filter(product => product.is_recommended).slice(0, 4);
-  const recommendedProducts = products.filter(product => product.is_recommended).slice(0, 2);
+  // Remove old hardcoded recommendations
+  // const popularProducts = products.filter(product => product.is_recommended).slice(0, 4);
+  // const recommendedProducts = products.filter(product => product.is_recommended).slice(0, 2);
   
   // Get current time of day for greeting
   const getGreeting = () => {
@@ -286,7 +294,7 @@ export default function HomeScreen() {
         </ResponsiveView>
 
 
-        {/* Popular Items */}
+        {/* Featured Products Section - AI Powered */}
         <ResponsiveView marginTop="sm" paddingHorizontal="lg" marginBottom="lg">
           <ResponsiveView 
             flexDirection="row" 
@@ -295,7 +303,7 @@ export default function HomeScreen() {
             marginBottom="lg"
           >
             <ResponsiveText size="xxl" weight="bold" color={colors.text}>
-              Popular Now ({popularProducts.length})
+              Featured Products ({featuredProducts.length})
             </ResponsiveText>
             <TouchableOpacity onPress={() => router.push('/(customer)/menu')}>
               <ResponsiveText size="md" weight="semiBold" color={colors.themedViewAll}>
@@ -308,12 +316,12 @@ export default function HomeScreen() {
             showsHorizontalScrollIndicator={false}
             contentContainerStyle={{ paddingVertical: Responsive.ResponsiveSpacing.xs }}
           >
-            {productsLoading ? (
+            {recommendationsLoading ? (
               <ResponsiveView padding="lg">
-                <ResponsiveText color={colors.textSecondary}>Loading popular items...</ResponsiveText>
+                <ResponsiveText color={colors.textSecondary}>Loading featured products...</ResponsiveText>
               </ResponsiveView>
             ) : (
-              popularProducts.map((product) => (
+              featuredProducts.map((product) => (
                 <ProductCard
                   key={product.id}
                   id={product.id}
@@ -321,7 +329,7 @@ export default function HomeScreen() {
                   description={product.description}
                   price={product.base_price}
                   image={product.image_url || 'https://via.placeholder.com/200x150'}
-                  tags={product.is_recommended ? ['Recommended'] : []}
+                  tags={['Featured']}
                   variant="horizontal"
                   width={Responsive.responsiveValue(160, 170, 180, 200)}
                   onPress={() => router.push({
@@ -334,7 +342,7 @@ export default function HomeScreen() {
           </ScrollView>
         </ResponsiveView>
 
-        {/* Recommended For You */}
+        {/* Recommended For You Section - AI Powered */}
         <ResponsiveView marginTop="sm" paddingHorizontal="lg" marginBottom="lg">
           <ResponsiveView 
             flexDirection="row" 
@@ -343,7 +351,7 @@ export default function HomeScreen() {
             marginBottom="lg"
           >
             <ResponsiveText size="xxl" weight="bold" color={colors.text}>
-              Recommended For You ({recommendedProducts.length})
+              Recommended For You ({personalizedProducts.length})
             </ResponsiveText>
             <TouchableOpacity onPress={() => router.push('/(customer)/menu')}>
               <ResponsiveText size="md" weight="semiBold" color={colors.themedViewAll}>
@@ -356,12 +364,12 @@ export default function HomeScreen() {
             showsHorizontalScrollIndicator={false}
             contentContainerStyle={{ paddingVertical: Responsive.ResponsiveSpacing.xs }}
           >
-            {productsLoading ? (
+            {recommendationsLoading ? (
               <ResponsiveView padding="lg">
-                <ResponsiveText color={colors.textSecondary}>Loading recommended items...</ResponsiveText>
+                <ResponsiveText color={colors.textSecondary}>Loading recommendations...</ResponsiveText>
               </ResponsiveView>
             ) : (
-              recommendedProducts.map((product) => (
+              personalizedProducts.map((product) => (
                 <ProductCard
                   key={product.id}
                   id={product.id}
@@ -369,7 +377,7 @@ export default function HomeScreen() {
                   description={product.description}
                   price={product.base_price}
                   image={product.image_url || 'https://via.placeholder.com/200x150'}
-                  tags={product.is_recommended ? ['Recommended'] : []}
+                  tags={['Recommended']}
                   variant="horizontal"
                   width={Responsive.responsiveValue(160, 170, 180, 200)}
                   onPress={() => router.push({

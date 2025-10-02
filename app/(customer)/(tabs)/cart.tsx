@@ -153,9 +153,17 @@ export default function CartScreen() {
             </ResponsiveView>
             <TouchableOpacity 
               onPress={() => updateQuantity(item.id, item.quantity + 1)}
-              style={styles.quantityButton}
+              style={[
+                styles.quantityButton,
+                item.quantity >= 10 && { opacity: 0.5 }
+              ]}
+              disabled={item.quantity >= 10}
             >
-              <MaterialIcons name="add" size={16} color={colors.text} />
+              <MaterialIcons 
+                name="add" 
+                size={16} 
+                color={item.quantity >= 10 ? colors.textSecondary : colors.text} 
+              />
             </TouchableOpacity>
           </ResponsiveView>
           <ResponsiveText size="sm" weight="bold" color={colors.text}>

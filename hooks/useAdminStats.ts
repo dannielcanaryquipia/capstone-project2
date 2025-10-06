@@ -254,7 +254,7 @@ const fetchRevenueStats = async () => {
     .from('orders')
     .select('total_amount, created_at')
     .gte('created_at', thisMonth.toISOString())
-    .eq('status', 'delivered');
+    .eq('status', 'Delivered');
 
   if (thisMonthError) throw thisMonthError;
 
@@ -263,7 +263,7 @@ const fetchRevenueStats = async () => {
     .select('total_amount, created_at')
     .gte('created_at', lastMonth.toISOString())
     .lte('created_at', lastMonthEnd.toISOString())
-    .eq('status', 'delivered');
+    .eq('status', 'Delivered');
 
   if (lastMonthError) throw lastMonthError;
 
@@ -292,8 +292,8 @@ const fetchRecentActivity = async () => {
     supabase
       .from('orders')
       .select(`
-        id, order_number, total_amount, status, created_at,
-        user:profiles(full_name)
+        id, total_amount, status, created_at,
+        user:profiles!orders_user_id_fkey(full_name)
       `)
       .order('created_at', { ascending: false })
       .limit(5),
@@ -307,7 +307,7 @@ const fetchRecentActivity = async () => {
       .limit(5),
     supabase
       .from('profiles')
-      .select('id, full_name, email, role, created_at')
+      .select('id, full_name, role, created_at')
       .order('created_at', { ascending: false })
       .limit(5),
   ]);

@@ -13,18 +13,74 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import Button from '../../../components/ui/Button';
 import { ResponsiveText } from '../../../components/ui/ResponsiveText';
 import { ResponsiveView } from '../../../components/ui/ResponsiveView';
+import Layout from '../../../constants/Layout';
+import { ResponsiveBorderRadius, ResponsiveSpacing, responsiveValue } from '../../../constants/Responsive';
 import { Strings } from '../../../constants/Strings';
 import { useTheme } from '../../../contexts/ThemeContext';
 import { OrderService } from '../../../services/order.service';
-import { Order, OrderStatus } from '../../../types/order.types';
+import global from '../../../styles/global';
+import { OrderStatus } from '../../../types/order.types';
+
+interface OrderDetail {
+  id: string;
+  user_id: string;
+  delivery_address_id: string;
+  total_amount: number;
+  status: OrderStatus;
+  payment_method?: string;
+  payment_status?: string;
+  order_notes?: string;
+  created_at: string;
+  updated_at: string;
+  proof_of_payment_url?: string;
+  estimated_delivery_time?: string;
+  actual_delivery_time?: string;
+  customer_notes?: string;
+  admin_notes?: string;
+  payment_verified?: boolean;
+  payment_verified_at?: string;
+  payment_verified_by?: string;
+  customer: {
+    id: string;
+    full_name: string;
+    phone_number?: string;
+    username: string;
+  };
+  delivery_address: {
+    id: string;
+    full_address: string;
+    label?: string;
+  };
+  order_items: Array<{
+    id: string;
+    product: {
+      id: string;
+      name: string;
+      image_url?: string;
+    };
+    quantity: number;
+    unit_price: number;
+    customization_details?: any;
+    selected_size?: string;
+  }>;
+  payment_transaction?: {
+    id: string;
+    payment_method: string;
+    amount: number;
+    status: string;
+    proof_of_payment_url?: string;
+    verified_at?: string;
+    verified_by?: string;
+  };
+}
 
 export default function OrderDetailScreen() {
   const { colors } = useTheme();
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
-  const [order, setOrder] = useState<Order | null>(null);
   const [loading, setLoading] = useState(true);
   const [updating, setUpdating] = useState(false);
+  const [order, setOrder] = useState<OrderDetail | null>(null);
 
   useEffect(() => {
     if (id) {
@@ -33,33 +89,36 @@ export default function OrderDetailScreen() {
   }, [id]);
 
   const loadOrder = async () => {
+    if (!id) return;
+    
+    setLoading(true);
     try {
-      setLoading(true);
-      const orderData = await OrderService.getOrderById(id!);
+      const orderData = await OrderService.getOrderById(id) as unknown as OrderDetail;
       setOrder(orderData);
     } catch (error) {
       console.error('Error loading order:', error);
-      Alert.alert('Error', 'Failed to load order details. Please try again.');
+      Alert.alert('Error', 'Failed to load order details');
+      router.back();
     } finally {
       setLoading(false);
     }
   };
 
   const handleStatusUpdate = async (newStatus: OrderStatus) => {
-    if (!order) return;
+    if (!order || !id) return;
 
     Alert.alert(
       'Update Order Status',
-      `Are you sure you want to change this order status to ${newStatus.replace('_', ' ')}?`,
+      `Are you sure you want to mark this order as ${newStatus.replace('_', ' ')}?`,
       [
         { text: 'Cancel', style: 'cancel' },
         { 
           text: 'Update', 
           onPress: async () => {
+            setUpdating(true);
             try {
-              setUpdating(true);
-              await OrderService.updateOrderStatus(id!, newStatus, 'admin');
-              await loadOrder();
+              await OrderService.updateOrderStatus(id, newStatus, 'Admin status update');
+              await loadOrder(); // Reload order data
               Alert.alert('Success', 'Order status updated successfully!');
             } catch (error) {
               console.error('Error updating order status:', error);
@@ -77,25 +136,12 @@ export default function OrderDetailScreen() {
     switch (status) {
       case 'pending': return colors.warning;
       case 'confirmed': return colors.info;
-      case 'preparing': return colors.primary;
-      case 'ready_for_pickup': return colors.warning;
-      case 'out_for_delivery': return colors.info;
+      case 'preparing': return colors.accent;
+      case 'ready_for_pickup': return colors.primary;
+      case 'out_for_delivery': return colors.secondary;
       case 'delivered': return colors.success;
       case 'cancelled': return colors.error;
       default: return colors.textSecondary;
-    }
-  };
-
-  const getStatusIcon = (status: OrderStatus) => {
-    switch (status) {
-      case 'pending': return 'schedule';
-      case 'confirmed': return 'check-circle-outline';
-      case 'preparing': return 'restaurant';
-      case 'ready_for_pickup': return 'local-shipping';
-      case 'out_for_delivery': return 'delivery-dining';
-      case 'delivered': return 'check-circle';
-      case 'cancelled': return 'cancel';
-      default: return 'help';
     }
   };
 
@@ -111,35 +157,33 @@ export default function OrderDetailScreen() {
   };
 
   const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleString('en-US', {
+    return new Date(dateString).toLocaleDateString('en-US', {
       year: 'numeric',
       month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
+      day: 'numeric'
     });
   };
 
   if (loading) {
     return (
-      <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
-        <View style={styles.loadingContainer}>
+      <SafeAreaView style={[global.screen, styles.center, { backgroundColor: colors.background }]}>
+        <ResponsiveView style={styles.center}>
           <ActivityIndicator size="large" color={colors.primary} />
           <ResponsiveView marginTop="md">
             <ResponsiveText size="md" color={colors.textSecondary}>
               {Strings.loading}
             </ResponsiveText>
           </ResponsiveView>
-        </View>
+        </ResponsiveView>
       </SafeAreaView>
     );
   }
 
   if (!order) {
     return (
-      <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
-        <ResponsiveView style={styles.errorContainer}>
-          <MaterialIcons name="error" size={64} color={colors.error} />
+      <SafeAreaView style={[global.screen, styles.center, { backgroundColor: colors.background }]}>
+        <ResponsiveView style={styles.center}>
+          <MaterialIcons name="error" size={responsiveValue(48, 56, 64, 72)} color={colors.error} />
           <ResponsiveView marginTop="md">
             <ResponsiveText size="lg" weight="semiBold" color={colors.text}>
               Order Not Found
@@ -147,7 +191,7 @@ export default function OrderDetailScreen() {
           </ResponsiveView>
           <ResponsiveView marginTop="sm">
             <ResponsiveText size="md" color={colors.textSecondary} style={{ textAlign: 'center' }}>
-              The order you're looking for doesn't exist or has been removed.
+              The order you're looking for doesn't exist.
             </ResponsiveText>
           </ResponsiveView>
           <ResponsiveView marginTop="lg">
@@ -165,253 +209,180 @@ export default function OrderDetailScreen() {
   const nextStatus = getNextStatus(order.status);
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
-      <ResponsiveView style={styles.header}>
-        <ResponsiveView style={styles.headerTop}>
-          <TouchableOpacity onPress={() => router.back()}>
-            <MaterialIcons name="arrow-back" size={24} color={colors.text} />
-          </TouchableOpacity>
-          <ResponsiveText size="xl" weight="bold" color={colors.text}>
-            Order Details
-          </ResponsiveText>
-          <View style={{ width: 24 }} />
-        </ResponsiveView>
-        <ResponsiveText size="md" color={colors.textSecondary}>
-          {order.order_number}
+    <SafeAreaView style={[global.screen, { backgroundColor: colors.background }]}>
+      {/* Header */}
+      <ResponsiveView style={[styles.header, { backgroundColor: colors.surface }]}>
+        <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+          <MaterialIcons name="arrow-back" size={responsiveValue(20, 24, 28, 32)} color={colors.text} />
+        </TouchableOpacity>
+        <ResponsiveText size="lg" weight="semiBold" color={colors.text}>
+          Order #{order.id.slice(-8)}
         </ResponsiveText>
+        <View style={{ width: responsiveValue(20, 24, 28, 32) }} />
       </ResponsiveView>
 
-      <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
-        {/* Order Status */}
-        <ResponsiveView style={[styles.section, { backgroundColor: colors.card, borderColor: colors.border }]}>
-          <ResponsiveView style={styles.statusHeader}>
-            <ResponsiveView style={[styles.statusBadge, { backgroundColor: `${getStatusColor(order.status)}20` }]}>
-              <MaterialIcons 
-                name={getStatusIcon(order.status)} 
-                size={20} 
-                color={getStatusColor(order.status)} 
-              />
-              <ResponsiveView marginLeft="sm">
-                <ResponsiveText 
-                  size="lg" 
-                  color={getStatusColor(order.status)}
-                  weight="semiBold"
-                >
-                  {order.status.replace('_', ' ').toUpperCase()}
-                </ResponsiveText>
-              </ResponsiveView>
-            </ResponsiveView>
-            
-            {nextStatus && (
-              <Button
-                title={`Mark as ${nextStatus.replace('_', ' ')}`}
-                onPress={() => handleStatusUpdate(nextStatus)}
-                loading={updating}
-                disabled={updating}
-                variant="primary"
-                size="small"
-              />
-            )}
-          </ResponsiveView>
-        </ResponsiveView>
-
+      <ScrollView 
+        style={styles.scrollView}
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+      >
         {/* Customer Information */}
-        <ResponsiveView style={[styles.section, { backgroundColor: colors.card, borderColor: colors.border }]}>
+        <ResponsiveView style={[styles.section, { backgroundColor: colors.surface }]}>
           <ResponsiveView marginBottom="md">
             <ResponsiveText size="lg" weight="semiBold" color={colors.text}>
               Customer Information
             </ResponsiveText>
           </ResponsiveView>
           
-          <ResponsiveView style={styles.infoRow}>
-            <MaterialIcons name="person" size={20} color={colors.textSecondary} />
-            <ResponsiveView marginLeft="md">
-              <ResponsiveText size="sm" color={colors.textSecondary}>
-                Customer Name
+          <ResponsiveView style={styles.infoRow} marginBottom="sm">
+            <MaterialIcons name="person" size={responsiveValue(16, 18, 20, 22)} color={colors.primary} />
+            <ResponsiveView marginLeft="sm" flex={1}>
+              <ResponsiveText size="md" color={colors.text}>
+                {order.customer.full_name}
               </ResponsiveText>
-              <ResponsiveText size="md" color={colors.text} weight="medium">
-                {order.delivery_address?.full_address?.split(',')[0] || 'Unknown'}
+            </ResponsiveView>
+          </ResponsiveView>
+
+          <ResponsiveView style={styles.infoRow} marginBottom="sm">
+            <MaterialIcons name="phone" size={responsiveValue(16, 18, 20, 22)} color={colors.primary} />
+            <ResponsiveView marginLeft="sm" flex={1}>
+              <ResponsiveText size="md" color={colors.text}>
+                {order.customer.phone_number || 'No phone number'}
               </ResponsiveText>
             </ResponsiveView>
           </ResponsiveView>
 
           <ResponsiveView style={styles.infoRow}>
-            <MaterialIcons name="location-on" size={20} color={colors.textSecondary} />
-            <ResponsiveView marginLeft="md">
-              <ResponsiveText size="sm" color={colors.textSecondary}>
-                Delivery Address
-              </ResponsiveText>
-              <ResponsiveText size="md" color={colors.text} weight="medium">
-                {order.delivery_address?.full_address || 'No address provided'}
+            <MaterialIcons name="email" size={responsiveValue(16, 18, 20, 22)} color={colors.primary} />
+            <ResponsiveView marginLeft="sm" flex={1}>
+              <ResponsiveText size="md" color={colors.text}>
+                {order.customer.username}
               </ResponsiveText>
             </ResponsiveView>
           </ResponsiveView>
-
-          {order.delivery_instructions && (
-            <ResponsiveView style={styles.infoRow}>
-              <MaterialIcons name="note" size={20} color={colors.textSecondary} />
-              <ResponsiveView marginLeft="md">
-                <ResponsiveText size="sm" color={colors.textSecondary}>
-                  Delivery Instructions
-                </ResponsiveText>
-                <ResponsiveText size="md" color={colors.text} weight="medium">
-                  {order.delivery_instructions}
-                </ResponsiveText>
-              </ResponsiveView>
-            </ResponsiveView>
-          )}
         </ResponsiveView>
 
-        {/* Order Items */}
-        <ResponsiveView style={[styles.section, { backgroundColor: colors.card, borderColor: colors.border }]}>
+        {/* Delivery Address */}
+        <ResponsiveView style={[styles.section, { backgroundColor: colors.surface }]}>
           <ResponsiveView marginBottom="md">
             <ResponsiveText size="lg" weight="semiBold" color={colors.text}>
-              Order Items ({order.items.length})
+              Delivery Address
             </ResponsiveText>
           </ResponsiveView>
           
-          {order.items.map((item, index) => (
-            <ResponsiveView key={index} style={styles.orderItem}>
-              <ResponsiveView style={styles.itemInfo}>
-                <ResponsiveText size="md" color={colors.text} weight="medium">
-                  {item.product_name}
-                </ResponsiveText>
-                
-                {/* Pizza Size and Crust - Right below product name */}
-                {(item.pizza_size || item.pizza_crust) && (
-                  <ResponsiveText size="sm" color={colors.textSecondary}>
-                    {[item.pizza_size, item.pizza_crust].filter(Boolean).join(' • ')}
-                  </ResponsiveText>
-                )}
-                
-                {/* Toppings */}
-                {item.toppings && item.toppings.length > 0 && (
-                  <ResponsiveText size="sm" color={colors.textSecondary}>
-                    Toppings: {item.toppings.join(', ')}
-                  </ResponsiveText>
-                )}
-                
-                <ResponsiveText size="sm" color={colors.textSecondary}>
-                  Quantity: {item.quantity}
-                </ResponsiveText>
-                
-                {/* Special Instructions */}
-                {item.special_instructions && (
-                  <ResponsiveText size="sm" color={colors.warning} style={{ fontStyle: 'italic' }}>
-                    Note: {item.special_instructions}
-                  </ResponsiveText>
-                )}
-              </ResponsiveView>
-              <ResponsiveText size="md" color={colors.primary} weight="semiBold">
-                ₱{(item.total_price || 0).toFixed(2)}
+          <ResponsiveView style={styles.infoRow}>
+            <MaterialIcons name="location-on" size={responsiveValue(16, 18, 20, 22)} color={colors.error} />
+            <ResponsiveView marginLeft="sm" flex={1}>
+              <ResponsiveText size="md" color={colors.text}>
+                {order.delivery_address.full_address}
               </ResponsiveText>
+              {order.delivery_address.label && (
+                <ResponsiveView marginTop="xs">
+                  <ResponsiveText size="sm" color={colors.textSecondary}>
+                    {order.delivery_address.label}
+                  </ResponsiveText>
+                </ResponsiveView>
+              )}
+            </ResponsiveView>
+          </ResponsiveView>
+        </ResponsiveView>
+
+        {/* Order Items */}
+        <ResponsiveView style={[styles.section, { backgroundColor: colors.surface }]}>
+          <ResponsiveView marginBottom="md">
+            <ResponsiveText size="lg" weight="semiBold" color={colors.text}>
+              Order Items
+            </ResponsiveText>
+          </ResponsiveView>
+          
+          {order.order_items.map((item) => (
+            <ResponsiveView key={item.id} style={styles.orderItem} marginBottom="md">
+              <ResponsiveView style={styles.orderItemHeader}>
+                <ResponsiveView flex={1}>
+                  <ResponsiveText size="md" weight="semiBold" color={colors.text}>
+                    {item.quantity}x {item.product.name}
+                  </ResponsiveText>
+                </ResponsiveView>
+                <ResponsiveText size="md" weight="semiBold" color={colors.primary}>
+                  ₱{(item.quantity * item.unit_price).toFixed(2)}
+                </ResponsiveText>
+              </ResponsiveView>
+              
+              {item.customization_details && (
+                <ResponsiveView marginTop="xs">
+                  <ResponsiveText size="sm" color={colors.textSecondary}>
+                    Customization: {JSON.stringify(item.customization_details)}
+                  </ResponsiveText>
+                </ResponsiveView>
+              )}
+              
+              {item.selected_size && (
+                <ResponsiveView marginTop="xs">
+                  <ResponsiveText size="sm" color={colors.textSecondary}>
+                    Size: {item.selected_size}
+                  </ResponsiveText>
+                </ResponsiveView>
+              )}
             </ResponsiveView>
           ))}
         </ResponsiveView>
 
-        {/* Order Summary */}
-        <ResponsiveView style={[styles.section, { backgroundColor: colors.card, borderColor: colors.border }]}>
-          <ResponsiveView marginBottom="md">
+        {/* Total Amount */}
+        <ResponsiveView style={[styles.section, { backgroundColor: colors.surface }]}>
+          <ResponsiveView style={styles.totalRow}>
             <ResponsiveText size="lg" weight="semiBold" color={colors.text}>
-              Order Summary
+              Total Amount:
             </ResponsiveText>
-          </ResponsiveView>
-          
-          <ResponsiveView style={styles.summaryRow}>
-            <ResponsiveText size="md" color={colors.textSecondary}>
-              Subtotal
-            </ResponsiveText>
-            <ResponsiveText size="md" color={colors.text} weight="medium">
-              ₱{(order.subtotal || 0).toFixed(2)}
-            </ResponsiveText>
-          </ResponsiveView>
-
-          <ResponsiveView style={styles.summaryRow}>
-            <ResponsiveText size="md" color={colors.textSecondary}>
-              Delivery Fee
-            </ResponsiveText>
-            <ResponsiveText size="md" color={colors.text} weight="medium">
-              ₱{(order.delivery_fee || 0).toFixed(2)}
-            </ResponsiveText>
-          </ResponsiveView>
-
-          <ResponsiveView style={styles.summaryRow}>
-            <ResponsiveText size="md" color={colors.textSecondary}>
-              Tax
-            </ResponsiveText>
-            <ResponsiveText size="md" color={colors.text} weight="medium">
-              ₱{(order.tax_amount || 0).toFixed(2)}
-            </ResponsiveText>
-          </ResponsiveView>
-
-          {order.discount_amount > 0 && (
-            <ResponsiveView style={styles.summaryRow}>
-              <ResponsiveText size="md" color={colors.textSecondary}>
-                Discount
-              </ResponsiveText>
-              <ResponsiveText size="md" color={colors.success} weight="medium">
-                -₱{(order.discount_amount || 0).toFixed(2)}
-              </ResponsiveText>
-            </ResponsiveView>
-          )}
-
-          <ResponsiveView style={[styles.summaryRow, styles.totalRow]}>
-            <ResponsiveText size="lg" color={colors.text} weight="semiBold">
-              Total
-            </ResponsiveText>
-            <ResponsiveText size="lg" color={colors.primary} weight="bold">
-              ₱{(order.total_amount || 0).toFixed(2)}
+            <ResponsiveText size="lg" weight="semiBold" color={colors.primary}>
+              ₱{order.total_amount.toFixed(2)}
             </ResponsiveText>
           </ResponsiveView>
         </ResponsiveView>
 
         {/* Payment Information */}
-        <ResponsiveView style={[styles.section, { backgroundColor: colors.card, borderColor: colors.border }]}>
-          <ResponsiveView marginBottom="md">
+        <ResponsiveView style={[styles.section, { backgroundColor: colors.surface }]}>
+          <ResponsiveView style={styles.sectionHeader}>
             <ResponsiveText size="lg" weight="semiBold" color={colors.text}>
               Payment Information
             </ResponsiveText>
+            {order.payment_verified && (
+              <ResponsiveText size="sm" color={colors.success} weight="semiBold">
+                Verified
+              </ResponsiveText>
+            )}
           </ResponsiveView>
           
-          <ResponsiveView style={styles.infoRow}>
-            <MaterialIcons name="payment" size={20} color={colors.textSecondary} />
-            <ResponsiveView marginLeft="md">
-              <ResponsiveText size="sm" color={colors.textSecondary}>
-                Payment Method
-              </ResponsiveText>
-              <ResponsiveText size="md" color={colors.text} weight="medium">
-                {order.payment_method.toUpperCase()}
+          <ResponsiveView style={styles.infoRow} marginBottom="sm">
+            <MaterialIcons name="payment" size={responsiveValue(16, 18, 20, 22)} color={colors.primary} />
+            <ResponsiveView marginLeft="sm" flex={1}>
+              <ResponsiveText size="md" color={colors.text}>
+                Payment Method: {order.payment_method || 'COD'}
               </ResponsiveText>
             </ResponsiveView>
           </ResponsiveView>
 
           <ResponsiveView style={styles.infoRow}>
-            <MaterialIcons name="check-circle" size={20} color={colors.textSecondary} />
-            <ResponsiveView marginLeft="md">
-              <ResponsiveText size="sm" color={colors.textSecondary}>
-                Payment Status
-              </ResponsiveText>
-              <ResponsiveText size="md" color={colors.text} weight="medium">
-                {order.payment_status.toUpperCase()}
+            <MaterialIcons name="attach-money" size={responsiveValue(16, 18, 20, 22)} color={colors.primary} />
+            <ResponsiveView marginLeft="sm" flex={1}>
+              <ResponsiveText size="md" color={colors.text}>
+                Amount: ₱{order.total_amount.toFixed(2)}
               </ResponsiveText>
             </ResponsiveView>
           </ResponsiveView>
         </ResponsiveView>
 
         {/* Order Timeline */}
-        <ResponsiveView style={[styles.section, { backgroundColor: colors.card, borderColor: colors.border }]}>
+        <ResponsiveView style={[styles.section, { backgroundColor: colors.surface }]}>
           <ResponsiveView marginBottom="md">
             <ResponsiveText size="lg" weight="semiBold" color={colors.text}>
               Order Timeline
             </ResponsiveText>
           </ResponsiveView>
           
-          <ResponsiveView style={styles.timelineItem}>
-            <ResponsiveView style={[styles.timelineDot, { backgroundColor: colors.primary }]}>
-              <View />
-            </ResponsiveView>
-            <ResponsiveView marginLeft="md">
-              <ResponsiveText size="md" color={colors.text} weight="medium">
+          <ResponsiveView style={styles.timelineItem} marginBottom="sm">
+            <View style={[styles.timelineDot, { backgroundColor: colors.primary }]} />
+            <ResponsiveView marginLeft="md" flex={1}>
+              <ResponsiveText size="md" color={colors.text}>
                 Order Placed
               </ResponsiveText>
               <ResponsiveText size="sm" color={colors.textSecondary}>
@@ -420,182 +391,100 @@ export default function OrderDetailScreen() {
             </ResponsiveView>
           </ResponsiveView>
 
-          {order.confirmed_at && (
-            <ResponsiveView style={styles.timelineItem}>
-              <ResponsiveView style={[styles.timelineDot, { backgroundColor: colors.info }]}>
-                <View />
-              </ResponsiveView>
-              <ResponsiveView marginLeft="md">
-                <ResponsiveText size="md" color={colors.text} weight="medium">
-                  Order Confirmed
-                </ResponsiveText>
-                <ResponsiveText size="sm" color={colors.textSecondary}>
-                  {formatDate(order.confirmed_at)}
-                </ResponsiveText>
-              </ResponsiveView>
+          <ResponsiveView style={styles.timelineItem}>
+            <View style={[styles.timelineDot, { backgroundColor: colors.primary }]} />
+            <ResponsiveView marginLeft="md" flex={1}>
+              <ResponsiveText size="md" color={colors.text}>
+                Last Updated
+              </ResponsiveText>
+              <ResponsiveText size="sm" color={colors.textSecondary}>
+                {formatDate(order.updated_at)}
+              </ResponsiveText>
             </ResponsiveView>
-          )}
-
-          {order.prepared_at && (
-            <ResponsiveView style={styles.timelineItem}>
-              <ResponsiveView style={[styles.timelineDot, { backgroundColor: colors.primary }]}>
-                <View />
-              </ResponsiveView>
-              <ResponsiveView marginLeft="md">
-                <ResponsiveText size="md" color={colors.text} weight="medium">
-                  Order Prepared
-                </ResponsiveText>
-                <ResponsiveText size="sm" color={colors.textSecondary}>
-                  {formatDate(order.prepared_at)}
-                </ResponsiveText>
-              </ResponsiveView>
-            </ResponsiveView>
-          )}
-
-          {order.picked_up_at && (
-            <ResponsiveView style={styles.timelineItem}>
-              <ResponsiveView style={[styles.timelineDot, { backgroundColor: colors.warning }]}>
-                <View />
-              </ResponsiveView>
-              <ResponsiveView marginLeft="md">
-                <ResponsiveText size="md" color={colors.text} weight="medium">
-                  Ready for Pickup
-                </ResponsiveText>
-                <ResponsiveText size="sm" color={colors.textSecondary}>
-                  {formatDate(order.picked_up_at)}
-                </ResponsiveText>
-              </ResponsiveView>
-            </ResponsiveView>
-          )}
-
-          {order.delivered_at && (
-            <ResponsiveView style={styles.timelineItem}>
-              <ResponsiveView style={[styles.timelineDot, { backgroundColor: colors.success }]}>
-                <View />
-              </ResponsiveView>
-              <ResponsiveView marginLeft="md">
-                <ResponsiveText size="md" color={colors.text} weight="medium">
-                  Order Delivered
-                </ResponsiveText>
-                <ResponsiveText size="sm" color={colors.textSecondary}>
-                  {formatDate(order.delivered_at)}
-                </ResponsiveText>
-              </ResponsiveView>
-            </ResponsiveView>
-          )}
-
-          {order.cancelled_at && (
-            <ResponsiveView style={styles.timelineItem}>
-              <ResponsiveView style={[styles.timelineDot, { backgroundColor: colors.error }]}>
-                <View />
-              </ResponsiveView>
-              <ResponsiveView marginLeft="md">
-                <ResponsiveText size="md" color={colors.text} weight="medium">
-                  Order Cancelled
-                </ResponsiveText>
-                <ResponsiveText size="sm" color={colors.textSecondary}>
-                  {formatDate(order.cancelled_at)}
-                </ResponsiveText>
-                {order.cancellation_reason && (
-                  <ResponsiveText size="sm" color={colors.error}>
-                    Reason: {order.cancellation_reason}
-                  </ResponsiveText>
-                )}
-              </ResponsiveView>
-            </ResponsiveView>
-          )}
+          </ResponsiveView>
         </ResponsiveView>
       </ScrollView>
+
+      {/* Action Buttons */}
+      {nextStatus && (
+        <ResponsiveView style={[styles.actionContainer, { backgroundColor: colors.surface }]}>
+          <Button
+            title={`Mark as ${nextStatus.replace('_', ' ')}`}
+            onPress={() => handleStatusUpdate(nextStatus)}
+            variant="primary"
+            loading={updating}
+            disabled={updating}
+          />
+        </ResponsiveView>
+      )}
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  loadingContainer: {
-    flex: 1,
+  center: {
     justifyContent: 'center',
     alignItems: 'center',
-  },
-  errorContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 40,
   },
   header: {
-    padding: 20,
-    paddingBottom: 16,
-  },
-  headerTop: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 8,
+    paddingHorizontal: ResponsiveSpacing.lg,
+    paddingVertical: ResponsiveSpacing.md,
+    ...Layout.shadows.sm,
+  },
+  backButton: {
+    padding: ResponsiveSpacing.sm,
   },
   scrollView: {
     flex: 1,
   },
-  section: {
-    margin: 20,
-    marginTop: 0,
-    padding: 16,
-    borderRadius: 12,
-    borderWidth: 1,
+  scrollContent: {
+    padding: ResponsiveSpacing.lg,
   },
-  statusHeader: {
+  section: {
+    padding: ResponsiveSpacing.lg,
+    borderRadius: ResponsiveBorderRadius.lg,
+    marginBottom: ResponsiveSpacing.md,
+    ...Layout.shadows.sm,
+  },
+  sectionHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-  },
-  statusBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 20,
+    marginBottom: ResponsiveSpacing.md,
   },
   infoRow: {
     flexDirection: 'row',
-    alignItems: 'flex-start',
-    marginBottom: 16,
+    alignItems: 'center',
   },
   orderItem: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    marginBottom: 16,
-    paddingBottom: 16,
+    paddingVertical: ResponsiveSpacing.sm,
     borderBottomWidth: 1,
     borderBottomColor: 'rgba(0,0,0,0.1)',
   },
-  itemInfo: {
-    flex: 1,
-    marginRight: 12,
-  },
-  summaryRow: {
+  orderItemHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 8,
   },
   totalRow: {
-    marginTop: 8,
-    paddingTop: 8,
-    borderTopWidth: 1,
-    borderTopColor: 'rgba(0,0,0,0.1)',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
   },
   timelineItem: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    marginBottom: 16,
   },
   timelineDot: {
-    width: 12,
-    height: 12,
-    borderRadius: 6,
-    marginTop: 6,
+    width: responsiveValue(8, 10, 12, 14),
+    height: responsiveValue(8, 10, 12, 14),
+    borderRadius: responsiveValue(4, 5, 6, 7),
+    marginTop: ResponsiveSpacing.xs,
+  },
+  actionContainer: {
+    padding: ResponsiveSpacing.lg,
+    ...Layout.shadows.sm,
   },
 });

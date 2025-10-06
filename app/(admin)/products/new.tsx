@@ -1,479 +1,460 @@
 import { MaterialIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import {
-    Alert,
-    ScrollView,
-    StyleSheet,
-    TouchableOpacity,
-    View
+  ActivityIndicator,
+  Alert,
+  ScrollView,
+  StyleSheet,
+  TextInput,
+  TouchableOpacity,
+  View
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Button from '../../../components/ui/Button';
-import Input from '../../../components/ui/Input';
 import { ResponsiveText } from '../../../components/ui/ResponsiveText';
 import { ResponsiveView } from '../../../components/ui/ResponsiveView';
+import Layout from '../../../constants/Layout';
+import { ResponsiveBorderRadius, ResponsiveSpacing, responsiveValue } from '../../../constants/Responsive';
+import { Strings } from '../../../constants/Strings';
 import { useTheme } from '../../../contexts/ThemeContext';
+import { useProductCategories } from '../../../hooks';
 import { ProductService } from '../../../services/product.service';
-import { ProductCategory, ProductFormData } from '../../../types/product.types';
+import global from '../../../styles/global';
 
-export default function NewProductScreen() {
+interface ProductFormData {
+  name: string;
+  description: string;
+  base_price: string;
+  preparation_time_minutes: string;
+  image_url: string;
+  category_id: string;
+  is_available: boolean;
+  is_recommended: boolean;
+}
+
+export default function CreateProductScreen() {
   const { colors } = useTheme();
   const router = useRouter();
   const [loading, setLoading] = useState(false);
-  const [categories, setCategories] = useState<ProductCategory[]>([]);
+  const [saving, setSaving] = useState(false);
+  
   const [formData, setFormData] = useState<ProductFormData>({
     name: '',
     description: '',
-    price: 0,
-    category_id: '',
+    base_price: '0.00',
+    preparation_time_minutes: '30',
     image_url: '',
+    category_id: '',
     is_available: true,
     is_recommended: false,
-    preparation_time: 15,
-    calories: 0,
-    allergens: [],
-    ingredients: [],
-    stock_quantity: 0,
-    low_stock_threshold: 10,
   });
 
-  useEffect(() => {
-    loadCategories();
-  }, []);
+  const { categories, isLoading: categoriesLoading } = useProductCategories();
 
-  const loadCategories = async () => {
-    try {
-      const categoriesData = await ProductService.getCategories();
-      setCategories(categoriesData);
-    } catch (error) {
-      console.error('Error loading categories:', error);
-      Alert.alert('Error', 'Failed to load categories. Please try again.');
-    }
-  };
-
-  const handleInputChange = (field: keyof ProductFormData, value: string | number | boolean) => {
+  const handleInputChange = (field: keyof ProductFormData, value: string | boolean) => {
     setFormData(prev => ({
       ...prev,
-      [field]: value,
+      [field]: value
     }));
   };
 
-  const handleSubmit = async () => {
-    // Validation
+  const handleCategorySelect = (categoryId: string) => {
+    setFormData(prev => ({
+      ...prev,
+      category_id: categoryId
+    }));
+  };
+
+  const validateForm = (): boolean => {
     if (!formData.name.trim()) {
-      Alert.alert('Validation Error', 'Product name is required.');
-      return;
+      Alert.alert('Validation Error', 'Product name is required');
+      return false;
     }
     if (!formData.description.trim()) {
-      Alert.alert('Validation Error', 'Product description is required.');
-      return;
+      Alert.alert('Validation Error', 'Product description is required');
+      return false;
     }
-    if (formData.price <= 0) {
-      Alert.alert('Validation Error', 'Product price must be greater than 0.');
-      return;
+    if (!formData.base_price || parseFloat(formData.base_price) < 0) {
+      Alert.alert('Validation Error', 'Valid base price is required');
+      return false;
     }
     if (!formData.category_id) {
-      Alert.alert('Validation Error', 'Please select a category.');
-      return;
+      Alert.alert('Validation Error', 'Please select a category');
+      return false;
     }
+    return true;
+  };
 
+  const handleSave = async () => {
+    if (!validateForm()) return;
+
+    setSaving(true);
     try {
-      setLoading(true);
-      
       const productData = {
         name: formData.name.trim(),
         description: formData.description.trim(),
-        price: formData.price,
+        price: parseFloat(formData.base_price),
+        preparation_time: parseInt(formData.preparation_time_minutes),
+        image_url: formData.image_url.trim() || undefined,
         category_id: formData.category_id,
-        image_url: formData.image_url || undefined,
         is_available: formData.is_available,
         is_recommended: formData.is_recommended,
-        preparation_time: formData.preparation_time,
-        calories: formData.calories || undefined,
-        allergens: formData.allergens,
-        ingredients: formData.ingredients,
       };
 
       await ProductService.createProduct(productData);
-      
-      // Update stock if provided
-      if (formData.stock_quantity && formData.stock_quantity > 0) {
-        // This would be handled in the createProduct method
-        // or we could call updateStock separately
-      }
-
-      Alert.alert(
-        'Success', 
-        'Product created successfully!',
-        [
-          {
-            text: 'OK',
-            onPress: () => router.back(),
-          }
-        ]
-      );
+      Alert.alert('Success', 'Product created successfully!', [
+        { text: 'OK', onPress: () => router.back() }
+      ]);
     } catch (error) {
       console.error('Error creating product:', error);
       Alert.alert('Error', 'Failed to create product. Please try again.');
     } finally {
-      setLoading(false);
+      setSaving(false);
     }
   };
 
-  return (
-    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
-      <ResponsiveView style={styles.header}>
-        <ResponsiveView style={styles.headerTop}>
-          <TouchableOpacity onPress={() => router.back()}>
-            <MaterialIcons name="arrow-back" size={24} color={colors.text} />
-          </TouchableOpacity>
-          <ResponsiveText size="xl" weight="bold" color={colors.text}>
-            Add New Product
-          </ResponsiveText>
-          <View style={{ width: 24 }} />
+  const handleCancel = () => {
+    Alert.alert(
+      'Discard Changes',
+      'Are you sure you want to discard your changes?',
+      [
+        { text: 'Keep Editing', style: 'cancel' },
+        { text: 'Discard', style: 'destructive', onPress: () => router.back() }
+      ]
+    );
+  };
+
+  if (loading || categoriesLoading) {
+    return (
+      <SafeAreaView style={[global.screen, styles.center, { backgroundColor: colors.background }]}>
+        <ResponsiveView style={styles.center}>
+          <ActivityIndicator size="large" color={colors.primary} />
+          <ResponsiveView marginTop="md">
+            <ResponsiveText size="md" color={colors.textSecondary}>
+              {Strings.loading}
+            </ResponsiveText>
+          </ResponsiveView>
         </ResponsiveView>
-        <ResponsiveText size="md" color={colors.textSecondary}>
-          Create a new menu item for your restaurant
+      </SafeAreaView>
+    );
+  }
+
+  return (
+    <SafeAreaView style={[global.screen, { backgroundColor: colors.background }]}>
+      {/* Header */}
+      <ResponsiveView style={[styles.header, { backgroundColor: colors.surface }]}>
+        <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+          <MaterialIcons name="arrow-back" size={responsiveValue(20, 24, 28, 32)} color={colors.text} />
+        </TouchableOpacity>
+        <ResponsiveText size="lg" weight="semiBold" color={colors.text}>
+          Create New Product
         </ResponsiveText>
+        <View style={{ width: responsiveValue(20, 24, 28, 32) }} />
       </ResponsiveView>
 
-      <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
-        <ResponsiveView style={styles.form}>
-          {/* Basic Information */}
-          <ResponsiveView style={styles.section}>
-            <ResponsiveView marginBottom="md">
-              <ResponsiveText size="lg" weight="semiBold" color={colors.text}>
-                Basic Information
+      <ScrollView 
+        style={styles.scrollView}
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+      >
+        <ResponsiveView style={[styles.formContainer, { backgroundColor: colors.surface }]}>
+          {/* Product Name */}
+          <ResponsiveView marginBottom="md">
+            <ResponsiveView marginBottom="sm">
+              <ResponsiveText size="md" weight="medium" color={colors.text}>
+                Product Name *
               </ResponsiveText>
             </ResponsiveView>
-            
-            <ResponsiveView marginBottom="md">
-              <ResponsiveView marginBottom="xs">
-                <ResponsiveText size="sm" color={colors.textSecondary}>
-                  Product Name *
-                </ResponsiveText>
-              </ResponsiveView>
-              <Input
-                value={formData.name}
-                onChangeText={(value) => handleInputChange('name', value)}
-                placeholder="Enter product name"
-                autoCapitalize="words"
-              />
-            </ResponsiveView>
-
-            <ResponsiveView marginBottom="md">
-              <ResponsiveView marginBottom="xs">
-                <ResponsiveText size="sm" color={colors.textSecondary}>
-                  Description *
-                </ResponsiveText>
-              </ResponsiveView>
-              <Input
-                value={formData.description}
-                onChangeText={(value) => handleInputChange('description', value)}
-                placeholder="Enter product description"
-                multiline
-                numberOfLines={3}
-              />
-            </ResponsiveView>
-
-            <ResponsiveView marginBottom="md">
-              <ResponsiveView marginBottom="xs">
-                <ResponsiveText size="sm" color={colors.textSecondary}>
-                  Category *
-                </ResponsiveText>
-              </ResponsiveView>
-              <View style={[styles.pickerContainer, { borderColor: colors.border }]}>
-                <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-                  {categories.map((category) => (
-                    <TouchableOpacity
-                      key={category.id}
-                      style={[
-                        styles.categoryOption,
-                        formData.category_id === category.id && {
-                          backgroundColor: colors.primary,
-                          borderColor: colors.primary,
-                        },
-                        formData.category_id !== category.id && {
-                          borderColor: colors.border,
-                        },
-                      ]}
-                      onPress={() => handleInputChange('category_id', category.id)}
-                    >
-                      <ResponsiveText 
-                        size="sm" 
-                        color={formData.category_id === category.id ? colors.background : colors.text}
-                        weight="medium"
-                      >
-                        {category.name}
-                      </ResponsiveText>
-                    </TouchableOpacity>
-                  ))}
-                </ScrollView>
-              </View>
-            </ResponsiveView>
-
-            <ResponsiveView marginBottom="md">
-              <ResponsiveView marginBottom="xs">
-                <ResponsiveText size="sm" color={colors.textSecondary}>
-                  Price (₱) *
-                </ResponsiveText>
-              </ResponsiveView>
-              <Input
-                value={formData.price.toString()}
-                onChangeText={(value) => handleInputChange('price', parseFloat(value) || 0)}
-                placeholder="0.00"
-                keyboardType="numeric"
-              />
-            </ResponsiveView>
-
-            <ResponsiveView marginBottom="md">
-              <ResponsiveView marginBottom="xs">
-                <ResponsiveText size="sm" color={colors.textSecondary}>
-                  Image URL
-                </ResponsiveText>
-              </ResponsiveView>
-              <Input
-                value={formData.image_url}
-                onChangeText={(value) => handleInputChange('image_url', value)}
-                placeholder="https://example.com/image.jpg"
-                keyboardType="url"
-                autoCapitalize="none"
-              />
-            </ResponsiveView>
+            <TextInput
+              style={[styles.input, { 
+                backgroundColor: colors.background, 
+                color: colors.text,
+                borderColor: colors.border 
+              }]}
+              value={formData.name}
+              onChangeText={(value) => handleInputChange('name', value)}
+              placeholder="Enter product name"
+              placeholderTextColor={colors.textSecondary}
+            />
           </ResponsiveView>
 
-          {/* Additional Information */}
-          <ResponsiveView style={styles.section}>
-            <ResponsiveView marginBottom="md">
-              <ResponsiveText size="lg" weight="semiBold" color={colors.text}>
-                Additional Information
+          {/* Description */}
+          <ResponsiveView marginBottom="md">
+            <ResponsiveView marginBottom="sm">
+              <ResponsiveText size="md" weight="medium" color={colors.text}>
+                Description *
               </ResponsiveText>
             </ResponsiveView>
-            
-            <ResponsiveView marginBottom="md">
-              <ResponsiveView marginBottom="xs">
-                <ResponsiveText size="sm" color={colors.textSecondary}>
-                  Preparation Time (minutes)
-                </ResponsiveText>
-              </ResponsiveView>
-              <Input
-                value={formData.preparation_time?.toString() || ''}
-                onChangeText={(value) => handleInputChange('preparation_time', parseInt(value) || 0)}
-                placeholder="15"
-                keyboardType="numeric"
-              />
-            </ResponsiveView>
-
-            <ResponsiveView marginBottom="md">
-              <ResponsiveView marginBottom="xs">
-                <ResponsiveText size="sm" color={colors.textSecondary}>
-                  Calories
-                </ResponsiveText>
-              </ResponsiveView>
-              <Input
-                value={formData.calories?.toString() || ''}
-                onChangeText={(value) => handleInputChange('calories', parseInt(value) || 0)}
-                placeholder="0"
-                keyboardType="numeric"
-              />
-            </ResponsiveView>
+            <TextInput
+              style={[styles.textArea, { 
+                backgroundColor: colors.background, 
+                color: colors.text,
+                borderColor: colors.border 
+              }]}
+              value={formData.description}
+              onChangeText={(value) => handleInputChange('description', value)}
+              placeholder="Enter product description"
+              placeholderTextColor={colors.textSecondary}
+              multiline
+              numberOfLines={4}
+            />
           </ResponsiveView>
 
-          {/* Inventory */}
-          <ResponsiveView style={styles.section}>
-            <ResponsiveView marginBottom="md">
-              <ResponsiveText size="lg" weight="semiBold" color={colors.text}>
-                Inventory
+          {/* Base Price */}
+          <ResponsiveView marginBottom="md">
+            <ResponsiveView marginBottom="sm">
+              <ResponsiveText size="md" weight="medium" color={colors.text}>
+                Base Price *
               </ResponsiveText>
             </ResponsiveView>
-            
-            <ResponsiveView marginBottom="md">
-              <ResponsiveView marginBottom="xs">
-                <ResponsiveText size="sm" color={colors.textSecondary}>
-                  Initial Stock Quantity
-                </ResponsiveText>
-              </ResponsiveView>
-              <Input
-                value={formData.stock_quantity?.toString() || ''}
-                onChangeText={(value) => handleInputChange('stock_quantity', parseInt(value) || 0)}
-                placeholder="0"
-                keyboardType="numeric"
-              />
-            </ResponsiveView>
-
-            <ResponsiveView marginBottom="md">
-              <ResponsiveView marginBottom="xs">
-                <ResponsiveText size="sm" color={colors.textSecondary}>
-                  Low Stock Threshold
-                </ResponsiveText>
-              </ResponsiveView>
-              <Input
-                value={formData.low_stock_threshold?.toString() || ''}
-                onChangeText={(value) => handleInputChange('low_stock_threshold', parseInt(value) || 0)}
-                placeholder="10"
-                keyboardType="numeric"
-              />
-            </ResponsiveView>
+            <TextInput
+              style={[styles.input, { 
+                backgroundColor: colors.background, 
+                color: colors.text,
+                borderColor: colors.border 
+              }]}
+              value={formData.base_price}
+              onChangeText={(value) => handleInputChange('base_price', value)}
+              placeholder="0.00"
+              placeholderTextColor={colors.textSecondary}
+              keyboardType="numeric"
+            />
           </ResponsiveView>
 
-          {/* Settings */}
-          <ResponsiveView style={styles.section}>
-            <ResponsiveView marginBottom="md">
-              <ResponsiveText size="lg" weight="semiBold" color={colors.text}>
-                Settings
+          {/* Preparation Time */}
+          <ResponsiveView marginBottom="md">
+            <ResponsiveView marginBottom="sm">
+              <ResponsiveText size="md" weight="medium" color={colors.text}>
+                Preparation Time (minutes)
               </ResponsiveText>
             </ResponsiveView>
-            
-            <ResponsiveView style={styles.toggleRow}>
-              <ResponsiveView style={styles.toggleInfo}>
-                <ResponsiveText size="md" color={colors.text}>
-                  Available for Order
-                </ResponsiveText>
-                <ResponsiveText size="sm" color={colors.textSecondary}>
-                  Customers can order this product
-                </ResponsiveText>
-              </ResponsiveView>
-              <TouchableOpacity
-                style={[
-                  styles.toggle,
-                  formData.is_available && { backgroundColor: colors.primary },
-                  !formData.is_available && { backgroundColor: colors.border },
-                ]}
-                onPress={() => handleInputChange('is_available', !formData.is_available)}
-              >
-                <View
+            <TextInput
+              style={[styles.input, { 
+                backgroundColor: colors.background, 
+                color: colors.text,
+                borderColor: colors.border 
+              }]}
+              value={formData.preparation_time_minutes}
+              onChangeText={(value) => handleInputChange('preparation_time_minutes', value)}
+              placeholder="30"
+              placeholderTextColor={colors.textSecondary}
+              keyboardType="numeric"
+            />
+          </ResponsiveView>
+
+          {/* Image URL */}
+          <ResponsiveView marginBottom="md">
+            <ResponsiveView marginBottom="sm">
+              <ResponsiveText size="md" weight="medium" color={colors.text}>
+                Image URL
+              </ResponsiveText>
+            </ResponsiveView>
+            <TextInput
+              style={[styles.input, { 
+                backgroundColor: colors.background, 
+                color: colors.text,
+                borderColor: colors.border 
+              }]}
+              value={formData.image_url}
+              onChangeText={(value) => handleInputChange('image_url', value)}
+              placeholder="Enter image URL (optional)"
+              placeholderTextColor={colors.textSecondary}
+            />
+          </ResponsiveView>
+
+          {/* Category Selection */}
+          <ResponsiveView marginBottom="md">
+            <ResponsiveView marginBottom="sm">
+              <ResponsiveText size="md" weight="medium" color={colors.text}>
+                Category *
+              </ResponsiveText>
+            </ResponsiveView>
+            <ResponsiveView style={styles.categoryContainer}>
+              {categories.map((category) => (
+                <TouchableOpacity
+                  key={category.id}
                   style={[
-                    styles.toggleThumb,
-                    formData.is_available && styles.toggleThumbActive,
+                    styles.categoryButton,
+                    { 
+                      backgroundColor: formData.category_id === category.id ? colors.primary : colors.background,
+                      borderColor: colors.border
+                    }
                   ]}
-                />
-              </TouchableOpacity>
+                  onPress={() => handleCategorySelect(category.id)}
+                >
+                  <ResponsiveText 
+                    size="md" 
+                    color={formData.category_id === category.id ? colors.surface : colors.text}
+                    weight={formData.category_id === category.id ? 'semiBold' : 'regular'}
+                  >
+                    {category.name}
+                  </ResponsiveText>
+                </TouchableOpacity>
+              ))}
             </ResponsiveView>
+          </ResponsiveView>
 
-            <ResponsiveView style={styles.toggleRow}>
-              <ResponsiveView style={styles.toggleInfo}>
-                <ResponsiveText size="md" color={colors.text}>
-                  Recommended
-                </ResponsiveText>
-                <ResponsiveText size="sm" color={colors.textSecondary}>
-                  Show as recommended item
-                </ResponsiveText>
-              </ResponsiveView>
-              <TouchableOpacity
-                style={[
-                  styles.toggle,
-                  formData.is_recommended && { backgroundColor: colors.primary },
-                  !formData.is_recommended && { backgroundColor: colors.border },
-                ]}
-                onPress={() => handleInputChange('is_recommended', !formData.is_recommended)}
-              >
-                <View
-                  style={[
-                    styles.toggleThumb,
-                    formData.is_recommended && styles.toggleThumbActive,
-                  ]}
-                />
-              </TouchableOpacity>
+          {/* Available for Order Toggle */}
+          <ResponsiveView style={styles.toggleContainer} marginBottom="md">
+            <ResponsiveView style={styles.toggleInfo}>
+              <ResponsiveText size="md" weight="medium" color={colors.text}>
+                Available for Order
+              </ResponsiveText>
+              <ResponsiveText size="sm" color={colors.textSecondary}>
+                Make this product available for customers to order
+              </ResponsiveText>
             </ResponsiveView>
+            <TouchableOpacity
+              style={[
+                styles.toggle,
+                { backgroundColor: formData.is_available ? colors.primary : colors.border }
+              ]}
+              onPress={() => handleInputChange('is_available', !formData.is_available)}
+            >
+              <View
+                style={[
+                  styles.toggleThumb,
+                  { 
+                    backgroundColor: colors.surface,
+                    transform: [{ translateX: formData.is_available ? 20 : 2 }]
+                  }
+                ]}
+              />
+            </TouchableOpacity>
+          </ResponsiveView>
+
+          {/* Recommended Product Toggle */}
+          <ResponsiveView style={styles.toggleContainer} marginBottom="lg">
+            <ResponsiveView style={styles.toggleInfo}>
+              <ResponsiveText size="md" weight="medium" color={colors.text}>
+                Recommended Product
+              </ResponsiveText>
+              <ResponsiveText size="sm" color={colors.textSecondary}>
+                Show this product in the recommended section
+              </ResponsiveText>
+            </ResponsiveView>
+            <TouchableOpacity
+              style={[
+                styles.toggle,
+                { backgroundColor: formData.is_recommended ? colors.primary : colors.border }
+              ]}
+              onPress={() => handleInputChange('is_recommended', !formData.is_recommended)}
+            >
+              <View
+                style={[
+                  styles.toggleThumb,
+                  { 
+                    backgroundColor: colors.surface,
+                    transform: [{ translateX: formData.is_recommended ? 20 : 2 }]
+                  }
+                ]}
+              />
+            </TouchableOpacity>
           </ResponsiveView>
         </ResponsiveView>
       </ScrollView>
 
-      <ResponsiveView style={styles.footer}>
-        <Button
-          title="Cancel"
-          onPress={() => router.back()}
-          variant="outline"
-          style={styles.cancelButton}
-        />
+      {/* Action Buttons */}
+      <ResponsiveView style={[styles.actionContainer, { backgroundColor: colors.surface }]}>
         <Button
           title="Create Product"
-          onPress={handleSubmit}
-          loading={loading}
-          disabled={loading}
+          onPress={handleSave}
           variant="primary"
-          style={styles.submitButton}
+          loading={saving}
+          disabled={saving}
         />
+        <ResponsiveView marginTop="sm">
+          <Button
+            title="Cancel"
+            onPress={handleCancel}
+            variant="outline"
+            disabled={saving}
+          />
+        </ResponsiveView>
       </ResponsiveView>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
+  center: {
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   header: {
-    padding: 20,
-    paddingBottom: 16,
-  },
-  headerTop: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 8,
+    paddingHorizontal: ResponsiveSpacing.lg,
+    paddingVertical: ResponsiveSpacing.md,
+    ...Layout.shadows.sm,
+  },
+  backButton: {
+    padding: ResponsiveSpacing.sm,
   },
   scrollView: {
     flex: 1,
   },
-  form: {
-    padding: 20,
+  scrollContent: {
+    padding: ResponsiveSpacing.lg,
   },
-  section: {
-    marginBottom: 32,
+  formContainer: {
+    padding: ResponsiveSpacing.lg,
+    borderRadius: ResponsiveBorderRadius.lg,
+    ...Layout.shadows.sm,
   },
-  pickerContainer: {
+  input: {
     borderWidth: 1,
-    borderRadius: 8,
-    padding: 12,
+    borderRadius: ResponsiveBorderRadius.md,
+    paddingHorizontal: ResponsiveSpacing.md,
+    paddingVertical: ResponsiveSpacing.sm,
+    fontSize: responsiveValue(14, 16, 18, 20),
   },
-  categoryOption: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
+  textArea: {
     borderWidth: 1,
-    marginRight: 8,
+    borderRadius: ResponsiveBorderRadius.md,
+    paddingHorizontal: ResponsiveSpacing.md,
+    paddingVertical: ResponsiveSpacing.sm,
+    fontSize: responsiveValue(14, 16, 18, 20),
+    minHeight: responsiveValue(80, 90, 100, 120),
+    textAlignVertical: 'top',
   },
-  toggleRow: {
+  categoryContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: ResponsiveSpacing.sm,
+  },
+  categoryButton: {
+    paddingHorizontal: ResponsiveSpacing.md,
+    paddingVertical: ResponsiveSpacing.sm,
+    borderRadius: ResponsiveBorderRadius.md,
+    borderWidth: 1,
+    minWidth: responsiveValue(80, 90, 100, 120),
+    alignItems: 'center',
+  },
+  toggleContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 16,
   },
   toggleInfo: {
     flex: 1,
+    marginRight: ResponsiveSpacing.md,
   },
   toggle: {
-    width: 50,
-    height: 30,
-    borderRadius: 15,
+    width: responsiveValue(44, 48, 52, 56),
+    height: responsiveValue(24, 26, 28, 30),
+    borderRadius: responsiveValue(12, 13, 14, 15),
     justifyContent: 'center',
     paddingHorizontal: 2,
   },
   toggleThumb: {
-    width: 26,
-    height: 26,
-    borderRadius: 13,
-    backgroundColor: 'white',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 2,
-    elevation: 2,
+    width: responsiveValue(20, 22, 24, 26),
+    height: responsiveValue(20, 22, 24, 26),
+    borderRadius: responsiveValue(10, 11, 12, 13),
   },
-  toggleThumbActive: {
-    transform: [{ translateX: 20 }],
-  },
-  footer: {
-    flexDirection: 'row',
-    padding: 20,
-    gap: 12,
-  },
-  cancelButton: {
-    flex: 1,
-  },
-  submitButton: {
-    flex: 2,
+  actionContainer: {
+    padding: ResponsiveSpacing.lg,
+    ...Layout.shadows.sm,
   },
 });

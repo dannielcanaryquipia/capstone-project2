@@ -145,14 +145,14 @@ export default function HomeScreen() {
                 styles.notificationIconContainer,
                 {
                   backgroundColor: unreadCount > 0
-                    ? (isDark ? '#FFD700' : 'rgba(0,0,0,0.08)')
+                    ? colors.primary + '20'
                     : 'transparent',
                 }
               ]}>
                 <MaterialIcons 
                   name="notifications-none" 
                   size={Responsive.responsiveValue(28, 30, 32, 36)} 
-                  color={unreadCount > 0 ? colors.error : colors.text} 
+                  color={unreadCount > 0 ? colors.primary : colors.text} 
                 />
                 {unreadCount > 0 && (
                   <View style={styles.notificationBadge} />
@@ -580,7 +580,7 @@ const styles = StyleSheet.create({
     width: Responsive.responsiveValue(10, 12, 14, 16),
     height: Responsive.responsiveValue(10, 12, 14, 16),
     borderRadius: Responsive.responsiveValue(5, 6, 7, 8),
-    backgroundColor: '#FF6B6B',
+    backgroundColor: '#FF6B6B', // Keep red for visibility
     zIndex: 11,
     shadowColor: '#FF6B6B',
     shadowOffset: { width: 0, height: 2 },
@@ -610,7 +610,6 @@ const styles = StyleSheet.create({
   },
   quickActionCard: {
     flex: 1,
-    marginHorizontal: 4,
     borderRadius: 12,
     borderWidth: 1,
     minHeight: 100,

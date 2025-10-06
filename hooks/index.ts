@@ -6,12 +6,12 @@ export { useCurrentUserProfile, useProfile } from './useProfile';
 // Product hooks
 export {
     useLowStockProducts, useProduct,
-    useProductCategories, useProductSearch, useProductStats, useProducts
+    useProductCategories, useProducts, useProductSearch, useProductStats
 } from './useProducts';
 
 // Order hooks
 export {
-    useAdminOrders, useCancelOrder, useCreateOrder, useOrder, useOrderStats, useOrderTracking, useOrders, useUpdateOrderStatus
+    useCancelOrder, useCreateOrder, useOrder, useOrders, useOrderStats, useOrderTracking, useUpdateOrderStatus
 } from './useOrders';
 
 // Cart hooks
@@ -21,15 +21,17 @@ export {
 
 // Address hooks
 export {
-    useAddress, useAddressValidation, useAddresses, useCreateAddress, useDefaultAddress, useDeleteAddress, useSetDefaultAddress, useUpdateAddress
+    useAddress, useAddresses, useAddressValidation, useCreateAddress, useDefaultAddress, useDeleteAddress, useSetDefaultAddress, useUpdateAddress
 } from './useAddresses';
 
 // Saved products hooks
 export {
-    useIsProductSaved, useSaveProduct, useSavedProductIds, useSavedProducts, useSavedProductsCount, useToggleSaveProduct, useUnsaveProduct
+    useIsProductSaved, useSavedProductIds, useSavedProducts, useSavedProductsCount, useSaveProduct, useToggleSaveProduct, useUnsaveProduct
 } from './useSavedProducts';
 
 // Admin hooks
+export { useAdminOrders } from './useAdminOrders';
+export { useAdminProducts } from './useAdminProducts';
 export {
     useOrderStats as useAdminOrderStats, useProductStats as useAdminProductStats, useAdminStats
 } from './useAdminStats';
@@ -50,4 +52,8 @@ export { useFormValidation } from './useFormValidation';
 
 // Recommendation hooks
 export { useRecommendations } from './useRecommendations';
+export { useTopProducts } from './useTopProducts';
+
+// Analytics hooks
+export { useRevenueAnalytics } from './useRevenueAnalytics';
 

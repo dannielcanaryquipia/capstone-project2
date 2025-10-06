@@ -1,62 +1,56 @@
 import { MaterialIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
   FlatList,
   RefreshControl,
   StyleSheet,
-  TouchableOpacity,
-  View
+  TouchableOpacity
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Button from '../../../components/ui/Button';
 import { ResponsiveText } from '../../../components/ui/ResponsiveText';
 import { ResponsiveView } from '../../../components/ui/ResponsiveView';
+import Layout from '../../../constants/Layout';
+import { ResponsiveBorderRadius, ResponsiveSpacing, responsiveValue } from '../../../constants/Responsive';
 import { Strings } from '../../../constants/Strings';
 import { useTheme } from '../../../contexts/ThemeContext';
+import { useProductCategories, useProducts } from '../../../hooks';
 import { ProductService } from '../../../services/product.service';
+import global from '../../../styles/global';
 import { Product, ProductCategory } from '../../../types/product.types';
 
 export default function AdminProductsScreen() {
   const { colors } = useTheme();
   const router = useRouter();
-  const [products, setProducts] = useState<Product[]>([]);
-  const [categories, setCategories] = useState<ProductCategory[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
   const [activeCategory, setActiveCategory] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState('');
+  const [refreshing, setRefreshing] = useState(false);
 
-  useEffect(() => {
-    loadData();
-  }, [activeCategory, searchQuery]);
-
-  const loadData = async () => {
-    try {
-      setLoading(true);
-      const [productsData, categoriesData] = await Promise.all([
-        ProductService.getProducts({
-          category_id: activeCategory === 'all' ? undefined : activeCategory,
-          search: searchQuery || undefined,
-        }),
-        ProductService.getCategories(),
-      ]);
-      
-      setProducts(productsData);
-      setCategories(categoriesData);
-    } catch (error) {
-      console.error('Error loading data:', error);
-      Alert.alert('Error', 'Failed to load products. Please try again.');
-    } finally {
-      setLoading(false);
-    }
-  };
+  // Use the improved hooks with real-time updates
+  const { 
+    products, 
+    isLoading: productsLoading, 
+    error: productsError, 
+    refresh: refreshProducts 
+  } = useProducts({
+    category_id: activeCategory === 'all' ? undefined : activeCategory,
+    search: searchQuery || undefined,
+  });
+  
+  const { 
+    categories, 
+    isLoading: categoriesLoading 
+  } = useProductCategories();
+  
+  const loading = productsLoading || categoriesLoading;
+  const error = productsError;
 
   const handleRefresh = async () => {
     setRefreshing(true);
-    await loadData();
+    await refreshProducts();
     setRefreshing(false);
   };
 
@@ -71,7 +65,7 @@ export default function AdminProductsScreen() {
           onPress: async () => {
             try {
               await ProductService.toggleAvailability(productId);
-              await loadData();
+              await refreshProducts();
               Alert.alert('Success', 'Product availability updated successfully!');
             } catch (error) {
               console.error('Error updating product:', error);
@@ -95,7 +89,7 @@ export default function AdminProductsScreen() {
           onPress: async () => {
             try {
               await ProductService.deleteProduct(productId);
-              await loadData();
+              await refreshProducts();
               Alert.alert('Success', 'Product deleted successfully!');
             } catch (error) {
               console.error('Error deleting product:', error);
@@ -108,14 +102,18 @@ export default function AdminProductsScreen() {
   };
 
   const getCategoryName = (categoryId: string) => {
-    const category = categories.find(c => c.id === categoryId);
+    const category = categories.find((c: ProductCategory) => c.id === categoryId);
     return category?.name || 'Unknown';
   };
 
   const renderProductItem = ({ item }: { item: Product }) => (
     <TouchableOpacity
-      style={[styles.productCard, { backgroundColor: colors.card, borderColor: colors.border }]}
+      style={[styles.productCard, { 
+        backgroundColor: colors.surface, 
+        ...Layout.shadows.sm
+      }]}
       onPress={() => router.push(`/(admin)/products/${item.id}` as any)}
+      activeOpacity={0.7}
     >
       <ResponsiveView style={styles.productHeader}>
         <ResponsiveView style={styles.productInfo}>
@@ -130,7 +128,7 @@ export default function AdminProductsScreen() {
             </ResponsiveView>
             {item.is_recommended && (
               <ResponsiveView style={[styles.recommendedBadge, { backgroundColor: `${colors.success}20` }]}>
-                <MaterialIcons name="star" size={12} color={colors.success} />
+                <MaterialIcons name="star" size={responsiveValue(12, 14, 16, 18)} color={colors.success} />
                 <ResponsiveView marginLeft="xs">
                   <ResponsiveText size="xs" color={colors.success} weight="semiBold">
                     Recommended
@@ -140,7 +138,7 @@ export default function AdminProductsScreen() {
             )}
           </ResponsiveView>
         </ResponsiveView>
-        <MaterialIcons name="keyboard-arrow-right" size={24} color={colors.textSecondary} />
+        <MaterialIcons name="keyboard-arrow-right" size={responsiveValue(20, 22, 24, 28)} color={colors.textSecondary} />
       </ResponsiveView>
 
       <ResponsiveView style={styles.productDescription}>
@@ -168,7 +166,7 @@ export default function AdminProductsScreen() {
           >
             <MaterialIcons 
               name={item.is_available ? 'check-circle' : 'cancel'} 
-              size={14} 
+              size={responsiveValue(12, 14, 16, 18)} 
               color={item.is_available ? colors.success : colors.error} 
             />
             <ResponsiveView marginLeft="xs">
@@ -186,7 +184,7 @@ export default function AdminProductsScreen() {
 
       {item.stock && (
         <ResponsiveView style={styles.stockInfo}>
-          <MaterialIcons name="inventory" size={16} color={colors.textSecondary} />
+          <MaterialIcons name="inventory" size={responsiveValue(14, 16, 18, 20)} color={colors.textSecondary} />
           <ResponsiveView marginLeft="xs">
             <ResponsiveText size="sm" color={colors.textSecondary}>
               Stock: {item.stock.quantity} units
@@ -225,69 +223,73 @@ export default function AdminProductsScreen() {
 
   if (loading) {
     return (
-      <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
-        <View style={styles.loadingContainer}>
+      <SafeAreaView style={[global.screen, styles.center, { backgroundColor: colors.background }]}>
+        <ResponsiveView style={styles.center}>
           <ActivityIndicator size="large" color={colors.primary} />
           <ResponsiveView marginTop="md">
             <ResponsiveText size="md" color={colors.textSecondary}>
               {Strings.loading}
             </ResponsiveText>
           </ResponsiveView>
-        </View>
+        </ResponsiveView>
       </SafeAreaView>
     );
   }
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
-      <ResponsiveView style={styles.header}>
-        <ResponsiveView style={styles.headerTop}>
-          <ResponsiveText size="xl" weight="bold" color={colors.text}>
-            Manage Products
+    <SafeAreaView style={[global.screen, { backgroundColor: colors.background }]} edges={['top']}>
+      <ResponsiveView padding="lg">
+        <ResponsiveView style={[styles.header, { backgroundColor: colors.surface }]}>
+          <ResponsiveView style={styles.headerTop}>
+            <ResponsiveText size="xl" weight="bold" color={colors.text}>
+              Manage Products
+            </ResponsiveText>
+            <Button
+              title="Add Product"
+              onPress={() => router.push('/(admin)/products/new' as any)}
+              variant="primary"
+              size="small"
+              icon={<MaterialIcons name="add" size={16} color={colors.background} />}
+            />
+          </ResponsiveView>
+          <ResponsiveText size="md" color={colors.textSecondary}>
+            Manage your restaurant menu items and inventory
           </ResponsiveText>
-          <Button
-            title="Add Product"
-            onPress={() => router.push('/(admin)/products/new' as any)}
-            variant="primary"
-            size="small"
-            icon={<MaterialIcons name="add" size={16} color={colors.background} />}
-          />
         </ResponsiveView>
-        <ResponsiveText size="md" color={colors.textSecondary}>
-          Manage your restaurant menu items and inventory
-        </ResponsiveText>
       </ResponsiveView>
 
       {/* Category Tabs */}
-      <ResponsiveView style={styles.tabsContainer}>
-        <FlatList
-          data={[{ id: 'all', name: 'All' }, ...categories]}
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          renderItem={({ item }) => (
-            <TouchableOpacity
-              style={[
-                styles.tab,
-                activeCategory === item.id && { 
-                  backgroundColor: colors.primary,
-                  borderColor: colors.primary,
-                },
-                activeCategory !== item.id && { borderColor: colors.border },
-              ]}
-              onPress={() => setActiveCategory(item.id)}
-            >
-              <ResponsiveText 
-                size="sm" 
-                weight="medium"
-                color={activeCategory === item.id ? colors.background : colors.text}
+      <ResponsiveView padding="lg">
+        <ResponsiveView style={styles.tabsContainer}>
+          <FlatList
+            data={[{ id: 'all', name: 'All' }, ...categories]}
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            renderItem={({ item }) => (
+              <TouchableOpacity
+                style={[
+                  styles.tab,
+                  activeCategory === item.id && { 
+                    backgroundColor: colors.primary,
+                    borderColor: colors.primary,
+                  },
+                  activeCategory !== item.id && { borderColor: colors.border },
+                ]}
+                onPress={() => setActiveCategory(item.id)}
               >
-                {item.name}
-              </ResponsiveText>
-            </TouchableOpacity>
-          )}
-          keyExtractor={(item) => item.id}
-          contentContainerStyle={styles.tabsList}
-        />
+                <ResponsiveText 
+                  size="sm" 
+                  weight="medium"
+                  color={activeCategory === item.id ? colors.background : colors.text}
+                >
+                  {item.name}
+                </ResponsiveText>
+              </TouchableOpacity>
+            )}
+            keyExtractor={(item) => item.id}
+            contentContainerStyle={styles.tabsList}
+          />
+        </ResponsiveView>
       </ResponsiveView>
 
       {products.length > 0 ? (
@@ -302,8 +304,10 @@ export default function AdminProductsScreen() {
           }
         />
       ) : (
-        <ResponsiveView style={styles.emptyState}>
-          <MaterialIcons name="restaurant-menu" size={64} color={colors.textSecondary} />
+        <ResponsiveView style={[styles.emptyState, { backgroundColor: colors.surface }]}>
+          <ResponsiveView style={[styles.emptyIcon, { backgroundColor: colors.surfaceVariant }]}>
+            <MaterialIcons name="restaurant-menu" size={responsiveValue(48, 56, 64, 72)} color={colors.primary} />
+          </ResponsiveView>
           <ResponsiveView marginTop="md">
             <ResponsiveText size="lg" weight="semiBold" color={colors.text}>
               No Products Found
@@ -332,52 +336,51 @@ export default function AdminProductsScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  loadingContainer: {
-    flex: 1,
+  center: {
     justifyContent: 'center',
     alignItems: 'center',
   },
   header: {
-    padding: 20,
-    paddingBottom: 16,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: ResponsiveSpacing.lg,
+    padding: ResponsiveSpacing.md,
+    borderRadius: ResponsiveBorderRadius.lg,
+    ...Layout.shadows.sm,
   },
   headerTop: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 8,
+    marginBottom: ResponsiveSpacing.sm,
   },
   tabsContainer: {
-    paddingHorizontal: 20,
-    paddingBottom: 16,
+    marginBottom: ResponsiveSpacing.lg,
   },
   tabsList: {
-    gap: 8,
+    gap: ResponsiveSpacing.sm,
   },
   tab: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
+    paddingHorizontal: ResponsiveSpacing.md,
+    paddingVertical: ResponsiveSpacing.sm,
+    borderRadius: ResponsiveBorderRadius.pill,
     borderWidth: 1,
   },
   productsList: {
-    padding: 20,
+    paddingHorizontal: ResponsiveSpacing.lg,
     paddingTop: 0,
   },
   productCard: {
-    padding: 16,
-    borderRadius: 12,
-    borderWidth: 1,
-    marginBottom: 16,
+    padding: ResponsiveSpacing.md,
+    borderRadius: ResponsiveBorderRadius.lg,
+    marginBottom: ResponsiveSpacing.md,
   },
   productHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
-    marginBottom: 12,
+    marginBottom: ResponsiveSpacing.sm,
   },
   productInfo: {
     flex: 1,
@@ -385,34 +388,34 @@ const styles = StyleSheet.create({
   productMeta: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginTop: 8,
-    gap: 8,
+    marginTop: ResponsiveSpacing.sm,
+    gap: ResponsiveSpacing.sm,
   },
   categoryBadge: {
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 8,
+    paddingHorizontal: ResponsiveSpacing.sm,
+    paddingVertical: ResponsiveSpacing.xs,
+    borderRadius: ResponsiveBorderRadius.sm,
   },
   recommendedBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 8,
+    paddingHorizontal: ResponsiveSpacing.sm,
+    paddingVertical: ResponsiveSpacing.xs,
+    borderRadius: ResponsiveBorderRadius.sm,
   },
   productDescription: {
-    marginBottom: 12,
+    marginBottom: ResponsiveSpacing.sm,
   },
   productFooter: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 12,
+    marginBottom: ResponsiveSpacing.sm,
   },
   priceContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: ResponsiveSpacing.sm,
   },
   statusContainer: {
     alignItems: 'flex-end',
@@ -420,27 +423,44 @@ const styles = StyleSheet.create({
   statusBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 12,
+    paddingHorizontal: ResponsiveSpacing.sm,
+    paddingVertical: ResponsiveSpacing.xs,
+    borderRadius: ResponsiveBorderRadius.sm,
   },
   stockInfo: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 16,
-    paddingVertical: 8,
+    marginBottom: ResponsiveSpacing.md,
+    paddingVertical: ResponsiveSpacing.sm,
     borderTopWidth: 1,
     borderTopColor: 'rgba(0,0,0,0.1)',
   },
   productActions: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    gap: 8,
+    gap: ResponsiveSpacing.sm,
   },
   emptyState: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    padding: 40,
+    paddingVertical: ResponsiveSpacing.xxxl,
+    paddingHorizontal: ResponsiveSpacing.lg,
+    marginHorizontal: ResponsiveSpacing.lg,
+    borderRadius: ResponsiveBorderRadius.lg,
+    ...Layout.shadows.sm,
+  },
+  emptyIcon: {
+    width: responsiveValue(80, 90, 100, 120),
+    height: responsiveValue(80, 90, 100, 120),
+    borderRadius: responsiveValue(40, 45, 50, 60),
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: ResponsiveSpacing.md,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
 });

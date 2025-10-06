@@ -3,17 +3,18 @@ import * as ImagePicker from 'expo-image-picker';
 import { useRouter } from 'expo-router';
 import React, { useState } from 'react';
 import {
-  ActivityIndicator,
-  Alert,
-  Image,
-  Modal,
-  RefreshControl,
-  ScrollView,
-  StyleSheet,
-  TextInput,
-  TouchableOpacity,
-  View
+    ActivityIndicator,
+    Alert,
+    Image,
+    Modal,
+    RefreshControl,
+    ScrollView,
+    StyleSheet,
+    TextInput,
+    TouchableOpacity,
+    View
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import Button from '../../../components/ui/Button';
 import ResponsiveText from '../../../components/ui/ResponsiveText';
 import ResponsiveView from '../../../components/ui/ResponsiveView';
@@ -260,46 +261,51 @@ export default function ProfileScreen() {
 
   if (isLoading && !profile) {
     return (
-      <ResponsiveView style={[global.screen, styles.center]}>
-        <ActivityIndicator size="large" color={colors.primary} />
-        <ResponsiveView marginTop="md">
-          <ResponsiveText size="md" color={colors.textSecondary}>
-            {Strings.loading}
-          </ResponsiveText>
+      <SafeAreaView style={[global.screen, styles.center, { backgroundColor: colors.background }]}>
+        <ResponsiveView style={styles.center}>
+          <ActivityIndicator size="large" color={colors.primary} />
+          <ResponsiveView marginTop="md">
+            <ResponsiveText size="md" color={colors.textSecondary}>
+              {Strings.loading}
+            </ResponsiveText>
+          </ResponsiveView>
         </ResponsiveView>
-      </ResponsiveView>
+      </SafeAreaView>
     );
   }
 
   if (error) {
     return (
-      <ResponsiveView style={[global.screen, styles.center]} padding="lg">
-        <MaterialIcons name="error-outline" size={64} color={colors.error} />
-        <ResponsiveView marginTop="md">
-          <ResponsiveText size="lg" weight="semiBold" color={colors.error} align="center">
-            Failed to load profile
-          </ResponsiveText>
+      <SafeAreaView style={[global.screen, styles.center, { backgroundColor: colors.background }]}>
+        <ResponsiveView style={styles.center} padding="lg">
+          <MaterialIcons name="error-outline" size={64} color={colors.error} />
+          <ResponsiveView marginTop="md">
+            <ResponsiveText size="lg" weight="semiBold" color={colors.error} align="center">
+              Failed to load profile
+            </ResponsiveText>
+          </ResponsiveView>
+          <ResponsiveView marginTop="sm">
+            <ResponsiveText size="md" color={colors.textSecondary} align="center">
+              {error}
+            </ResponsiveText>
+          </ResponsiveView>
+          <Button
+            title="Try Again"
+            onPress={refresh}
+            variant="primary"
+            size="medium"
+            style={styles.retryButton}
+          />
         </ResponsiveView>
-        <ResponsiveView marginTop="sm">
-          <ResponsiveText size="md" color={colors.textSecondary} align="center">
-            {error}
-          </ResponsiveText>
-        </ResponsiveView>
-        <Button
-          title="Try Again"
-          onPress={refresh}
-          variant="primary"
-          size="medium"
-          style={styles.retryButton}
-        />
-      </ResponsiveView>
+      </SafeAreaView>
     );
   }
 
   return (
-    <ScrollView 
-      style={[global.screen, { backgroundColor: colors.background }]}
-      refreshControl={
+    <SafeAreaView style={[global.screen, { backgroundColor: colors.background }]}>
+      <ScrollView 
+        style={{ flex: 1 }}
+        refreshControl={
         <RefreshControl 
           refreshing={refreshing} 
           onRefresh={handleRefresh}
@@ -602,7 +608,8 @@ export default function ProfileScreen() {
           </ScrollView>
         </ResponsiveView>
       </Modal>
-    </ScrollView>
+      </ScrollView>
+    </SafeAreaView>
   );
 }
 

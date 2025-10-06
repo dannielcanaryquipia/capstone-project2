@@ -2,24 +2,25 @@ import { MaterialIcons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import {
-  Alert,
-  ScrollView,
-  StyleSheet,
-  TextInput,
-  TouchableOpacity
+    Alert,
+    ScrollView,
+    StyleSheet,
+    TextInput,
+    TouchableOpacity
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import Button from '../../../components/ui/Button';
 import ResponsiveText from '../../../components/ui/ResponsiveText';
 import ResponsiveView from '../../../components/ui/ResponsiveView';
 import Layout from '../../../constants/Layout';
 import { useTheme } from '../../../contexts/ThemeContext';
 import {
-  CreateAddressData,
-  UpdateAddressData,
-  useAddress,
-  useAddressValidation,
-  useCreateAddress,
-  useUpdateAddress
+    CreateAddressData,
+    UpdateAddressData,
+    useAddress,
+    useAddressValidation,
+    useCreateAddress,
+    useUpdateAddress
 } from '../../../hooks/useAddresses';
 import global from '../../../styles/global';
 
@@ -151,8 +152,9 @@ export default function AddressFormScreen() {
   };
 
   return (
-    <ScrollView style={[global.screen, { backgroundColor: colors.background }]}>
-      <ResponsiveView padding="lg">
+    <SafeAreaView style={[global.screen, { backgroundColor: colors.background }]}>
+      <ScrollView style={{ flex: 1 }}>
+        <ResponsiveView padding="lg">
         {/* Header */}
         <ResponsiveView style={[styles.header, { backgroundColor: colors.surface }]}>
           <ResponsiveView style={styles.headerLeft}>
@@ -240,8 +242,9 @@ export default function AddressFormScreen() {
             style={styles.saveButton}
           />
         </ResponsiveView>
-      </ResponsiveView>
-    </ScrollView>
+        </ResponsiveView>
+      </ScrollView>
+    </SafeAreaView>
   );
 }
 

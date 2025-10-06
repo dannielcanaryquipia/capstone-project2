@@ -8,6 +8,7 @@ import {
     StyleSheet,
     TouchableOpacity
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import Button from '../../../components/ui/Button';
 import ResponsiveText from '../../../components/ui/ResponsiveText';
 import ResponsiveView from '../../../components/ui/ResponsiveView';
@@ -165,9 +166,10 @@ export default function PaymentMethodsScreen() {
   };
 
   return (
-    <ScrollView 
-      style={[global.screen, { backgroundColor: colors.background }]}
-      refreshControl={
+    <SafeAreaView style={[global.screen, { backgroundColor: colors.background }]}>
+      <ScrollView 
+        style={{ flex: 1 }}
+        refreshControl={
         <RefreshControl 
           refreshing={refreshing} 
           onRefresh={handleRefresh}
@@ -346,7 +348,8 @@ export default function PaymentMethodsScreen() {
           </ResponsiveView>
         </ResponsiveView>
       </ResponsiveView>
-    </ScrollView>
+      </ScrollView>
+    </SafeAreaView>
   );
 }
 

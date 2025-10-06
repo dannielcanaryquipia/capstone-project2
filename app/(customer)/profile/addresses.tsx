@@ -9,6 +9,7 @@ import {
   StyleSheet,
   TouchableOpacity
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import Button from '../../../components/ui/Button';
 import ResponsiveText from '../../../components/ui/ResponsiveText';
 import ResponsiveView from '../../../components/ui/ResponsiveView';
@@ -81,46 +82,51 @@ export default function AddressesScreen() {
 
   if (isLoading && !addresses.length) {
     return (
-      <ResponsiveView style={[global.screen, styles.center]}>
-        <ActivityIndicator size="large" color={colors.primary} />
-        <ResponsiveView marginTop="md">
-          <ResponsiveText size="md" color={colors.textSecondary}>
-            Loading addresses...
-          </ResponsiveText>
+      <SafeAreaView style={[global.screen, styles.center, { backgroundColor: colors.background }]}>
+        <ResponsiveView style={styles.center}>
+          <ActivityIndicator size="large" color={colors.primary} />
+          <ResponsiveView marginTop="md">
+            <ResponsiveText size="md" color={colors.textSecondary}>
+              Loading addresses...
+            </ResponsiveText>
+          </ResponsiveView>
         </ResponsiveView>
-      </ResponsiveView>
+      </SafeAreaView>
     );
   }
 
   if (error) {
     return (
-      <ResponsiveView style={[global.screen, styles.center]} padding="lg">
-        <MaterialIcons name="error-outline" size={64} color={colors.error} />
-        <ResponsiveView marginTop="md">
-          <ResponsiveText size="lg" weight="semiBold" color={colors.error} align="center">
-            Failed to load addresses
-          </ResponsiveText>
+      <SafeAreaView style={[global.screen, styles.center, { backgroundColor: colors.background }]}>
+        <ResponsiveView style={styles.center} padding="lg">
+          <MaterialIcons name="error-outline" size={64} color={colors.error} />
+          <ResponsiveView marginTop="md">
+            <ResponsiveText size="lg" weight="semiBold" color={colors.error} align="center">
+              Failed to load addresses
+            </ResponsiveText>
+          </ResponsiveView>
+          <ResponsiveView marginTop="sm">
+            <ResponsiveText size="md" color={colors.textSecondary} align="center">
+              {error}
+            </ResponsiveText>
+          </ResponsiveView>
+          <Button
+            title="Try Again"
+            onPress={refresh}
+            variant="primary"
+            size="medium"
+            style={styles.retryButton}
+          />
         </ResponsiveView>
-        <ResponsiveView marginTop="sm">
-          <ResponsiveText size="md" color={colors.textSecondary} align="center">
-            {error}
-          </ResponsiveText>
-        </ResponsiveView>
-        <Button
-          title="Try Again"
-          onPress={refresh}
-          variant="primary"
-          size="medium"
-          style={styles.retryButton}
-        />
-      </ResponsiveView>
+      </SafeAreaView>
     );
   }
 
   return (
-    <ScrollView 
-      style={[global.screen, { backgroundColor: colors.background }]}
-      refreshControl={
+    <SafeAreaView style={[global.screen, { backgroundColor: colors.background }]}>
+      <ScrollView 
+        style={{ flex: 1 }}
+        refreshControl={
         <RefreshControl 
           refreshing={refreshing} 
           onRefresh={handleRefresh}
@@ -242,7 +248,8 @@ export default function AddressesScreen() {
           </ResponsiveView>
         )}
       </ResponsiveView>
-    </ScrollView>
+      </ScrollView>
+    </SafeAreaView>
   );
 }
 

@@ -5,9 +5,11 @@ export interface User {
   email: string;
   full_name: string;
   phone_number?: string;
+  avatar_url?: string;
   role: 'customer' | 'admin' | 'delivery';
   is_active: boolean;
   created_at: string;
+  updated_at?: string;
   last_login?: string;
   total_orders?: number;
   total_spent?: number;
@@ -33,17 +35,32 @@ export class UserService {
   // Get all users with filters
   static async getUsers(filters?: UserFilters): Promise<User[]> {
     try {
+      // First, let's check what roles exist in the database
+      const { data: allRoles, error: rolesError } = await supabase
+        .from('profiles')
+        .select('role')
+        .not('role', 'is', null);
+      
+      if (!rolesError) {
+        console.log('All roles in database:', [...new Set(allRoles?.map((r: any) => r.role) || [])]);
+      }
+
       let query = supabase
         .from('profiles')
         .select(`
           *,
-          orders:orders(count),
-          total_spent:orders(sum:total_amount)
+          orders:orders!orders_user_id_fkey(count),
+          total_spent:orders!orders_user_id_fkey(sum:total_amount)
         `)
         .order('created_at', { ascending: false });
 
       if (filters?.role) {
-        query = query.eq('role', filters.role);
+        // Handle historical/alternate value 'delivery_staff' used in some databases
+        if (filters.role === 'delivery') {
+          query = query.in('role', ['delivery', 'delivery_staff']);
+        } else {
+          query = query.eq('role', filters.role);
+        }
       }
 
       if (filters?.is_active !== undefined) {
@@ -51,26 +68,36 @@ export class UserService {
       }
 
       if (filters?.search) {
-        query = query.or(`full_name.ilike.%${filters.search}%,email.ilike.%${filters.search}%`);
+        query = query.or(`full_name.ilike.%${filters.search}%`);
       }
 
       const { data, error } = await query;
 
-      if (error) throw error;
+      if (error) {
+        console.error('UserService.getUsers error:', error);
+        throw error;
+      }
 
-      // Transform the data to include order statistics
-      return (data || []).map((user: any) => ({
-        id: user.id,
-        email: user.email,
-        full_name: user.full_name,
-        phone_number: user.phone_number,
-        role: user.role,
-        is_active: user.is_active,
-        created_at: user.created_at,
-        last_login: user.last_login,
-        total_orders: user.orders?.[0]?.count || 0,
-        total_spent: user.total_spent?.[0]?.sum || 0,
-      }));
+      console.log('UserService.getUsers data:', data?.length || 0, 'users found');
+      console.log('UserService.getUsers filters:', filters);
+      console.log('UserService.getUsers roles found:', data?.map((u: any) => ({ id: u.id, role: u.role, name: u.full_name })));
+
+      // Transform the data to include order statistics and normalize role values
+      return (data || []).map((user: any) => {
+        const normalizedRole = user.role === 'delivery_staff' ? 'delivery' : user.role;
+        return {
+          id: user.id,
+          email: '', // Email not available in profiles table
+          full_name: user.full_name,
+          phone_number: user.phone_number,
+          role: normalizedRole,
+          is_active: user.is_active,
+          created_at: user.created_at,
+          last_login: user.last_login,
+          total_orders: user.orders?.[0]?.count || 0,
+          total_spent: user.total_spent?.[0]?.sum || 0,
+        } as User;
+      });
     } catch (error) {
       console.error('Error fetching users:', error);
       throw error;
@@ -84,8 +111,8 @@ export class UserService {
         .from('profiles')
         .select(`
           *,
-          orders:orders(count),
-          total_spent:orders(sum:total_amount)
+          orders:orders!orders_user_id_fkey(count),
+          total_spent:orders!orders_user_id_fkey(sum:total_amount)
         `)
         .eq('id', userId)
         .single();
@@ -94,13 +121,14 @@ export class UserService {
 
       return {
         id: data.id,
-        email: data.email,
+        email: data.email, // Use actual email from profiles table
         full_name: data.full_name,
         phone_number: data.phone_number,
+        avatar_url: data.avatar_url,
         role: data.role,
         is_active: data.is_active,
         created_at: data.created_at,
-        last_login: data.last_login,
+        updated_at: data.updated_at,
         total_orders: data.orders?.[0]?.count || 0,
         total_spent: data.total_spent?.[0]?.sum || 0,
       };
@@ -209,17 +237,17 @@ export class UserService {
         .from('profiles')
         .select(`
           *,
-          orders:orders(count),
-          total_spent:orders(sum:total_amount)
+          orders:orders!orders_user_id_fkey(count),
+          total_spent:orders!orders_user_id_fkey(sum:total_amount)
         `)
-        .or(`full_name.ilike.%${query}%,email.ilike.%${query}%`)
+        .or(`full_name.ilike.%${query}%`)
         .order('full_name', { ascending: true });
 
       if (error) throw error;
 
       return (data || []).map((user: any) => ({
         id: user.id,
-        email: user.email,
+        email: '', // Email not available in profiles table
         full_name: user.full_name,
         phone_number: user.phone_number,
         role: user.role,

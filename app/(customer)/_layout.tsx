@@ -17,6 +17,7 @@ export default function CustomerLayout() {
           <Stack.Screen name="checkout" options={{ headerShown: false }} />
           <Stack.Screen name="profile/addresses" options={{ headerShown: false }} />
           <Stack.Screen name="profile/address-form" options={{ headerShown: false }} />
+          <Stack.Screen name="profile/payment-methods" options={{ headerShown: false }} />
           <Stack.Screen name="profile/help-support" options={{ headerShown: false }} />
           <Stack.Screen name="profile/settings" options={{ headerShown: false }} />
         </Stack>

@@ -15,6 +15,7 @@ import Button from '../../../components/ui/Button';
 import { ResponsiveText } from '../../../components/ui/ResponsiveText';
 import { ResponsiveView } from '../../../components/ui/ResponsiveView';
 import Layout from '../../../constants/Layout';
+import { ResponsiveBorderRadius, ResponsiveSpacing, responsiveValue } from '../../../constants/Responsive';
 import { Strings } from '../../../constants/Strings';
 import { useTheme } from '../../../contexts/ThemeContext';
 import { ProductService } from '../../../services/product.service';
@@ -130,8 +131,12 @@ export default function AdminMenuScreen() {
 
   const renderProductItem = ({ item }: { item: Product }) => (
     <TouchableOpacity
-      style={[styles.productCard, { backgroundColor: colors.card, borderColor: colors.border }]}
+      style={[styles.productCard, { 
+        backgroundColor: colors.surface,
+        ...Layout.shadows.sm
+      }]}
       onPress={() => router.push(`/(admin)/menu/${item.id}` as any)}
+      activeOpacity={0.7}
     >
       <ResponsiveView style={styles.productHeader}>
         <ResponsiveView style={styles.productInfo}>
@@ -146,7 +151,7 @@ export default function AdminMenuScreen() {
             </ResponsiveView>
             {item.is_recommended && (
               <ResponsiveView style={[styles.recommendedBadge, { backgroundColor: `${colors.success}20` }]}>
-                <MaterialIcons name="star" size={12} color={colors.success} />
+                <MaterialIcons name="star" size={responsiveValue(12, 14, 16, 18)} color={colors.success} />
                 <ResponsiveView marginLeft="xs">
                   <ResponsiveText size="xs" color={colors.success} weight="semiBold">
                     Recommended
@@ -156,7 +161,11 @@ export default function AdminMenuScreen() {
             )}
           </ResponsiveView>
         </ResponsiveView>
-        <MaterialIcons name="keyboard-arrow-right" size={24} color={colors.textSecondary} />
+        <MaterialIcons 
+          name="keyboard-arrow-right" 
+          size={responsiveValue(20, 22, 24, 28)} 
+          color={colors.textSecondary} 
+        />
       </ResponsiveView>
 
       <ResponsiveView style={styles.productDescription}>
@@ -167,7 +176,7 @@ export default function AdminMenuScreen() {
 
       <ResponsiveView style={styles.productFooter}>
         <ResponsiveView style={styles.priceContainer}>
-          <ResponsiveText size="sm" color={colors.textSecondary}>
+          <ResponsiveText size="sm" color={colors.textSecondary} weight="medium">
             Price:
           </ResponsiveText>
           <ResponsiveText size="lg" weight="semiBold" color={colors.primary}>
@@ -184,7 +193,7 @@ export default function AdminMenuScreen() {
           >
             <MaterialIcons 
               name={item.is_available ? 'check-circle' : 'cancel'} 
-              size={14} 
+              size={responsiveValue(12, 14, 16, 18)} 
               color={item.is_available ? colors.success : colors.error} 
             />
             <ResponsiveView marginLeft="xs">
@@ -225,155 +234,224 @@ export default function AdminMenuScreen() {
 
   if (loading) {
     return (
-      <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
-        <View style={styles.loadingContainer}>
+      <SafeAreaView style={[global.screen, styles.center, { backgroundColor: colors.background }]}>
+        <ResponsiveView style={styles.center}>
           <ActivityIndicator size="large" color={colors.primary} />
           <ResponsiveView marginTop="md">
             <ResponsiveText size="md" color={colors.textSecondary}>
               {Strings.loading}
             </ResponsiveText>
           </ResponsiveView>
-        </View>
+        </ResponsiveView>
       </SafeAreaView>
     );
   }
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
-      <ResponsiveView style={styles.header}>
-        <ResponsiveText size="xl" weight="bold" color={colors.text}>
-          Product Management
-        </ResponsiveText>
-        <ResponsiveText size="md" color={colors.textSecondary}>
-          Manage {productCounts.total} products in your menu
-        </ResponsiveText>
-      </ResponsiveView>
-
-      {/* Product Summary */}
-      <ResponsiveView style={styles.summaryContainer}>
-        <ResponsiveText size="sm" color={colors.textSecondary}>
-          Active: {productCounts.active} | Inactive: {productCounts.inactive} | Recommended: {productCounts.recommended}
-        </ResponsiveText>
-      </ResponsiveView>
-
-      {/* Category Tabs */}
-      <ResponsiveView style={styles.tabsContainer}>
-        <FlatList
-          data={categoryTabs}
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          renderItem={({ item }) => (
-            <TouchableOpacity
-              style={[
-                styles.tab,
-                activeTab === item && { 
-                  backgroundColor: colors.primary,
-                  borderColor: colors.primary,
-                },
-                activeTab !== item && { borderColor: colors.border },
-              ]}
-              onPress={() => setActiveTab(item)}
-            >
-              <ResponsiveText 
-                size="sm" 
-                weight="medium"
-                color={activeTab === item ? colors.background : colors.text}
-              >
-                {item}
+    <SafeAreaView style={[global.screen, { backgroundColor: colors.background }]} edges={['top']}>
+      <View style={{ flex: 1 }}>
+        <ResponsiveView padding="lg">
+          {/* Header */}
+          <ResponsiveView style={[styles.header, { backgroundColor: colors.surface }]}>
+            <ResponsiveView style={styles.headerLeft}>
+              <ResponsiveText size="xl" weight="bold" color={colors.text}>
+                Product Management
               </ResponsiveText>
-            </TouchableOpacity>
-          )}
-          keyExtractor={(item) => item}
-          contentContainerStyle={styles.tabsList}
-        />
-      </ResponsiveView>
-
-      {products.length > 0 ? (
-        <FlatList
-          data={products}
-          renderItem={renderProductItem}
-          keyExtractor={(item) => item.id}
-          contentContainerStyle={styles.productsList}
-          showsVerticalScrollIndicator={false}
-          refreshControl={
-            <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />
-          }
-        />
-      ) : (
-        <ResponsiveView style={styles.emptyState}>
-          <MaterialIcons name="restaurant-menu" size={64} color={colors.textSecondary} />
-          <ResponsiveView marginTop="md">
-            <ResponsiveText size="lg" weight="semiBold" color={colors.text}>
-              No Products Found
-            </ResponsiveText>
-          </ResponsiveView>
-          <ResponsiveView marginTop="sm">
-            <ResponsiveText size="md" color={colors.textSecondary} style={{ textAlign: 'center' }}>
-              {activeTab === 'All' 
-                ? 'No products have been added yet.'
-                : `No ${activeTab.toLowerCase()} products found.`
-              }
-            </ResponsiveText>
-          </ResponsiveView>
-          
-          <ResponsiveView marginTop="lg">
+              <ResponsiveText size="md" color={colors.textSecondary}>
+                Manage {productCounts.total} products in your menu
+              </ResponsiveText>
+            </ResponsiveView>
             <Button
-              title="Add First Product"
+              title="Add Product"
               onPress={() => router.push('/(admin)/products/new' as any)}
               variant="primary"
+              size="small"
+              icon={<MaterialIcons name="add" size={16} color={colors.background} />}
+            />
+          </ResponsiveView>
+
+          {/* Product Summary */}
+          <ResponsiveView style={[styles.summaryContainer, { backgroundColor: colors.surface }]}>
+            <ResponsiveView style={styles.summaryGrid}>
+              <ResponsiveView style={styles.summaryItem}>
+                <ResponsiveText size="sm" color={colors.textSecondary} weight="medium">
+                  Total
+                </ResponsiveText>
+                <ResponsiveText size="lg" weight="bold" color={colors.text}>
+                  {productCounts.total}
+                </ResponsiveText>
+              </ResponsiveView>
+              <ResponsiveView style={styles.summaryItem}>
+                <ResponsiveText size="sm" color={colors.textSecondary} weight="medium">
+                  Active
+                </ResponsiveText>
+                <ResponsiveText size="lg" weight="bold" color={colors.success}>
+                  {productCounts.active}
+                </ResponsiveText>
+              </ResponsiveView>
+              <ResponsiveView style={styles.summaryItem}>
+                <ResponsiveText size="sm" color={colors.textSecondary} weight="medium">
+                  Inactive
+                </ResponsiveText>
+                <ResponsiveText size="lg" weight="bold" color={colors.error}>
+                  {productCounts.inactive}
+                </ResponsiveText>
+              </ResponsiveView>
+              <ResponsiveView style={styles.summaryItem}>
+                <ResponsiveText size="sm" color={colors.textSecondary} weight="medium">
+                  Recommended
+                </ResponsiveText>
+                <ResponsiveText size="lg" weight="bold" color={colors.warning}>
+                  {productCounts.recommended}
+                </ResponsiveText>
+              </ResponsiveView>
+            </ResponsiveView>
+          </ResponsiveView>
+
+          {/* Category Tabs */}
+          <ResponsiveView style={styles.tabsContainer}>
+            <FlatList
+              data={categoryTabs}
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              renderItem={({ item }) => (
+                <TouchableOpacity
+                  style={[
+                    styles.tab,
+                    activeTab === item && { 
+                      backgroundColor: colors.primary,
+                      borderColor: colors.primary,
+                    },
+                    activeTab !== item && { 
+                      backgroundColor: colors.surface,
+                      borderColor: colors.border 
+                    },
+                  ]}
+                  onPress={() => setActiveTab(item)}
+                  activeOpacity={0.7}
+                >
+                  <ResponsiveText 
+                    size="sm" 
+                    weight="medium"
+                    color={activeTab === item ? colors.background : colors.text}
+                  >
+                    {item}
+                  </ResponsiveText>
+                </TouchableOpacity>
+              )}
+              keyExtractor={(item) => item}
+              contentContainerStyle={styles.tabsList}
             />
           </ResponsiveView>
         </ResponsiveView>
-      )}
+
+        {/* Products List */}
+        {products.length > 0 ? (
+          <FlatList
+            data={products}
+            renderItem={renderProductItem}
+            keyExtractor={(item) => item.id}
+            contentContainerStyle={styles.productsList}
+            showsVerticalScrollIndicator={false}
+            refreshControl={
+              <RefreshControl 
+                refreshing={refreshing} 
+                onRefresh={handleRefresh}
+                tintColor={colors.primary}
+              />
+            }
+          />
+        ) : (
+          <ResponsiveView style={[styles.emptyState, { backgroundColor: colors.surface }]}>
+            <ResponsiveView style={[styles.emptyIcon, { backgroundColor: colors.surfaceVariant }]}>
+              <MaterialIcons name="restaurant-menu" size={responsiveValue(48, 56, 64, 72)} color={colors.primary} />
+            </ResponsiveView>
+            <ResponsiveView marginTop="md">
+              <ResponsiveText size="lg" weight="semiBold" color={colors.text} align="center">
+                No Products Found
+              </ResponsiveText>
+            </ResponsiveView>
+            <ResponsiveView marginTop="sm">
+              <ResponsiveText size="md" color={colors.textSecondary} align="center">
+                {activeTab === 'All' 
+                  ? 'No products have been added yet.'
+                  : `No ${activeTab.toLowerCase()} products found.`
+                }
+              </ResponsiveText>
+            </ResponsiveView>
+            
+            <ResponsiveView marginTop="lg">
+              <Button
+                title="Add First Product"
+                onPress={() => router.push('/(admin)/products/new' as any)}
+                variant="primary"
+                size="medium"
+              />
+            </ResponsiveView>
+          </ResponsiveView>
+        )}
+      </View>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  loadingContainer: {
-    flex: 1,
+  center: {
     justifyContent: 'center',
     alignItems: 'center',
   },
   header: {
-    paddingHorizontal: Layout.spacing.lg,
-    paddingVertical: Layout.spacing.md,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: ResponsiveSpacing.lg,
+    padding: ResponsiveSpacing.md,
+    borderRadius: ResponsiveBorderRadius.lg,
+    ...Layout.shadows.sm,
+  },
+  headerLeft: {
+    flex: 1,
   },
   summaryContainer: {
-    paddingHorizontal: Layout.spacing.lg,
-    paddingBottom: Layout.spacing.sm,
+    marginBottom: ResponsiveSpacing.lg,
+    padding: ResponsiveSpacing.md,
+    borderRadius: ResponsiveBorderRadius.lg,
+    ...Layout.shadows.sm,
+  },
+  summaryGrid: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+  },
+  summaryItem: {
+    alignItems: 'center',
+    padding: ResponsiveSpacing.sm,
   },
   tabsContainer: {
-    paddingHorizontal: Layout.spacing.lg,
-    paddingBottom: Layout.spacing.md,
+    marginBottom: ResponsiveSpacing.lg,
   },
   tabsList: {
-    gap: Layout.spacing.sm,
+    gap: ResponsiveSpacing.sm,
   },
   tab: {
-    paddingHorizontal: Layout.spacing.md,
-    paddingVertical: Layout.spacing.sm,
-    borderRadius: Layout.borderRadius.pill,
+    paddingHorizontal: ResponsiveSpacing.md,
+    paddingVertical: ResponsiveSpacing.sm,
+    borderRadius: ResponsiveBorderRadius.pill,
     borderWidth: 1,
   },
   productsList: {
-    paddingHorizontal: Layout.spacing.lg,
+    paddingHorizontal: ResponsiveSpacing.lg,
     paddingTop: 0,
   },
   productCard: {
-    padding: Layout.spacing.md,
-    borderRadius: Layout.borderRadius.md,
-    marginBottom: Layout.spacing.md,
-    ...Layout.shadows.sm,
+    padding: ResponsiveSpacing.md,
+    borderRadius: ResponsiveBorderRadius.md,
+    marginBottom: ResponsiveSpacing.md,
   },
   productHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
-    marginBottom: 12,
+    marginBottom: ResponsiveSpacing.sm,
   },
   productInfo: {
     flex: 1,
@@ -381,34 +459,34 @@ const styles = StyleSheet.create({
   productMeta: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginTop: 8,
-    gap: 8,
+    marginTop: ResponsiveSpacing.sm,
+    gap: ResponsiveSpacing.sm,
   },
   categoryBadge: {
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 8,
+    paddingHorizontal: ResponsiveSpacing.sm,
+    paddingVertical: ResponsiveSpacing.xs,
+    borderRadius: ResponsiveBorderRadius.sm,
   },
   recommendedBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 8,
+    paddingHorizontal: ResponsiveSpacing.sm,
+    paddingVertical: ResponsiveSpacing.xs,
+    borderRadius: ResponsiveBorderRadius.sm,
   },
   productDescription: {
-    marginBottom: 12,
+    marginBottom: ResponsiveSpacing.sm,
   },
   productFooter: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 16,
+    marginBottom: ResponsiveSpacing.md,
   },
   priceContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: ResponsiveSpacing.sm,
   },
   statusContainer: {
     alignItems: 'flex-end',
@@ -416,19 +494,31 @@ const styles = StyleSheet.create({
   statusBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 12,
+    paddingHorizontal: ResponsiveSpacing.sm,
+    paddingVertical: ResponsiveSpacing.xs,
+    borderRadius: ResponsiveBorderRadius.sm,
   },
   productActions: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    gap: 8,
+    gap: ResponsiveSpacing.sm,
   },
   emptyState: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    padding: 40,
+    paddingVertical: ResponsiveSpacing.xxxl,
+    paddingHorizontal: ResponsiveSpacing.lg,
+    marginHorizontal: ResponsiveSpacing.lg,
+    borderRadius: ResponsiveBorderRadius.lg,
+    ...Layout.shadows.sm,
+  },
+  emptyIcon: {
+    width: responsiveValue(80, 90, 100, 120),
+    height: responsiveValue(80, 90, 100, 120),
+    borderRadius: responsiveValue(40, 45, 50, 60),
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: ResponsiveSpacing.md,
   },
 });

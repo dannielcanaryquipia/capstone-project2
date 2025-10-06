@@ -1,21 +1,26 @@
+import { MaterialIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import {
   Alert,
   FlatList,
   RefreshControl,
-  StyleSheet
+  StyleSheet,
+  View
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { EmptyState } from '../../../components/ui/EmptyState';
+import Button from '../../../components/ui/Button';
 import { LoadingState } from '../../../components/ui/LoadingState';
 import { OrderCard } from '../../../components/ui/OrderCard';
 import { ResponsiveText } from '../../../components/ui/ResponsiveText';
 import { ResponsiveView } from '../../../components/ui/ResponsiveView';
+import Layout from '../../../constants/Layout';
+import { ResponsiveBorderRadius, ResponsiveSpacing, responsiveValue } from '../../../constants/Responsive';
 import { Strings } from '../../../constants/Strings';
 import { useTheme } from '../../../contexts/ThemeContext';
 import { useAuth } from '../../../hooks/useAuth';
 import { OrderService } from '../../../services/order.service';
+import global from '../../../styles/global';
 import { DeliveryOrder } from '../../../types/order.types';
 
 export default function AvailableOrdersScreen() {
@@ -107,62 +112,124 @@ export default function AvailableOrdersScreen() {
 
   if (loading) {
     return (
-      <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
-        <LoadingState 
-          message={Strings.loading} 
-          fullScreen 
-        />
+      <SafeAreaView style={[global.screen, styles.center, { backgroundColor: colors.background }]}>
+        <ResponsiveView style={styles.center}>
+          <LoadingState 
+            message={Strings.loading} 
+            fullScreen 
+          />
+        </ResponsiveView>
       </SafeAreaView>
     );
   }
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
-      <ResponsiveView style={styles.header}>
-        <ResponsiveText size="xl" weight="bold" color={colors.text}>
-          Available Orders
-        </ResponsiveText>
-        <ResponsiveText size="md" color={colors.textSecondary}>
-          Pick up orders ready for delivery
-        </ResponsiveText>
-      </ResponsiveView>
+    <SafeAreaView style={[global.screen, { backgroundColor: colors.background }]} edges={['top']}>
+      <View style={{ flex: 1 }}>
+        <ResponsiveView padding="lg">
+          {/* Header */}
+          <ResponsiveView style={[styles.header, { backgroundColor: colors.surface }]}>
+            <ResponsiveView style={styles.headerLeft}>
+              <ResponsiveText size="xl" weight="bold" color={colors.text}>
+                Available Orders
+              </ResponsiveText>
+              <ResponsiveText size="md" color={colors.textSecondary}>
+                Pick up orders ready for delivery ({orders.length})
+              </ResponsiveText>
+            </ResponsiveView>
+            <Button
+              title="Refresh"
+              onPress={handleRefresh}
+              variant="outline"
+              size="small"
+              icon={<MaterialIcons name="refresh" size={16} color={colors.primary} />}
+            />
+          </ResponsiveView>
+        </ResponsiveView>
 
-      {orders.length > 0 ? (
-        <FlatList
-          data={orders}
-          renderItem={renderOrderItem}
-          keyExtractor={(item) => item.order.id}
-          contentContainerStyle={styles.ordersList}
-          showsVerticalScrollIndicator={false}
-          refreshControl={
-            <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />
-          }
-        />
-      ) : (
-        <EmptyState
-          icon="delivery-dining"
-          title="No Available Orders"
-          description="There are no orders ready for pickup at the moment. Pull down to refresh or check back later."
-          actionTitle="Refresh"
-          onActionPress={handleRefresh}
-          showAction={true}
-          fullScreen
-        />
-      )}
+        {/* Orders List */}
+        {orders.length > 0 ? (
+          <FlatList
+            data={orders}
+            renderItem={renderOrderItem}
+            keyExtractor={(item) => item.order.id}
+            contentContainerStyle={styles.ordersList}
+            showsVerticalScrollIndicator={false}
+            refreshControl={
+              <RefreshControl 
+                refreshing={refreshing} 
+                onRefresh={handleRefresh}
+                tintColor={colors.primary}
+              />
+            }
+          />
+        ) : (
+          <ResponsiveView style={[styles.emptyState, { backgroundColor: colors.surface }]}>
+            <ResponsiveView style={[styles.emptyIcon, { backgroundColor: colors.surfaceVariant }]}>
+              <MaterialIcons name="delivery-dining" size={responsiveValue(48, 56, 64, 72)} color={colors.primary} />
+            </ResponsiveView>
+            <ResponsiveView marginTop="md">
+              <ResponsiveText size="lg" weight="semiBold" color={colors.text} align="center">
+                No Available Orders
+              </ResponsiveText>
+            </ResponsiveView>
+            <ResponsiveView marginTop="sm">
+              <ResponsiveText size="md" color={colors.textSecondary} align="center">
+                There are no orders ready for pickup at the moment. Pull down to refresh or check back later.
+              </ResponsiveText>
+            </ResponsiveView>
+            <ResponsiveView marginTop="lg">
+              <Button
+                title="Refresh"
+                onPress={handleRefresh}
+                variant="primary"
+                size="medium"
+              />
+            </ResponsiveView>
+          </ResponsiveView>
+        )}
+      </View>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
+  center: {
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   header: {
-    padding: 20,
-    paddingBottom: 16,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: ResponsiveSpacing.lg,
+    padding: ResponsiveSpacing.md,
+    borderRadius: ResponsiveBorderRadius.lg,
+    ...Layout.shadows.sm,
+  },
+  headerLeft: {
+    flex: 1,
   },
   ordersList: {
-    padding: 20,
+    paddingHorizontal: ResponsiveSpacing.lg,
     paddingTop: 0,
+  },
+  emptyState: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingVertical: ResponsiveSpacing.xxxl,
+    paddingHorizontal: ResponsiveSpacing.lg,
+    marginHorizontal: ResponsiveSpacing.lg,
+    borderRadius: ResponsiveBorderRadius.lg,
+    ...Layout.shadows.sm,
+  },
+  emptyIcon: {
+    width: responsiveValue(80, 90, 100, 120),
+    height: responsiveValue(80, 90, 100, 120),
+    borderRadius: responsiveValue(40, 45, 50, 60),
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: ResponsiveSpacing.md,
   },
 });

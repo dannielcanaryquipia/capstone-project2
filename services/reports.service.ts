@@ -1,9 +1,13 @@
 import { supabase } from '../lib/supabase';
 
 export interface TopProduct {
+  id: string;
   name: string;
-  quantity: number;
-  revenue: number;
+  totalQuantity: number;
+  totalRevenue: number;
+  averagePrice: number;
+  basePrice: number;
+  imageUrl: string | null;
 }
 
 export interface DailyRevenue {
@@ -34,49 +38,107 @@ export interface ReportData {
   orderStatusBreakdown: OrderStatusBreakdown;
   dailyRevenue: DailyRevenue[];
   customerStats: CustomerStats;
+  recentOrders?: Array<{
+    id: string;
+    customer_name: string;
+    total_amount: number;
+    status: string;
+    created_at: string;
+  }>;
 }
 
 export class ReportsService {
-  // Get top products by revenue
-  static async getTopProducts(limit: number = 5): Promise<TopProduct[]> {
+  // Get recent orders with customer name
+  static async getRecentOrders(limit: number = 5): Promise<ReportData['recentOrders']> {
     try {
+      const { data, error } = await supabase
+        .from('orders')
+        .select(`
+          id,
+          total_amount,
+          status,
+          created_at,
+          profiles:profiles!orders_user_id_fkey(full_name, username)
+        `)
+        .order('created_at', { ascending: false })
+        .limit(limit);
+
+      if (error) throw error;
+
+      return (data || []).map((o: any) => ({
+        id: o.id,
+        customer_name: o.profiles?.full_name || o.profiles?.username || 'Customer',
+        total_amount: o.total_amount || 0,
+        status: (o.status || '').toString().toLowerCase().replace(/\s+/g, '_'),
+        created_at: o.created_at,
+      }));
+    } catch (error) {
+      console.error('Error fetching recent orders:', error);
+      return [];
+    }
+  }
+  // Get top products by revenue, computed from order_items joined with orders (delivered by default)
+  static async getTopProducts(limit: number = 5, includeStatuses: string[] = ['Delivered']): Promise<TopProduct[]> {
+    try {
+      // Join orders to ensure we only count items from qualifying orders
       const { data, error } = await supabase
         .from('order_items')
         .select(`
-          product_name,
           quantity,
           unit_price,
-          products!inner(name)
+          products!inner(name, id, base_price, image_url),
+          orders!inner(status)
         `)
-        .not('product_name', 'is', null);
+        .in('orders.status', includeStatuses);
 
       if (error) throw error;
 
       // Group by product and calculate totals
-      const productMap = new Map<string, { quantity: number; revenue: number }>();
+      const productMap = new Map<string, { 
+        quantity: number; 
+        revenue: number; 
+        product: { id: string; name: string; base_price: number; image_url: string | null }
+      }>();
       
       data?.forEach((item: any) => {
-        const productName = item.product_name || item.products?.name || 'Unknown Product';
+        const product = item.products;
+        if (!product) return; // Skip if no product data
+        
+        const productId = product.id;
+        const productName = product.name || 'Unknown Product';
         const quantity = item.quantity || 0;
         const revenue = (item.unit_price || 0) * quantity;
         
-        if (productMap.has(productName)) {
-          const existing = productMap.get(productName)!;
+        if (productMap.has(productId)) {
+          const existing = productMap.get(productId)!;
           existing.quantity += quantity;
           existing.revenue += revenue;
         } else {
-          productMap.set(productName, { quantity, revenue });
+          productMap.set(productId, { 
+            quantity, 
+            revenue, 
+            product: {
+              id: product.id,
+              name: product.name,
+              base_price: product.base_price,
+              image_url: product.image_url
+            }
+          });
         }
       });
 
       // Convert to array and sort by revenue
       const topProducts = Array.from(productMap.entries())
-        .map(([name, data]) => ({
-          name,
-          quantity: data.quantity,
-          revenue: data.revenue
+        .map(([productId, data]) => ({
+          id: data.product.id,
+          name: data.product.name,
+          totalQuantity: data.quantity,
+          totalRevenue: data.revenue,
+          averagePrice: data.revenue / data.quantity,
+          basePrice: data.product.base_price,
+          imageUrl: data.product.image_url
         }))
-        .sort((a, b) => b.revenue - a.revenue)
+        .sort((a, b) => b.totalRevenue - a.totalRevenue)
         .slice(0, limit);
 
       return topProducts;
@@ -234,12 +296,14 @@ export class ReportsService {
         topProducts,
         dailyRevenue,
         customerStats,
-        orderStatusBreakdown
+        orderStatusBreakdown,
+        recentOrders
       ] = await Promise.all([
         this.getTopProducts(5),
         this.getDailyRevenue(7),
         this.getCustomerStats(),
-        this.getOrderStatusBreakdown()
+        this.getOrderStatusBreakdown(),
+        this.getRecentOrders(5)
       ]);
 
       // Calculate totals
@@ -254,7 +318,8 @@ export class ReportsService {
         topProducts,
         orderStatusBreakdown,
         dailyRevenue,
-        customerStats
+        customerStats,
+        recentOrders
       };
     } catch (error) {
       console.error('Error fetching report data:', error);

@@ -16,9 +16,11 @@ import Button from '../../../components/ui/Button';
 import { ResponsiveText } from '../../../components/ui/ResponsiveText';
 import { ResponsiveView } from '../../../components/ui/ResponsiveView';
 import Layout from '../../../constants/Layout';
+import { ResponsiveBorderRadius, ResponsiveSpacing, responsiveValue } from '../../../constants/Responsive';
 import { Strings } from '../../../constants/Strings';
 import { useTheme } from '../../../contexts/ThemeContext';
 import { User, UserFilters, UserService } from '../../../services/user.service';
+import global from '../../../styles/global';
 
 const roleTabs = ['All', 'Customer', 'Admin', 'Delivery Staff'];
 
@@ -59,6 +61,9 @@ export default function AdminUsersScreen() {
       }
       
       const usersData = await UserService.getUsers(filters);
+      console.log('Admin users page - received users:', usersData?.length || 0);
+      console.log('Active tab:', activeTab, 'Filters:', filters);
+      console.log('Users data:', usersData.map(u => ({ id: u.id, name: u.full_name, role: u.role })));
       setUsers(usersData);
       
       // Calculate user counts
@@ -133,6 +138,30 @@ export default function AdminUsersScreen() {
     );
   };
 
+  const handleDeleteUser = async (userId: string, userName: string) => {
+    Alert.alert(
+      'Delete User',
+      `Are you sure you want to permanently delete ${userName}? This action cannot be undone.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { 
+          text: 'Delete', 
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await UserService.deleteUser(userId);
+              await loadUsers();
+              Alert.alert('Success', 'User deleted successfully!');
+            } catch (error) {
+              console.error('Error deleting user:', error);
+              Alert.alert('Error', 'Failed to delete user. Please try again.');
+            }
+          }
+        }
+      ]
+    );
+  };
+
   const getRoleColor = (role: string) => {
     switch (role) {
       case 'admin': return colors.error;
@@ -161,8 +190,12 @@ export default function AdminUsersScreen() {
 
   const renderUserItem = ({ item }: { item: User }) => (
     <TouchableOpacity
-      style={[styles.userCard, { backgroundColor: colors.card, borderColor: colors.border }]}
+      style={[styles.userCard, { 
+        backgroundColor: colors.surface, 
+        ...Layout.shadows.sm
+      }]}
       onPress={() => router.push(`/(admin)/users/${item.id}` as any)}
+      activeOpacity={0.7}
     >
       <ResponsiveView style={styles.userHeader}>
         <ResponsiveView style={styles.userInfo}>
@@ -178,14 +211,14 @@ export default function AdminUsersScreen() {
             </ResponsiveText>
           )}
         </ResponsiveView>
-        <MaterialIcons name="keyboard-arrow-right" size={24} color={colors.textSecondary} />
+        <MaterialIcons name="keyboard-arrow-right" size={responsiveValue(20, 22, 24, 28)} color={colors.textSecondary} />
       </ResponsiveView>
 
       <ResponsiveView style={styles.userMeta}>
         <ResponsiveView style={[styles.roleBadge, { backgroundColor: `${getRoleColor(item.role)}20` }]}>
           <MaterialIcons 
             name={getRoleIcon(item.role)} 
-            size={14} 
+            size={responsiveValue(12, 14, 16, 18)} 
             color={getRoleColor(item.role)} 
           />
           <ResponsiveView marginLeft="xs">
@@ -207,7 +240,7 @@ export default function AdminUsersScreen() {
         >
           <MaterialIcons 
             name={item.is_active ? 'check-circle' : 'cancel'} 
-            size={14} 
+            size={responsiveValue(12, 14, 16, 18)} 
             color={item.is_active ? colors.success : colors.error} 
           />
           <ResponsiveView marginLeft="xs">
@@ -225,7 +258,7 @@ export default function AdminUsersScreen() {
       {item.role === 'customer' && (
         <ResponsiveView style={styles.customerStats}>
           <ResponsiveView style={styles.statItem}>
-            <MaterialIcons name="receipt" size={16} color={colors.textSecondary} />
+            <MaterialIcons name="receipt" size={responsiveValue(14, 16, 18, 20)} color={colors.textSecondary} />
             <ResponsiveView marginLeft="xs">
               <ResponsiveText size="sm" color={colors.textSecondary}>
                 {item.total_orders || 0} orders
@@ -233,7 +266,7 @@ export default function AdminUsersScreen() {
             </ResponsiveView>
           </ResponsiveView>
           <ResponsiveView style={styles.statItem}>
-            <MaterialIcons name="attach-money" size={16} color={colors.textSecondary} />
+            <MaterialIcons name="attach-money" size={responsiveValue(14, 16, 18, 20)} color={colors.textSecondary} />
             <ResponsiveView marginLeft="xs">
               <ResponsiveText size="sm" color={colors.textSecondary}>
                 ₱{(item.total_spent || 0).toFixed(2)} spent
@@ -245,7 +278,7 @@ export default function AdminUsersScreen() {
 
       <ResponsiveView style={styles.userFooter}>
         <ResponsiveView style={styles.dateInfo}>
-          <MaterialIcons name="calendar-today" size={14} color={colors.textSecondary} />
+          <MaterialIcons name="calendar-today" size={responsiveValue(12, 14, 16, 18)} color={colors.textSecondary} />
           <ResponsiveView marginLeft="xs">
             <ResponsiveText size="xs" color={colors.textSecondary}>
               Joined: {formatDate(item.created_at)}
@@ -255,7 +288,7 @@ export default function AdminUsersScreen() {
         
         {item.last_login && (
           <ResponsiveView style={styles.dateInfo}>
-            <MaterialIcons name="login" size={14} color={colors.textSecondary} />
+            <MaterialIcons name="login" size={responsiveValue(12, 14, 16, 18)} color={colors.textSecondary} />
             <ResponsiveView marginLeft="xs">
               <ResponsiveText size="xs" color={colors.textSecondary}>
                 Last login: {formatDate(item.last_login)}
@@ -278,90 +311,100 @@ export default function AdminUsersScreen() {
           variant="primary"
           size="small"
         />
+        <Button
+          title="Delete"
+          onPress={() => handleDeleteUser(item.id, item.full_name)}
+          variant="danger"
+          size="small"
+        />
       </ResponsiveView>
     </TouchableOpacity>
   );
 
   if (loading) {
     return (
-      <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
-        <View style={styles.loadingContainer}>
+      <SafeAreaView style={[global.screen, styles.center, { backgroundColor: colors.background }]}>
+        <ResponsiveView style={styles.center}>
           <ActivityIndicator size="large" color={colors.primary} />
           <ResponsiveView marginTop="md">
             <ResponsiveText size="md" color={colors.textSecondary}>
               {Strings.loading}
             </ResponsiveText>
           </ResponsiveView>
-        </View>
+        </ResponsiveView>
       </SafeAreaView>
     );
   }
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
-      <ResponsiveView style={styles.header}>
-        <ResponsiveText size="xl" weight="bold" color={colors.text}>
-          User Management
-        </ResponsiveText>
-        <ResponsiveText size="md" color={colors.textSecondary}>
-          Manage {userCounts.total} users in your system
-        </ResponsiveText>
+    <SafeAreaView style={[global.screen, { backgroundColor: colors.background }]} edges={['top']}>
+      <ResponsiveView padding="lg">
+        <ResponsiveView style={[styles.header, { backgroundColor: colors.surface }]}>
+          <ResponsiveText size="xl" weight="bold" color={colors.text}>
+            User Management
+          </ResponsiveText>
+          <ResponsiveText size="md" color={colors.textSecondary}>
+            Manage {userCounts.total} users in your system
+          </ResponsiveText>
+        </ResponsiveView>
       </ResponsiveView>
 
       {/* Search Section */}
-      <ResponsiveView style={styles.searchContainer}>
-        <ResponsiveText size="sm" color={colors.textSecondary} style={styles.searchLabel}>
-          Search Users
-        </ResponsiveText>
-        <View style={[styles.searchInput, { backgroundColor: colors.card, borderColor: colors.border }]}>
-          <MaterialIcons name="search" size={20} color={colors.textSecondary} />
-          <TextInput
-            style={[styles.searchTextInput, { color: colors.text }]}
-            placeholder="Search by name, email, or username"
-            placeholderTextColor={colors.textSecondary}
-            value={searchQuery}
-            onChangeText={setSearchQuery}
-          />
-        </View>
-      </ResponsiveView>
+      <ResponsiveView padding="lg">
+        <ResponsiveView style={styles.searchContainer}>
+          <ResponsiveText size="sm" color={colors.textSecondary} style={styles.searchLabel}>
+            Search Users
+          </ResponsiveText>
+          <View style={[styles.searchInput, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+            <MaterialIcons name="search" size={responsiveValue(18, 20, 22, 24)} color={colors.textSecondary} />
+            <TextInput
+              style={[styles.searchTextInput, { color: colors.text }]}
+              placeholder="Search by name, email, or username"
+              placeholderTextColor={colors.textSecondary}
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+            />
+          </View>
+        </ResponsiveView>
 
-      {/* Role Filter */}
-      <ResponsiveView style={styles.filterContainer}>
-        <ResponsiveText size="sm" color={colors.textSecondary} style={styles.filterLabel}>
-          Filter by Role:
-        </ResponsiveText>
-      </ResponsiveView>
+        {/* Role Filter */}
+        <ResponsiveView style={styles.filterContainer}>
+          <ResponsiveText size="sm" color={colors.textSecondary} style={styles.filterLabel}>
+            Filter by Role:
+          </ResponsiveText>
+        </ResponsiveView>
 
-      {/* Role Tabs */}
-      <ResponsiveView style={styles.tabsContainer}>
-        <FlatList
-          data={roleTabs}
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          renderItem={({ item }) => (
-            <TouchableOpacity
-              style={[
-                styles.tab,
-                activeTab === item && { 
-                  backgroundColor: colors.primary,
-                  borderColor: colors.primary,
-                },
-                activeTab !== item && { borderColor: colors.border },
-              ]}
-              onPress={() => setActiveTab(item)}
-            >
-              <ResponsiveText 
-                size="sm" 
-                weight="medium"
-                color={activeTab === item ? colors.background : colors.text}
+        {/* Role Tabs */}
+        <ResponsiveView style={styles.tabsContainer}>
+          <FlatList
+            data={roleTabs}
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            renderItem={({ item }) => (
+              <TouchableOpacity
+                style={[
+                  styles.tab,
+                  activeTab === item && { 
+                    backgroundColor: colors.primary,
+                    borderColor: colors.primary,
+                  },
+                  activeTab !== item && { borderColor: colors.border },
+                ]}
+                onPress={() => setActiveTab(item)}
               >
-                {item}
-              </ResponsiveText>
-            </TouchableOpacity>
-          )}
-          keyExtractor={(item) => item}
-          contentContainerStyle={styles.tabsList}
-        />
+                <ResponsiveText 
+                  size="sm" 
+                  weight="medium"
+                  color={activeTab === item ? colors.background : colors.text}
+                >
+                  {item}
+                </ResponsiveText>
+              </TouchableOpacity>
+            )}
+            keyExtractor={(item) => item}
+            contentContainerStyle={styles.tabsList}
+          />
+        </ResponsiveView>
       </ResponsiveView>
 
       {users.length > 0 ? (
@@ -376,15 +419,17 @@ export default function AdminUsersScreen() {
           }
         />
       ) : (
-        <ResponsiveView style={styles.emptyState}>
-          <MaterialIcons name="people" size={64} color={colors.textSecondary} />
+        <ResponsiveView style={[styles.emptyState, { backgroundColor: colors.surface }]}>
+          <ResponsiveView style={[styles.emptyIcon, { backgroundColor: colors.surfaceVariant }]}>
+            <MaterialIcons name="people" size={responsiveValue(48, 56, 64, 72)} color={colors.primary} />
+          </ResponsiveView>
           <ResponsiveView marginTop="md">
-            <ResponsiveText size="lg" weight="semiBold" color={colors.text}>
+            <ResponsiveText size="lg" weight="semiBold" color={colors.text} align="center">
               No Users Found
             </ResponsiveText>
           </ResponsiveView>
           <ResponsiveView marginTop="sm">
-            <ResponsiveText size="md" color={colors.textSecondary} style={{ textAlign: 'center' }}>
+            <ResponsiveText size="md" color={colors.textSecondary} align="center">
               {activeTab === 'All' 
                 ? 'No users have been registered yet.'
                 : `No ${activeTab.toLowerCase()} users found.`
@@ -409,70 +454,70 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
-  loadingContainer: {
-    flex: 1,
+  center: {
     justifyContent: 'center',
     alignItems: 'center',
   },
   header: {
-    paddingHorizontal: Layout.spacing.lg,
-    paddingVertical: Layout.spacing.md,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: ResponsiveSpacing.lg,
+    padding: ResponsiveSpacing.md,
+    borderRadius: ResponsiveBorderRadius.lg,
+    ...Layout.shadows.sm,
   },
   searchContainer: {
-    paddingHorizontal: Layout.spacing.lg,
-    paddingBottom: Layout.spacing.md,
+    marginBottom: ResponsiveSpacing.lg,
   },
   searchLabel: {
-    marginBottom: Layout.spacing.sm,
+    marginBottom: ResponsiveSpacing.sm,
   },
   searchInput: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: Layout.spacing.md,
-    paddingVertical: Layout.spacing.sm,
-    borderRadius: Layout.borderRadius.md,
+    paddingHorizontal: ResponsiveSpacing.md,
+    paddingVertical: ResponsiveSpacing.sm,
+    borderRadius: ResponsiveBorderRadius.md,
     borderWidth: 1,
-    gap: Layout.spacing.sm,
+    gap: ResponsiveSpacing.sm,
   },
   searchTextInput: {
     flex: 1,
-    fontSize: Layout.fontSize.md,
+    fontSize: responsiveValue(14, 16, 18, 20),
   },
   filterContainer: {
-    paddingHorizontal: Layout.spacing.lg,
-    paddingBottom: Layout.spacing.sm,
+    marginBottom: ResponsiveSpacing.sm,
   },
   filterLabel: {
-    marginBottom: Layout.spacing.sm,
+    marginBottom: ResponsiveSpacing.sm,
   },
   tabsContainer: {
-    paddingHorizontal: Layout.spacing.lg,
-    paddingBottom: Layout.spacing.md,
+    marginBottom: ResponsiveSpacing.lg,
   },
   tabsList: {
-    gap: Layout.spacing.sm,
+    gap: ResponsiveSpacing.sm,
   },
   tab: {
-    paddingHorizontal: Layout.spacing.md,
-    paddingVertical: Layout.spacing.sm,
-    borderRadius: Layout.borderRadius.pill,
+    paddingHorizontal: ResponsiveSpacing.md,
+    paddingVertical: ResponsiveSpacing.sm,
+    borderRadius: ResponsiveBorderRadius.pill,
     borderWidth: 1,
   },
   usersList: {
-    paddingHorizontal: Layout.spacing.lg,
+    paddingHorizontal: ResponsiveSpacing.lg,
     paddingTop: 0,
   },
   userCard: {
-    padding: Layout.spacing.md,
-    borderRadius: Layout.borderRadius.md,
-    marginBottom: Layout.spacing.md,
-    ...Layout.shadows.sm,
+    padding: ResponsiveSpacing.md,
+    borderRadius: ResponsiveBorderRadius.lg,
+    marginBottom: ResponsiveSpacing.md,
   },
   userHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
-    marginBottom: 12,
+    marginBottom: ResponsiveSpacing.sm,
   },
   userInfo: {
     flex: 1,
@@ -480,28 +525,28 @@ const styles = StyleSheet.create({
   userMeta: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 12,
-    gap: 8,
+    marginBottom: ResponsiveSpacing.sm,
+    gap: ResponsiveSpacing.sm,
   },
   roleBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 8,
+    paddingHorizontal: ResponsiveSpacing.sm,
+    paddingVertical: ResponsiveSpacing.xs,
+    borderRadius: ResponsiveBorderRadius.sm,
   },
   statusBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 8,
+    paddingHorizontal: ResponsiveSpacing.sm,
+    paddingVertical: ResponsiveSpacing.xs,
+    borderRadius: ResponsiveBorderRadius.sm,
   },
   customerStats: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginBottom: 12,
-    paddingVertical: 8,
+    marginBottom: ResponsiveSpacing.sm,
+    paddingVertical: ResponsiveSpacing.sm,
     borderTopWidth: 1,
     borderTopColor: 'rgba(0,0,0,0.1)',
   },
@@ -513,7 +558,7 @@ const styles = StyleSheet.create({
   userFooter: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginBottom: 16,
+    marginBottom: ResponsiveSpacing.md,
   },
   dateInfo: {
     flexDirection: 'row',
@@ -523,12 +568,29 @@ const styles = StyleSheet.create({
   userActions: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    gap: 8,
+    gap: ResponsiveSpacing.sm,
   },
   emptyState: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    padding: 40,
+    paddingVertical: ResponsiveSpacing.xxxl,
+    paddingHorizontal: ResponsiveSpacing.lg,
+    marginHorizontal: ResponsiveSpacing.lg,
+    borderRadius: ResponsiveBorderRadius.lg,
+    ...Layout.shadows.sm,
+  },
+  emptyIcon: {
+    width: responsiveValue(80, 90, 100, 120),
+    height: responsiveValue(80, 90, 100, 120),
+    borderRadius: responsiveValue(40, 45, 50, 60),
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: ResponsiveSpacing.md,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
 });

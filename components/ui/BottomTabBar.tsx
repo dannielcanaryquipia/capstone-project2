@@ -2,6 +2,7 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { BottomTabBarProps } from '@react-navigation/bottom-tabs';
 import React from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Layout from '../../constants/Layout';
 import { useNotificationContext } from '../../contexts/NotificationContext';
 import { useTheme } from '../../contexts/ThemeContext';
@@ -17,6 +18,11 @@ const ICON_MAP: Record<string, { focused: React.ComponentProps<typeof MaterialCo
 const BottomTabBar: React.FC<BottomTabBarProps> = ({ state, descriptors, navigation }) => {
   const { colors, isDark } = useTheme();
   const { unreadCount } = useNotificationContext();
+  const insets = useSafeAreaInsets();
+  
+  // Calculate dynamic bottom padding based on device safe area
+  const bottomPadding = Math.max(insets.bottom, 8); // Minimum 8px padding
+  const tabBarHeight = 60 + bottomPadding; // Base height + safe area
   
   return (
     <View
@@ -25,6 +31,8 @@ const BottomTabBar: React.FC<BottomTabBarProps> = ({ state, descriptors, navigat
         {
           backgroundColor: isDark ? 'rgba(0,0,0,0.25)' : 'rgba(255,255,255,0.6)',
           shadowColor: colors.black,
+          height: tabBarHeight,
+          paddingBottom: bottomPadding,
         },
       ]}
     >
@@ -99,8 +107,6 @@ const styles = StyleSheet.create({
     justifyContent: 'space-around',
     alignItems: 'center',
     width: '100%',
-    height: 100,
-    paddingBottom: 46,
     paddingTop: 18,
     borderTopWidth: 0,
     marginHorizontal: 0,

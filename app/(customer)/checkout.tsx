@@ -33,24 +33,25 @@ const paymentMethods: PaymentMethod[] = [
     isAvailable: true,
     color: '#4CAF50',
   },
-  {
-    id: 'gcash',
-    name: 'GCash',
-    icon: 'phone-android',
-    description: 'Pay using your GCash account',
-    isAvailable: true,
-    processingFee: 5.00,
-    color: '#0070F3',
-  },
-  {
-    id: 'paymaya',
-    name: 'PayMaya',
-    icon: 'credit-card',
-    description: 'Pay using your PayMaya account',
-    isAvailable: true,
-    processingFee: 5.00,
-    color: '#00D4AA',
-  }
+  // Online payment methods temporarily disabled
+  // {
+  //   id: 'gcash',
+  //   name: 'GCash',
+  //   icon: 'phone-android',
+  //   description: 'Pay using your GCash account',
+  //   isAvailable: false,
+  //   processingFee: 5.00,
+  //   color: '#0070F3',
+  // },
+  // {
+  //   id: 'paymaya',
+  //   name: 'PayMaya',
+  //   icon: 'credit-card',
+  //   description: 'Pay using your PayMaya account',
+  //   isAvailable: false,
+  //   processingFee: 5.00,
+  //   color: '#00D4AA',
+  // }
 ];
 
 export default function CheckoutScreen() {
@@ -77,7 +78,7 @@ export default function CheckoutScreen() {
   const { createOrder, isLoading: isCreatingOrder } = useCreateOrder();
   
   const [selectedAddress, setSelectedAddress] = useState<Address | null>(null);
-  const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<string>('cod');
+  const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<string>('cod'); // Always COD
   const [orderNotes, setOrderNotes] = useState('');
   const [checkoutError, setCheckoutError] = useState<string | null>(null);
   const [paymentProcessing, setPaymentProcessing] = useState(false);
@@ -431,7 +432,7 @@ export default function CheckoutScreen() {
             <ResponsiveView marginBottom="lg">
               <CheckoutSection
                 title="Payment Method"
-                subtitle="Choose how you want to pay"
+                subtitle="Currently only Cash on Delivery is available"
                 required
               >
                 <ResponsiveView 

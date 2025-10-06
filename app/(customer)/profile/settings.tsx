@@ -3,13 +3,14 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import {
-  Alert,
-  Linking,
-  ScrollView,
-  StyleSheet,
-  Switch,
-  TouchableOpacity
+    Alert,
+    Linking,
+    ScrollView,
+    StyleSheet,
+    Switch,
+    TouchableOpacity
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import Button from '../../../components/ui/Button';
 import ResponsiveText from '../../../components/ui/ResponsiveText';
 import ResponsiveView from '../../../components/ui/ResponsiveView';
@@ -221,8 +222,9 @@ export default function SettingsScreen() {
   };
 
   return (
-    <ScrollView style={[global.screen, { backgroundColor: colors.background }]}>
-      <ResponsiveView padding="lg">
+    <SafeAreaView style={[global.screen, { backgroundColor: colors.background }]}>
+      <ScrollView style={{ flex: 1 }}>
+        <ResponsiveView padding="lg">
         {/* Header */}
         <ResponsiveView style={[styles.header, { backgroundColor: colors.surface }]}>
           <ResponsiveView style={styles.headerLeft}>
@@ -425,8 +427,9 @@ export default function SettingsScreen() {
             Build 2024.01.15
           </ResponsiveText>
         </ResponsiveView>
-      </ResponsiveView>
-    </ScrollView>
+        </ResponsiveView>
+      </ScrollView>
+    </SafeAreaView>
   );
 }
 

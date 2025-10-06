@@ -144,7 +144,6 @@ export class OrderService {
         .from('orders')
         .insert({
         user_id: orderData.user_id,
-        order_number: this.generateOrderNumber(),
         status: 'Pending',
         payment_status: 'Pending',
           payment_method: orderData.payment_method,
@@ -293,7 +292,7 @@ export class OrderService {
       }
 
       if (filters?.search) {
-        query = query.or(`order_number.ilike.%${filters.search}%,user.full_name.ilike.%${filters.search}%`);
+        query = query.or(`id.ilike.%${filters.search}%,user.full_name.ilike.%${filters.search}%`);
       }
 
       const { data, error } = await query;

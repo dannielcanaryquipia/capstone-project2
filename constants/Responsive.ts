@@ -283,6 +283,16 @@ export const SafeArea = {
   top: responsiveValue(44, 44, 44, 20), // Status bar height
   bottom: responsiveValue(34, 34, 34, 20), // Home indicator height
   horizontal: responsiveValue(16, 20, 24, 32), // Horizontal safe area
+  
+  // Gesture navigation utilities
+  getDynamicBottom: (insets: { bottom: number }) => {
+    return Math.max(insets.bottom, 8); // Minimum 8px padding
+  },
+  
+  getTabBarHeight: (insets: { bottom: number }) => {
+    const bottomPadding = Math.max(insets.bottom, 8);
+    return 60 + bottomPadding;
+  },
 };
 
 // Shadows (imported from Layout)

@@ -103,7 +103,8 @@ export class OrderService {
             *,
             product:products(name, image_url)
           ),
-          delivery_address:addresses(*)
+          delivery_address:addresses(*),
+          customer:profiles!orders_user_id_fkey(full_name, phone_number, username)
         `)
         .eq('id', orderId)
         .single();

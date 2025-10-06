@@ -93,8 +93,35 @@ export default function OrderDetailScreen() {
     
     setLoading(true);
     try {
-      const orderData = await OrderService.getOrderById(id) as unknown as OrderDetail;
-      setOrder(orderData);
+      const raw = await OrderService.getOrderById(id) as any;
+
+      // Normalize customer from joined user
+      if (raw && !raw.customer && raw.user) {
+        raw.customer = {
+          id: raw.user_id,
+          full_name: raw.user.full_name || 'Unknown Customer',
+          phone_number: raw.user.phone_number,
+          username: raw.user.username || '',
+        };
+      }
+
+      // Normalize items -> order_items expected by UI
+      if (raw && !raw.order_items && Array.isArray(raw.items)) {
+        raw.order_items = raw.items.map((it: any) => ({
+          id: it.id,
+          product: {
+            id: it.product_id,
+            name: it.product?.name || it.product_name,
+            image_url: it.product?.image_url || it.product_image,
+          },
+          quantity: it.quantity,
+          unit_price: it.unit_price,
+          customization_details: it.customization_details,
+          selected_size: it.pizza_size || it.selected_size,
+        }));
+      }
+
+      setOrder(raw as OrderDetail);
     } catch (error) {
       console.error('Error loading order:', error);
       Alert.alert('Error', 'Failed to load order details');
@@ -216,7 +243,7 @@ export default function OrderDetailScreen() {
           <MaterialIcons name="arrow-back" size={responsiveValue(20, 24, 28, 32)} color={colors.text} />
         </TouchableOpacity>
         <ResponsiveText size="lg" weight="semiBold" color={colors.text}>
-          Order #{order.id.slice(-8)}
+          Order #{(order as any).order_number || order.id.slice(-8)}
         </ResponsiveText>
         <View style={{ width: responsiveValue(20, 24, 28, 32) }} />
       </ResponsiveView>

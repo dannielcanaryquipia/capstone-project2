@@ -1,6 +1,6 @@
 import { MaterialIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -13,6 +13,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import Button from '../../../components/ui/Button';
 import { ResponsiveText } from '../../../components/ui/ResponsiveText';
 import { ResponsiveView } from '../../../components/ui/ResponsiveView';
+import SelectablePill from '../../../components/ui/SelectablePill';
 import Layout from '../../../constants/Layout';
 import { ResponsiveBorderRadius, ResponsiveSpacing, responsiveValue } from '../../../constants/Responsive';
 import { Strings } from '../../../constants/Strings';
@@ -34,7 +35,10 @@ export default function AdminProductsScreen() {
     products, 
     isLoading: productsLoading, 
     error: productsError, 
-    refresh: refreshProducts 
+    refresh: refreshProducts,
+    loadMore,
+    hasMore,
+    isFetchingMore,
   } = useProducts({
     category_id: activeCategory === 'all' ? undefined : activeCategory,
     search: searchQuery || undefined,
@@ -101,10 +105,8 @@ export default function AdminProductsScreen() {
     );
   };
 
-  const getCategoryName = (categoryId: string) => {
-    const category = categories.find((c: ProductCategory) => c.id === categoryId);
-    return category?.name || 'Unknown';
-  };
+  const categoryMap = useMemo(() => new Map(categories.map((c: ProductCategory) => [c.id, c.name])), [categories]);
+  const getCategoryName = (categoryId: string) => categoryMap.get(categoryId) || 'Unknown';
 
   const renderProductItem = ({ item }: { item: Product }) => (
     <TouchableOpacity
@@ -138,7 +140,6 @@ export default function AdminProductsScreen() {
             )}
           </ResponsiveView>
         </ResponsiveView>
-        <MaterialIcons name="keyboard-arrow-right" size={responsiveValue(20, 22, 24, 28)} color={colors.textSecondary} />
       </ResponsiveView>
 
       <ResponsiveView style={styles.productDescription}>
@@ -239,7 +240,7 @@ export default function AdminProductsScreen() {
   return (
     <SafeAreaView style={[global.screen, { backgroundColor: colors.background }]} edges={['top']}>
       <ResponsiveView padding="lg">
-        <ResponsiveView style={[styles.header, { backgroundColor: colors.surface }]}>
+        <ResponsiveView padding="md" borderRadius="lg" style={[styles.headerContainer, { backgroundColor: colors.surface }] }>
           <ResponsiveView style={styles.headerTop}>
             <ResponsiveText size="xl" weight="bold" color={colors.text}>
               Manage Products
@@ -266,25 +267,14 @@ export default function AdminProductsScreen() {
             horizontal
             showsHorizontalScrollIndicator={false}
             renderItem={({ item }) => (
-              <TouchableOpacity
-                style={[
-                  styles.tab,
-                  activeCategory === item.id && { 
-                    backgroundColor: colors.primary,
-                    borderColor: colors.primary,
-                  },
-                  activeCategory !== item.id && { borderColor: colors.border },
-                ]}
+              <SelectablePill
+                label={(item.name || '').trim()}
+                selected={activeCategory === item.id}
                 onPress={() => setActiveCategory(item.id)}
-              >
-                <ResponsiveText 
-                  size="sm" 
-                  weight="medium"
-                  color={activeCategory === item.id ? colors.background : colors.text}
-                >
-                  {item.name}
-                </ResponsiveText>
-              </TouchableOpacity>
+                style={styles.tab}
+                size="md"
+                textTransform="capitalize"
+              />
             )}
             keyExtractor={(item) => item.id}
             contentContainerStyle={styles.tabsList}
@@ -299,8 +289,19 @@ export default function AdminProductsScreen() {
           keyExtractor={(item) => item.id}
           contentContainerStyle={styles.productsList}
           showsVerticalScrollIndicator={false}
+          onEndReachedThreshold={0.5}
+          onEndReached={() => {
+            if (hasMore && !isFetchingMore) {
+              loadMore();
+            }
+          }}
           refreshControl={
             <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />
+          }
+          ListFooterComponent={
+            isFetchingMore ? (
+              <ActivityIndicator style={{ marginVertical: ResponsiveSpacing.md }} color={colors.primary} />
+            ) : null
           }
         />
       ) : (
@@ -340,12 +341,11 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+  headerContainer: {
+    flexDirection: 'column',
+    justifyContent: 'center',
+    alignItems: 'stretch',
     marginBottom: ResponsiveSpacing.lg,
-    padding: ResponsiveSpacing.md,
     borderRadius: ResponsiveBorderRadius.lg,
     ...Layout.shadows.sm,
   },

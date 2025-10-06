@@ -1,5 +1,4 @@
 import { MaterialIcons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
@@ -26,7 +25,6 @@ const roleTabs = ['All', 'Customer', 'Admin', 'Delivery Staff'];
 
 export default function AdminUsersScreen() {
   const { colors } = useTheme();
-  const router = useRouter();
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -88,28 +86,7 @@ export default function AdminUsersScreen() {
     setRefreshing(false);
   };
 
-  const handleToggleUserStatus = async (userId: string, currentStatus: boolean, userName: string) => {
-    Alert.alert(
-      'Toggle User Status',
-      `Are you sure you want to ${currentStatus ? 'deactivate' : 'activate'} ${userName}?`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        { 
-          text: currentStatus ? 'Deactivate' : 'Activate', 
-          onPress: async () => {
-            try {
-              await UserService.toggleUserStatus(userId);
-              await loadUsers();
-              Alert.alert('Success', `User ${currentStatus ? 'deactivated' : 'activated'} successfully!`);
-            } catch (error) {
-              console.error('Error updating user:', error);
-              Alert.alert('Error', 'Failed to update user. Please try again.');
-            }
-          }
-        }
-      ]
-    );
-  };
+  // Removed Activate/Deactivate user logic as requested
 
   const handleChangeRole = async (userId: string, currentRole: string, userName: string) => {
     const roleOptions = ['customer', 'admin', 'delivery'];
@@ -189,13 +166,11 @@ export default function AdminUsersScreen() {
   };
 
   const renderUserItem = ({ item }: { item: User }) => (
-    <TouchableOpacity
+    <View
       style={[styles.userCard, { 
         backgroundColor: colors.surface, 
         ...Layout.shadows.sm
       }]}
-      onPress={() => router.push(`/(admin)/users/${item.id}` as any)}
-      activeOpacity={0.7}
     >
       <ResponsiveView style={styles.userHeader}>
         <ResponsiveView style={styles.userInfo}>
@@ -211,7 +186,7 @@ export default function AdminUsersScreen() {
             </ResponsiveText>
           )}
         </ResponsiveView>
-        <MaterialIcons name="keyboard-arrow-right" size={responsiveValue(20, 22, 24, 28)} color={colors.textSecondary} />
+        {/* Removed chevron navigation */}
       </ResponsiveView>
 
       <ResponsiveView style={styles.userMeta}>
@@ -232,49 +207,10 @@ export default function AdminUsersScreen() {
           </ResponsiveView>
         </ResponsiveView>
         
-        <ResponsiveView 
-          style={[
-            styles.statusBadge, 
-            { backgroundColor: item.is_active ? `${colors.success}20` : `${colors.error}20` }
-          ]}
-        >
-          <MaterialIcons 
-            name={item.is_active ? 'check-circle' : 'cancel'} 
-            size={responsiveValue(12, 14, 16, 18)} 
-            color={item.is_active ? colors.success : colors.error} 
-          />
-          <ResponsiveView marginLeft="xs">
-            <ResponsiveText 
-              size="xs" 
-              color={item.is_active ? colors.success : colors.error}
-              weight="semiBold"
-            >
-              {item.is_active ? 'Active' : 'Inactive'}
-            </ResponsiveText>
-          </ResponsiveView>
-        </ResponsiveView>
+        {/* Status badge removed */}
       </ResponsiveView>
 
-      {item.role === 'customer' && (
-        <ResponsiveView style={styles.customerStats}>
-          <ResponsiveView style={styles.statItem}>
-            <MaterialIcons name="receipt" size={responsiveValue(14, 16, 18, 20)} color={colors.textSecondary} />
-            <ResponsiveView marginLeft="xs">
-              <ResponsiveText size="sm" color={colors.textSecondary}>
-                {item.total_orders || 0} orders
-              </ResponsiveText>
-            </ResponsiveView>
-          </ResponsiveView>
-          <ResponsiveView style={styles.statItem}>
-            <MaterialIcons name="attach-money" size={responsiveValue(14, 16, 18, 20)} color={colors.textSecondary} />
-            <ResponsiveView marginLeft="xs">
-              <ResponsiveText size="sm" color={colors.textSecondary}>
-                ₱{(item.total_spent || 0).toFixed(2)} spent
-              </ResponsiveText>
-            </ResponsiveView>
-          </ResponsiveView>
-        </ResponsiveView>
-      )}
+      {/* Removed orders and spent stats */}
 
       <ResponsiveView style={styles.userFooter}>
         <ResponsiveView style={styles.dateInfo}>
@@ -286,25 +222,10 @@ export default function AdminUsersScreen() {
           </ResponsiveView>
         </ResponsiveView>
         
-        {item.last_login && (
-          <ResponsiveView style={styles.dateInfo}>
-            <MaterialIcons name="login" size={responsiveValue(12, 14, 16, 18)} color={colors.textSecondary} />
-            <ResponsiveView marginLeft="xs">
-              <ResponsiveText size="xs" color={colors.textSecondary}>
-                Last login: {formatDate(item.last_login)}
-              </ResponsiveText>
-            </ResponsiveView>
-          </ResponsiveView>
-        )}
+        {/* Removed last login display */}
       </ResponsiveView>
 
       <ResponsiveView style={styles.userActions}>
-        <Button
-          title={item.is_active ? 'Deactivate' : 'Activate'}
-          onPress={() => handleToggleUserStatus(item.id, item.is_active, item.full_name)}
-          variant="outline"
-          size="small"
-        />
         <Button
           title="Change Role"
           onPress={() => handleChangeRole(item.id, item.role, item.full_name)}
@@ -318,7 +239,7 @@ export default function AdminUsersScreen() {
           size="small"
         />
       </ResponsiveView>
-    </TouchableOpacity>
+    </View>
   );
 
   if (loading) {
@@ -437,13 +358,7 @@ export default function AdminUsersScreen() {
             </ResponsiveText>
           </ResponsiveView>
           
-          <ResponsiveView marginTop="lg">
-            <Button
-              title="Add First User"
-              onPress={() => router.push('/(admin)/users/add' as any)}
-              variant="primary"
-            />
-          </ResponsiveView>
+          {/* Removed Add First User button (routing) */}
         </ResponsiveView>
       )}
     </SafeAreaView>

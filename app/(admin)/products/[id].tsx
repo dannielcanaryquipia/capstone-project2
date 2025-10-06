@@ -2,13 +2,13 @@ import { MaterialIcons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import {
-    ActivityIndicator,
-    Alert,
-    ScrollView,
-    StyleSheet,
-    TextInput,
-    TouchableOpacity,
-    View
+  ActivityIndicator,
+  Alert,
+  ScrollView,
+  StyleSheet,
+  TextInput,
+  TouchableOpacity,
+  View
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Button from '../../../components/ui/Button';
@@ -83,7 +83,7 @@ export default function EditProductScreen() {
     } catch (error) {
       console.error('Error loading product:', error);
       Alert.alert('Error', 'Failed to load product details');
-      router.back();
+      router.replace('/(admin)/products' as any);
     } finally {
       setLoading(false);
     }
@@ -142,7 +142,7 @@ export default function EditProductScreen() {
 
       await ProductService.updateProduct(id, productData);
       Alert.alert('Success', 'Product updated successfully!', [
-        { text: 'OK', onPress: () => router.back() }
+        { text: 'OK', onPress: () => router.replace('/(admin)/products' as any) }
       ]);
     } catch (error) {
       console.error('Error updating product:', error);
@@ -158,7 +158,7 @@ export default function EditProductScreen() {
       'Are you sure you want to discard your changes?',
       [
         { text: 'Keep Editing', style: 'cancel' },
-        { text: 'Discard', style: 'destructive', onPress: () => router.back() }
+        { text: 'Discard', style: 'destructive', onPress: () => router.replace('/(admin)/products' as any) }
       ]
     );
   };
@@ -196,7 +196,7 @@ export default function EditProductScreen() {
           <ResponsiveView marginTop="lg">
             <Button
               title="Go Back"
-              onPress={() => router.back()}
+              onPress={() => router.replace('/(admin)/products' as any)}
               variant="primary"
             />
           </ResponsiveView>
@@ -209,7 +209,7 @@ export default function EditProductScreen() {
     <SafeAreaView style={[global.screen, { backgroundColor: colors.background }]}>
       {/* Header */}
       <ResponsiveView style={[styles.header, { backgroundColor: colors.surface }]}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+        <TouchableOpacity onPress={() => router.replace('/(admin)/products' as any)} style={styles.backButton}>
           <MaterialIcons name="arrow-back" size={responsiveValue(20, 24, 28, 32)} color={colors.text} />
         </TouchableOpacity>
         <ResponsiveText size="lg" weight="semiBold" color={colors.text}>

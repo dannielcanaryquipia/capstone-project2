@@ -199,6 +199,51 @@ export default function AdminDashboard() {
             </ResponsiveView>
           </ResponsiveView>
 
+        {/* Order Status Summary */}
+        <ResponsiveView style={[styles.statusSummarySection, { backgroundColor: colors.surface }]}>
+          <ResponsiveView style={styles.sectionHeader}>
+            <ResponsiveText size="lg" weight="semiBold" color={colors.text}>
+              Order Status
+            </ResponsiveText>
+            <Button
+              title="Manage Orders"
+              onPress={() => router.push('/(admin)/orders' as any)}
+              variant="text"
+              size="small"
+            />
+          </ResponsiveView>
+
+          <ResponsiveView style={styles.statusSummaryGrid}>
+            {[
+              { key: 'pending', label: 'Pending', value: stats?.pending_orders || 0 },
+              { key: 'preparing', label: 'Preparing', value: stats?.preparing_orders || 0 },
+              { key: 'out_for_delivery', label: 'Out for Delivery', value: stats?.out_for_delivery || 0 },
+              { key: 'delivered', label: 'Delivered', value: stats?.delivered_orders || 0 },
+              { key: 'cancelled', label: 'Cancelled', value: stats?.cancelled_orders || 0 },
+            ].map((s) => (
+              <ResponsiveView
+                key={s.key}
+                style={[
+                  styles.statusSummaryItem,
+                  { backgroundColor: (getStatusColor(s.key) + '20') as any },
+                ]}
+              >
+                <ResponsiveView style={styles.statusSummaryHeader}>
+                  <ResponsiveView style={[styles.statusSummaryIcon, { backgroundColor: (getStatusColor(s.key) + '1A') as any }] }>
+                    <MaterialIcons name={getStatusIcon(s.key)} size={16} color={getStatusColor(s.key)} />
+                  </ResponsiveView>
+                  <ResponsiveText size="sm" color={getStatusColor(s.key)} weight="semiBold">
+                    {s.label}
+                  </ResponsiveText>
+                </ResponsiveView>
+                <ResponsiveText size="xl" weight="bold" color={colors.text}>
+                  {s.value}
+                </ResponsiveText>
+              </ResponsiveView>
+            ))}
+          </ResponsiveView>
+        </ResponsiveView>
+
           {/* Management Grid */}
           <ResponsiveView style={styles.managementGrid}>
             {managementSections.map((section) => (
@@ -385,6 +430,36 @@ const styles = StyleSheet.create({
   },
   recentOrdersSection: {
     marginBottom: Responsive.ResponsiveSpacing.xl,
+  },
+  statusSummarySection: {
+    marginBottom: Responsive.ResponsiveSpacing.xl,
+    padding: Responsive.ResponsiveSpacing.lg,
+    borderRadius: Responsive.ResponsiveBorderRadius.lg,
+    ...Layout.shadows.sm,
+  },
+  statusSummaryGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+    gap: Responsive.ResponsiveSpacing.sm,
+  },
+  statusSummaryItem: {
+    width: '48%',
+    borderRadius: Responsive.ResponsiveBorderRadius.md,
+    padding: Responsive.ResponsiveSpacing.md,
+  },
+  statusSummaryHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Responsive.ResponsiveSpacing.xs,
+    marginBottom: Responsive.ResponsiveSpacing.xs,
+  },
+  statusSummaryIcon: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   sectionHeader: {
     flexDirection: 'row',

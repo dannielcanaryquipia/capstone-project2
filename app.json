@@ -4,7 +4,7 @@
     "slug": "capstone-project2",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/images/icon.png",
+    "icon": "./assets/images/logo.png",
     "scheme": "capstoneproject2",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
@@ -18,8 +18,8 @@
     },
     "android": {
       "adaptiveIcon": {
-        "foregroundImage": "./assets/images/adaptive-icon.png",
-        "backgroundColor": "#ffffff"
+        "foregroundImage": "./assets/images/logo.png",
+        "backgroundColor": "transparent"
       },
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false

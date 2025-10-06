@@ -12,43 +12,43 @@ export default function AdminLayout() {
       headerShown: false, // Hide headers globally
     }}>
       <Tabs.Screen 
-        name="dashboard" 
+        name="dashboard/index" 
         options={{
           title: 'Dashboard',
         }}
       />
       <Tabs.Screen 
-        name="orders" 
+        name="orders/index" 
         options={{
           title: 'Orders',
         }}
       />
       <Tabs.Screen 
-        name="menu" 
+        name="menu/index" 
         options={{
           title: 'Menu',
         }}
       />
       <Tabs.Screen 
-        name="users" 
+        name="users/index" 
         options={{
           title: 'Users',
         }}
       />
       <Tabs.Screen 
-        name="reports" 
+        name="reports/index" 
         options={{
           title: 'Reports',
         }}
       />
       <Tabs.Screen 
-        name="products" 
+        name="products/index" 
         options={{
           title: 'Products',
         }}
       />
       <Tabs.Screen 
-        name="profile" 
+        name="profile/index" 
         options={{
           title: 'Profile',
         }}

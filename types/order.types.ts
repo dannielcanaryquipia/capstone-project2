@@ -83,6 +83,12 @@ export interface Order {
   delivery_instructions?: string;
   estimated_delivery_time?: string;
   actual_delivery_time?: string;
+
+  // Related user (admin queries may join profiles)
+  user?: {
+    full_name?: string;
+    phone_number?: string;
+  };
   
   // Assignment
   assigned_delivery_id?: string;

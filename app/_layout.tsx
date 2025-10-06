@@ -5,11 +5,13 @@ import {
   DefaultTheme as NavigationDefaultTheme,
   ThemeProvider
 } from '@react-navigation/native';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
 import { useFonts } from 'expo-font';
 import { Stack, useRouter, useSegments } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { useEffect } from 'react';
-import { ActivityIndicator, View } from 'react-native';
+import { ActivityIndicator, Platform, View } from 'react-native';
 import {
   adaptNavigationTheme,
   MD3DarkTheme,
@@ -225,13 +227,17 @@ function AppContent() {
 }
 
 export default function RootLayout() {
+  const queryClient = new QueryClient();
   return (
-    <AppThemeProvider>
-      <SafeAreaProvider>
-        <AuthGuard>
-          <AppContent />
-        </AuthGuard>
-      </SafeAreaProvider>
-    </AppThemeProvider>
+    <QueryClientProvider client={queryClient}>
+      <AppThemeProvider>
+        <SafeAreaProvider>
+          <AuthGuard>
+            <AppContent />
+          </AuthGuard>
+        </SafeAreaProvider>
+      </AppThemeProvider>
+      {Platform.OS === 'web' ? <ReactQueryDevtools initialIsOpen={false} /> : null}
+    </QueryClientProvider>
   );
 }

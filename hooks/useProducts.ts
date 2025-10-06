@@ -1,30 +1,26 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useInfiniteQuery } from '@tanstack/react-query';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { ProductService } from '../services/product.service';
 import { Product, ProductCategory, ProductFilters, ProductStats } from '../types/product.types';
 
 export const useProducts = (filters?: ProductFilters) => {
-  const [products, setProducts] = useState<Product[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const pageSize = 20;
+  const key = useMemo(() => ['products-lite', filters ?? {}], [filters]);
 
-  const fetchProducts = useCallback(async () => {
-    try {
-      setIsLoading(true);
-      setError(null);
-      const data = await ProductService.getProducts(filters);
-      setProducts(data);
-    } catch (err: any) {
-      console.error('Error fetching products:', err);
-      setError(err.message || 'Failed to load products');
-    } finally {
-      setIsLoading(false);
-    }
-  }, [filters]);
+  const query = useInfiniteQuery<Product[], Error>({
+    queryKey: key,
+    initialPageParam: 0,
+    queryFn: async ({ pageParam }) => {
+      const offset = (pageParam as number) * pageSize;
+      return ProductService.getProductsLite(filters, { limit: pageSize, offset });
+    },
+    getNextPageParam: (lastPage, allPages) => (lastPage.length < pageSize ? undefined : allPages.length),
+    staleTime: 30_000,
+    gcTime: 5 * 60_000,
+  });
 
-  useEffect(() => {
-    fetchProducts();
-  }, [fetchProducts]);
+  const products = (query.data?.pages ?? []).flat();
 
   // Real-time subscription for product updates
   useEffect(() => {
@@ -37,28 +33,27 @@ export const useProducts = (filters?: ProductFilters) => {
           schema: 'public',
           table: 'products',
         },
-        (payload) => {
-          console.log('Product change received:', payload);
-          // Refetch products when any product changes
-          fetchProducts();
-        }
+        () => query.refetch()
       )
       .subscribe();
 
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [fetchProducts]);
+  }, [query]);
 
-  const refresh = useCallback(() => {
-    fetchProducts();
-  }, [fetchProducts]);
+  const refresh = useCallback(async () => {
+    await query.refetch();
+  }, [query]);
 
   return {
     products,
-    isLoading,
-    error,
+    isLoading: query.isLoading,
+    error: query.error?.message ?? null,
     refresh,
+    loadMore: query.fetchNextPage,
+    hasMore: !!query.hasNextPage,
+    isFetchingMore: query.isFetchingNextPage,
   };
 };
 

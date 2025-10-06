@@ -1,44 +1,40 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useEffect, useMemo } from 'react';
 import { supabase } from '../lib/supabase';
 import { ProductService } from '../services/product.service';
 import { Product, ProductCategory, ProductFilters } from '../types/product.types';
 
 export const useAdminProducts = (filters?: ProductFilters) => {
-  const [products, setProducts] = useState<Product[]>([]);
-  const [categories, setCategories] = useState<ProductCategory[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [refreshing, setRefreshing] = useState(false);
+  const queryClient = useQueryClient();
 
-  const fetchData = useCallback(async () => {
-    try {
-      setIsLoading(true);
-      setError(null);
-      
-      const [productsData, categoriesData] = await Promise.all([
-        ProductService.getProducts(filters),
-        ProductService.getCategories(),
-      ]);
-      
-      setProducts(productsData);
-      setCategories(categoriesData);
-    } catch (err: any) {
-      console.error('Error fetching admin products:', err);
-      setError(err.message || 'Failed to load products');
-    } finally {
-      setIsLoading(false);
-    }
-  }, [JSON.stringify(filters)]);
+  const productsQueryKey = useMemo(() => ['admin', 'products', filters ?? {}], [filters]);
+  const categoriesQueryKey = useMemo(() => ['admin', 'categories'], []);
 
-  const refresh = useCallback(async () => {
-    setRefreshing(true);
-    await fetchData();
-    setRefreshing(false);
-  }, [fetchData]);
+  const {
+    data: products,
+    isLoading: isLoadingProducts,
+    isFetching: isFetchingProducts,
+    error: productsError,
+    refetch: refetchProducts,
+  } = useQuery<Product[], Error>({
+    queryKey: productsQueryKey,
+    queryFn: () => ProductService.getProducts(filters),
+    staleTime: 30_000,
+    gcTime: 5 * 60_000,
+  });
 
-  useEffect(() => {
-    fetchData();
-  }, [fetchData]);
+  const {
+    data: categories,
+    isLoading: isLoadingCategories,
+    isFetching: isFetchingCategories,
+    error: categoriesError,
+    refetch: refetchCategories,
+  } = useQuery<ProductCategory[], Error>({
+    queryKey: categoriesQueryKey,
+    queryFn: () => ProductService.getCategories(),
+    staleTime: 60_000,
+    gcTime: 10 * 60_000,
+  });
 
   // Real-time subscription for product updates
   useEffect(() => {
@@ -51,9 +47,8 @@ export const useAdminProducts = (filters?: ProductFilters) => {
           schema: 'public',
           table: 'products',
         },
-        (payload) => {
-          console.log('Admin product change received:', payload);
-          fetchData();
+        () => {
+          queryClient.invalidateQueries({ queryKey: productsQueryKey });
         }
       )
       .subscribe();
@@ -61,7 +56,7 @@ export const useAdminProducts = (filters?: ProductFilters) => {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [fetchData]);
+  }, [queryClient, productsQueryKey]);
 
   // Real-time subscription for category updates
   useEffect(() => {
@@ -74,9 +69,8 @@ export const useAdminProducts = (filters?: ProductFilters) => {
           schema: 'public',
           table: 'categories',
         },
-        (payload) => {
-          console.log('Admin category change received:', payload);
-          fetchData();
+        () => {
+          queryClient.invalidateQueries({ queryKey: categoriesQueryKey });
         }
       )
       .subscribe();
@@ -84,14 +78,16 @@ export const useAdminProducts = (filters?: ProductFilters) => {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [fetchData]);
+  }, [queryClient, categoriesQueryKey]);
 
   return {
-    products,
-    categories,
-    isLoading,
-    error,
-    refreshing,
-    refresh,
+    products: products ?? [],
+    categories: categories ?? [],
+    isLoading: isLoadingProducts || isLoadingCategories,
+    error: (productsError || categoriesError)?.message ?? null,
+    refreshing: isFetchingProducts || isFetchingCategories,
+    refresh: async () => {
+      await Promise.all([refetchProducts(), refetchCategories()]);
+    },
   };
 };

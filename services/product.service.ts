@@ -2,6 +2,67 @@ import { supabase } from '../lib/supabase';
 import { Product, ProductCategory, ProductFilters, ProductStats } from '../types/product.types';
 
 export class ProductService {
+  // Lightweight list for admin screens (no pizza options/crust join)
+  static async getProductsLite(
+    filters?: ProductFilters,
+    options?: { limit?: number; offset?: number }
+  ): Promise<Product[]> {
+    try {
+      const limit = options?.limit ?? 20;
+      const offset = options?.offset ?? 0;
+
+      let query = supabase
+        .from('products')
+        .select(`
+          id,
+          name,
+          description,
+          base_price,
+          category_id,
+          is_available,
+          is_recommended,
+          created_at,
+          categories:categories(name)
+        `)
+        .order('created_at', { ascending: false })
+        .range(offset, offset + limit - 1);
+
+      if (filters?.category_id) {
+        query = query.eq('category_id', filters.category_id);
+      }
+
+      if (filters?.is_available !== undefined) {
+        query = query.eq('is_available', filters.is_available);
+      }
+
+      if (filters?.is_recommended !== undefined) {
+        query = query.eq('is_recommended', filters.is_recommended);
+      }
+
+      if (filters?.search) {
+        query = query.or(`name.ilike.%${filters.search}%,description.ilike.%${filters.search}%`);
+      }
+
+      if (filters?.price_min) {
+        query = query.gte('base_price', filters.price_min);
+      }
+
+      if (filters?.price_max) {
+        query = query.lte('base_price', filters.price_max);
+      }
+
+      const { data, error } = await query;
+
+      if (error) throw error;
+
+      // Ensure backward-compat price field
+      const products = (data || []).map((p: any) => ({ ...p, price: p.base_price }));
+      return products as Product[];
+    } catch (error) {
+      console.error('Error fetching products (lite):', error);
+      throw error;
+    }
+  }
   // Get all products with filters
   static async getProducts(filters?: ProductFilters): Promise<Product[]> {
     try {

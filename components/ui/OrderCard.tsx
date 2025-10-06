@@ -153,6 +153,7 @@ export const OrderCard: React.FC<OrderCardProps> = ({
   const statusColor = getStatusColor(order.status, colors);
   const statusIcon = getStatusIcon(order.status);
   const orderTime = formatOrderDate(order.created_at);
+  const displayOrderNumber = (order as any).order_number || (order.id ? order.id.slice(-8) : '');
   
   // Get the first item's image or use a default
   const firstItem = order.items?.[0];
@@ -168,7 +169,7 @@ export const OrderCard: React.FC<OrderCardProps> = ({
     >
       <ResponsiveView style={styles.compactHeader}>
         <ResponsiveText size="md" weight="semiBold" color={colors.text}>
-          {order.order_number}
+          {displayOrderNumber}
         </ResponsiveText>
         <ResponsiveView style={[styles.statusBadge, { backgroundColor: `${statusColor}20` }]}>
           <MaterialIcons 
@@ -202,7 +203,7 @@ export const OrderCard: React.FC<OrderCardProps> = ({
         <Image source={{ uri: orderImage }} style={styles.orderImage} />
         <ResponsiveView style={styles.detailedInfo}>
           <ResponsiveText size="lg" weight="semiBold" color={colors.text}>
-            {order.order_number}
+            {displayOrderNumber}
           </ResponsiveText>
           <ResponsiveView style={[styles.statusBadge, { backgroundColor: `${statusColor}20` }]}>
             <MaterialIcons 
@@ -214,6 +215,9 @@ export const OrderCard: React.FC<OrderCardProps> = ({
               {displayStatus}
             </ResponsiveText>
           </ResponsiveView>
+          <ResponsiveText size="sm" color={colors.textSecondary} numberOfLines={2}>
+            {productName}
+          </ResponsiveText>
         </ResponsiveView>
         <MaterialIcons name="keyboard-arrow-right" size={24} color={colors.textSecondary} />
       </ResponsiveView>
@@ -353,6 +357,9 @@ export const OrderCard: React.FC<OrderCardProps> = ({
                 {displayStatus}
               </ResponsiveText>
             </ResponsiveView>
+            <ResponsiveText size="sm" color={colors.textTertiary} numberOfLines={1}>
+              {order.user?.full_name || 'Unknown Customer'} • {order.user?.phone_number || 'No phone'}
+            </ResponsiveText>
           </ResponsiveView>
         </ResponsiveView>
         <MaterialIcons name="keyboard-arrow-right" size={24} color={colors.textSecondary} />

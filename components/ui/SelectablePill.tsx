@@ -10,6 +10,7 @@ type SelectablePillProps = {
   onPress?: () => void;
   style?: ViewStyle | ViewStyle[];
   size?: 'sm' | 'md';
+  textTransform?: 'none' | 'uppercase' | 'lowercase' | 'capitalize';
 };
 
 export default function SelectablePill({
@@ -18,6 +19,7 @@ export default function SelectablePill({
   onPress,
   style,
   size = 'md',
+  textTransform = 'capitalize',
 }: SelectablePillProps) {
   const { colors } = useTheme();
 
@@ -40,6 +42,8 @@ export default function SelectablePill({
         size="sm"
         color={selected ? colors.categoryButtonActiveText : colors.categoryButtonText}
         weight={selected ? 'semiBold' : 'regular'}
+        transform={textTransform}
+        numberOfLines={1}
         style={{ textAlign: 'center', lineHeight: undefined }}
       >
         {label}

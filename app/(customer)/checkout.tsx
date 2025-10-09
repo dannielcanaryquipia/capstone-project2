@@ -1,3 +1,4 @@
+import * as ImagePicker from 'expo-image-picker';
 import { useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import {
@@ -13,6 +14,7 @@ import { CheckoutLoadingState } from '../../components/ui/CheckoutLoadingState';
 import { CheckoutSection } from '../../components/ui/CheckoutSection';
 import { EmptyState } from '../../components/ui/EmptyState';
 import { ErrorState } from '../../components/ui/ErrorState';
+import { GCashPaymentModal } from '../../components/ui/GCashPaymentModal';
 import { OrderSummary, OrderSummaryCard } from '../../components/ui/OrderSummaryCard';
 import { PaymentMethod, PaymentMethodCard } from '../../components/ui/PaymentMethodCard';
 import { ResponsiveText } from '../../components/ui/ResponsiveText';
@@ -23,6 +25,7 @@ import { useTheme } from '../../contexts/ThemeContext';
 import { useAddresses } from '../../hooks/useAddresses';
 import { useCart, useCartValidation } from '../../hooks/useCart';
 import { useCreateOrder } from '../../hooks/useOrders';
+import { supabase } from '../../lib/supabase';
 
 const paymentMethods: PaymentMethod[] = [
   {
@@ -33,16 +36,15 @@ const paymentMethods: PaymentMethod[] = [
     isAvailable: true,
     color: '#4CAF50',
   },
-  // Online payment methods temporarily disabled
-  // {
-  //   id: 'gcash',
-  //   name: 'GCash',
-  //   icon: 'phone-android',
-  //   description: 'Pay using your GCash account',
-  //   isAvailable: false,
-  //   processingFee: 5.00,
-  //   color: '#0070F3',
-  // },
+  {
+    id: 'gcash',
+    name: 'GCash',
+    icon: 'phone-android',
+    description: 'Upload receipt; admin verifies before preparation',
+    isAvailable: true,
+    processingFee: 0,
+    color: '#0070F3',
+  },
   // {
   //   id: 'paymaya',
   //   name: 'PayMaya',
@@ -78,13 +80,15 @@ export default function CheckoutScreen() {
   const { createOrder, isLoading: isCreatingOrder } = useCreateOrder();
   
   const [selectedAddress, setSelectedAddress] = useState<Address | null>(null);
-  const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<string>('cod'); // Always COD
+  const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<string>('cod');
   const [orderNotes, setOrderNotes] = useState('');
   const [checkoutError, setCheckoutError] = useState<string | null>(null);
   const [paymentProcessing, setPaymentProcessing] = useState(false);
   const [paymentRetryCount, setPaymentRetryCount] = useState(0);
   const [lastPaymentError, setLastPaymentError] = useState<string | null>(null);
-
+  const [gcashModalVisible, setGcashModalVisible] = useState(false);
+  const [proofUri, setProofUri] = useState<string | null>(null);
+  const gcashQrImage = require('../../assets/gcash_qr.jpg'); // use lowercase extension for Metro
   // Calculate processing fee based on selected payment method
   const selectedPaymentMethodData = paymentMethods.find(method => method.id === selectedPaymentMethod);
   const processingFee = selectedPaymentMethodData?.processingFee || 0;
@@ -147,60 +151,13 @@ export default function CheckoutScreen() {
       if (selectedPaymentMethod === 'cod') {
         // Cash on Delivery - no payment processing needed
         paymentResult = { success: true, method: 'cod' };
-      } else if (selectedPaymentMethod === 'gcash' || selectedPaymentMethod === 'paymaya') {
-        // Online payment processing with retry logic
-        setPaymentProcessing(true);
-        setLastPaymentError(null);
-        
-        try {
-          paymentResult = await processOnlinePayment(selectedPaymentMethod, total);
-          
-          if (!paymentResult.success) {
-            setLastPaymentError(paymentResult.error || 'Unknown error');
-            
-            // Show retry dialog for payment failures
-            Alert.alert(
-              'Payment Failed',
-              `${paymentResult.error || 'Payment could not be processed'}. Would you like to try again?`,
-              [
-                {
-                  text: 'Try Different Method',
-                  onPress: () => {
-                    setPaymentRetryCount(0);
-                    setLastPaymentError(null);
-                  }
-                },
-                {
-                  text: 'Retry Payment',
-                  onPress: () => {
-                    if (paymentRetryCount < 2) {
-                      setPaymentRetryCount(prev => prev + 1);
-                      // Retry payment by calling handlePlaceOrder again
-                      setTimeout(() => handlePlaceOrder(), 1000);
-                    } else {
-                      setCheckoutError('Payment failed after multiple attempts. Please try a different payment method.');
-                    }
-                  }
-                },
-                {
-                  text: 'Cancel',
-                  style: 'cancel',
-                  onPress: () => {
-                    setPaymentRetryCount(0);
-                    setLastPaymentError(null);
-                  }
-                }
-              ]
-            );
-            return;
-          } else {
-            // Payment successful, reset retry count
-            setPaymentRetryCount(0);
-            setLastPaymentError(null);
-          }
-        } finally {
-          setPaymentProcessing(false);
+      } else if (selectedPaymentMethod === 'gcash') {
+        // GCash offline flow: require proof upload and show QR modal first
+        if (!proofUri) {
+          setGcashModalVisible(true);
+          return; // wait for user to upload then press Place Order again
         }
+        paymentResult = { success: true, method: 'gcash' };
       }
 
       const orderData = {
@@ -219,26 +176,50 @@ export default function CheckoutScreen() {
         })),
         delivery_address_id: selectedAddress.id,
         payment_method: selectedPaymentMethod,
-        payment_reference: paymentResult?.reference,
         processing_fee: processingFee,
         notes: orderNotes,
-        subtotal,
-        total,
       };
 
       const order = await createOrder(orderData);
+
+      // If gcash with proof, upload to storage and link via RPC insert
+      if (selectedPaymentMethod === 'gcash' && proofUri) {
+        try {
+          const { data: { user } } = await supabase.auth.getUser();
+          if (!user) throw new Error('Not authenticated');
+
+          const fileResp = await fetch(proofUri);
+          const blob = await fileResp.blob();
+          const path = `orders/${order.id}/payments/${Date.now()}.jpg`;
+          const { error: upErr } = await supabase.storage.from('payments').upload(path, blob, { contentType: 'image/jpeg' });
+          if (upErr) throw upErr;
+          const { data: { publicUrl } } = supabase.storage.from('payments').getPublicUrl(path);
+
+          await supabase.from('payment_transactions' as any).insert({
+            order_id: order.id,
+            amount: order.total_amount,
+            payment_method: 'GCASH',
+            status: 'Pending',
+            proof_of_payment_url: publicUrl,
+          } as any);
+
+          await supabase.from('orders').update({ proof_of_payment_url: publicUrl }).eq('id', order.id);
+        } catch (e) {
+          console.log('Proof upload failed', e);
+        }
+      }
       
       // Clear cart after successful order
       clearCart();
       
       // Show different confirmation messages based on payment method
       const paymentMethodName = selectedPaymentMethodData?.name || 'Unknown';
-      const isOnlinePayment = selectedPaymentMethod !== 'cod';
+      const isOnlinePayment = selectedPaymentMethod === 'gcash';
       
       Alert.alert(
         'Order Placed Successfully!',
         isOnlinePayment 
-          ? `Your order ${order.order_number} has been placed and payment processed via ${paymentMethodName}.`
+          ? `Your order ${order.order_number} has been placed with ${paymentMethodName}. Admin will verify your receipt shortly.`
           : `Your order ${order.order_number} has been placed and will be processed shortly. Please prepare cash payment upon delivery.`,
         [
           {
@@ -314,6 +295,11 @@ export default function CheckoutScreen() {
     processingFee,
     total,
     currency: '₱',
+  };
+
+  const pickProof = async () => {
+    const res = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ImagePicker.MediaTypeOptions.Images, quality: 0.8 });
+    if (!res.canceled) setProofUri(res.assets[0].uri);
   };
 
   if (items.length === 0) {
@@ -503,6 +489,19 @@ export default function CheckoutScreen() {
               compact={true}
               onItemPress={handleItemPress}
             />
+            {/* GCash Payment Modal for Tablet */}
+            <GCashPaymentModal
+              visible={gcashModalVisible}
+              onClose={() => setGcashModalVisible(false)}
+              onConfirm={(receiptUri: string) => {
+                setProofUri(receiptUri);
+                setGcashModalVisible(false);
+                // Proceed with order placement
+                handlePlaceOrder();
+              }}
+              totalAmount={total}
+              qrImageSource={gcashQrImage}
+            />
           </ResponsiveView>
         )}
 
@@ -530,6 +529,18 @@ export default function CheckoutScreen() {
               size="large"
               loading={isCreatingOrder}
               disabled={!isValid || !selectedAddress || isCreatingOrder || paymentProcessing}
+            />
+            <GCashPaymentModal
+              visible={gcashModalVisible}
+              onClose={() => setGcashModalVisible(false)}
+              onConfirm={(receiptUri: string) => {
+                setProofUri(receiptUri);
+                setGcashModalVisible(false);
+                // Proceed with order placement
+                handlePlaceOrder();
+              }}
+              totalAmount={total}
+              qrImageSource={gcashQrImage}
             />
           </ResponsiveView>
         )}
@@ -564,6 +575,7 @@ export default function CheckoutScreen() {
     </SafeAreaView>
   );
 }
+
 
 const styles = StyleSheet.create({
   container: {

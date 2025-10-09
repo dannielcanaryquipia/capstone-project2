@@ -127,7 +127,10 @@ export default function CreateProductScreen() {
 
   if (loading || categoriesLoading) {
     return (
-      <SafeAreaView style={[global.screen, styles.center, { backgroundColor: colors.background }]}>
+      <SafeAreaView 
+        style={[global.screen, styles.center, { backgroundColor: colors.background }]}
+        edges={['top', 'bottom', 'left', 'right']}
+      >
         <ResponsiveView style={styles.center}>
           <ActivityIndicator size="large" color={colors.primary} />
           <ResponsiveView marginTop="md">
@@ -141,7 +144,10 @@ export default function CreateProductScreen() {
   }
 
   return (
-    <SafeAreaView style={[global.screen, { backgroundColor: colors.background }]}>
+    <SafeAreaView 
+      style={[global.screen, { backgroundColor: colors.background }]}
+      edges={['top', 'bottom', 'left', 'right']}
+    >
       {/* Header */}
       <ResponsiveView style={[styles.header, { backgroundColor: colors.surface }]}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>

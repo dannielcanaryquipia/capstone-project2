@@ -68,7 +68,7 @@ export class UserService {
       }
 
       if (filters?.search) {
-        query = query.or(`full_name.ilike.%${filters.search}%`);
+        query = query.or(`full_name.ilike.%${filters.search}%,phone_number.ilike.%${filters.search}%`);
       }
 
       const { data, error } = await query;

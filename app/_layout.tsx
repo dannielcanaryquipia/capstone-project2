@@ -1,4 +1,5 @@
 import FontAwesome from '@expo/vector-icons/FontAwesome';
+import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import {
   DarkTheme as NavigationDarkTheme,
@@ -12,6 +13,7 @@ import { Stack, useRouter, useSegments } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { useEffect } from 'react';
 import { ActivityIndicator, Platform, View } from 'react-native';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import {
   adaptNavigationTheme,
   MD3DarkTheme,
@@ -21,6 +23,7 @@ import {
 import 'react-native-reanimated';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
+import { NotificationProvider } from '../contexts/NotificationContext';
 import { ThemeProvider as AppThemeProvider, useTheme } from '../contexts/ThemeContext';
 import { useAuth } from '../hooks/useAuth';
 import { NotificationTriggersService } from '../services/notification-triggers.service';
@@ -165,7 +168,9 @@ function ThemedApp() {
   return (
     <PaperProvider theme={paperTheme}>
       <ThemeProvider value={navigationTheme}>
-        <RootLayoutNav />
+        <NotificationProvider>
+          <RootLayoutNav />
+        </NotificationProvider>
       </ThemeProvider>
     </PaperProvider>
   );
@@ -205,6 +210,7 @@ function AppContent() {
     PlayfairDisplay: require('../assets/fonts/PlayfairDisplay-VariableFont_wght.ttf'),
     ...FontAwesome.font,
     ...MaterialIcons.font,
+    ...MaterialCommunityIcons.font,
   });
 
   useEffect(() => {
@@ -230,14 +236,16 @@ export default function RootLayout() {
   const queryClient = new QueryClient();
   return (
     <QueryClientProvider client={queryClient}>
-      <AppThemeProvider>
-        <SafeAreaProvider>
-          <AuthGuard>
-            <AppContent />
-          </AuthGuard>
-        </SafeAreaProvider>
-      </AppThemeProvider>
-      {Platform.OS === 'web' ? <ReactQueryDevtools initialIsOpen={false} /> : null}
+      <GestureHandlerRootView style={{ flex: 1 }}>
+        <AppThemeProvider>
+          <SafeAreaProvider>
+            <AuthGuard>
+              <AppContent />
+            </AuthGuard>
+          </SafeAreaProvider>
+        </AppThemeProvider>
+        {Platform.OS === 'web' ? <ReactQueryDevtools initialIsOpen={false} /> : null}
+      </GestureHandlerRootView>
     </QueryClientProvider>
   );
 }

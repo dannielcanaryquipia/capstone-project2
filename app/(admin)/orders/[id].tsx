@@ -17,6 +17,7 @@ import Layout from '../../../constants/Layout';
 import { ResponsiveBorderRadius, ResponsiveSpacing, responsiveValue } from '../../../constants/Responsive';
 import { Strings } from '../../../constants/Strings';
 import { useTheme } from '../../../contexts/ThemeContext';
+import { supabase } from '../../../lib/supabase';
 import { OrderService } from '../../../services/order.service';
 import global from '../../../styles/global';
 import { OrderStatus } from '../../../types/order.types';
@@ -81,6 +82,8 @@ export default function OrderDetailScreen() {
   const [loading, setLoading] = useState(true);
   const [updating, setUpdating] = useState(false);
   const [order, setOrder] = useState<OrderDetail | null>(null);
+  const [verifying, setVerifying] = useState(false);
+  const [viewedProof, setViewedProof] = useState(false);
 
   useEffect(() => {
     if (id) {
@@ -125,7 +128,7 @@ export default function OrderDetailScreen() {
     } catch (error) {
       console.error('Error loading order:', error);
       Alert.alert('Error', 'Failed to load order details');
-      router.back();
+      router.replace('/(admin)/orders');
     } finally {
       setLoading(false);
     }
@@ -157,6 +160,29 @@ export default function OrderDetailScreen() {
         }
       ]
     );
+  };
+
+  const handleVerifyPayment = async () => {
+    if (!id) return;
+    Alert.alert('Verify Payment', 'Mark payment as verified and move order to Preparing?', [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Verify', onPress: async () => {
+        try {
+          setVerifying(true);
+          // Get current admin user ID
+          const { data: { user } } = await supabase.auth.getUser();
+          if (!user) throw new Error('Admin not authenticated');
+          
+          await OrderService.verifyPayment(id as string, user.id);
+          await loadOrder();
+          Alert.alert('Success', 'Payment verified. Order moved to Preparing.');
+        } catch (e) {
+          Alert.alert('Error', 'Failed to verify payment.');
+        } finally {
+          setVerifying(false);
+        }
+      }}
+    ]);
   };
 
   const getStatusColor = (status: OrderStatus) => {
@@ -193,7 +219,10 @@ export default function OrderDetailScreen() {
 
   if (loading) {
     return (
-      <SafeAreaView style={[global.screen, styles.center, { backgroundColor: colors.background }]}>
+      <SafeAreaView 
+        style={[global.screen, styles.center, { backgroundColor: colors.background }]}
+        edges={['top', 'bottom', 'left', 'right']}
+      >
         <ResponsiveView style={styles.center}>
           <ActivityIndicator size="large" color={colors.primary} />
           <ResponsiveView marginTop="md">
@@ -208,7 +237,10 @@ export default function OrderDetailScreen() {
 
   if (!order) {
     return (
-      <SafeAreaView style={[global.screen, styles.center, { backgroundColor: colors.background }]}>
+      <SafeAreaView 
+        style={[global.screen, styles.center, { backgroundColor: colors.background }]}
+        edges={['top', 'bottom', 'left', 'right']}
+      >
         <ResponsiveView style={styles.center}>
           <MaterialIcons name="error" size={responsiveValue(48, 56, 64, 72)} color={colors.error} />
           <ResponsiveView marginTop="md">
@@ -224,7 +256,7 @@ export default function OrderDetailScreen() {
           <ResponsiveView marginTop="lg">
             <Button
               title="Go Back"
-              onPress={() => router.back()}
+              onPress={() => router.replace('/(admin)/orders')}
               variant="primary"
             />
           </ResponsiveView>
@@ -233,13 +265,28 @@ export default function OrderDetailScreen() {
     );
   }
 
-  const nextStatus = getNextStatus(order.status);
+  let nextStatus = getNextStatus(order.status);
+  const paymentMethod = (order.payment_method || '').toLowerCase();
+  const paymentStatus = (order.payment_status || '').toLowerCase();
+
+  // Admin cannot mark Delivered from details screen
+  if (nextStatus === 'delivered') {
+    nextStatus = null;
+  }
+
+  // For GCash, require payment verification before any transitions
+  if (paymentMethod === 'gcash' && paymentStatus !== 'verified') {
+    nextStatus = null;
+  }
 
   return (
-    <SafeAreaView style={[global.screen, { backgroundColor: colors.background }]}>
+    <SafeAreaView 
+      style={[global.screen, { backgroundColor: colors.background }]}
+      edges={['top', 'bottom', 'left', 'right']}
+    >
       {/* Header */}
       <ResponsiveView style={[styles.header, { backgroundColor: colors.surface }]}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+        <TouchableOpacity onPress={() => router.replace('/(admin)/orders')} style={styles.backButton}>
           <MaterialIcons name="arrow-back" size={responsiveValue(20, 24, 28, 32)} color={colors.text} />
         </TouchableOpacity>
         <ResponsiveText size="lg" weight="semiBold" color={colors.text}>
@@ -396,6 +443,42 @@ export default function OrderDetailScreen() {
               </ResponsiveText>
             </ResponsiveView>
           </ResponsiveView>
+          {order.proof_of_payment_url && (
+            <ResponsiveView marginTop="sm">
+              <Button title="View Proof of Payment" onPress={() => {
+                // open URL in browser
+                // @ts-ignore
+                if (window && window.open) {
+                  window.open(order.proof_of_payment_url as any, '_blank');
+                }
+                setViewedProof(true);
+              }} variant="secondary" />
+            </ResponsiveView>
+          )}
+          {order.payment_status === 'pending' && order.payment_method === 'gcash' && (
+            <ResponsiveView marginTop="md">
+              <Button 
+                title={verifying ? 'Verifying...' : 'Verify Payment'} 
+                onPress={handleVerifyPayment} 
+                variant="primary" 
+                disabled={verifying || !order.proof_of_payment_url || !viewedProof}
+              />
+              {(!order.proof_of_payment_url || !viewedProof) && (
+                <ResponsiveView marginTop="xs">
+                  <ResponsiveText size="sm" color={colors.textSecondary}>
+                    Please view the proof of payment image before verifying.
+                  </ResponsiveText>
+                </ResponsiveView>
+              )}
+            </ResponsiveView>
+          )}
+          {order.payment_status === 'pending' && order.payment_method === 'cod' && (
+            <ResponsiveView marginTop="md">
+              <ResponsiveText size="sm" color={colors.textSecondary} style={{ textAlign: 'center', fontStyle: 'italic' }}>
+                COD payment verification will be handled by delivery staff upon delivery.
+              </ResponsiveText>
+            </ResponsiveView>
+          )}
         </ResponsiveView>
 
         {/* Order Timeline */}

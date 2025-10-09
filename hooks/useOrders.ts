@@ -214,6 +214,7 @@ export const useCreateOrder = () => {
     payment_method: string;
     delivery_instructions?: string;
     notes?: string;
+    processing_fee?: number;
   }) => {
     if (!orderData.items.length) {
       throw new Error('Order must contain at least one item');

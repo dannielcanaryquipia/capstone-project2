@@ -3,16 +3,16 @@ import * as ImagePicker from 'expo-image-picker';
 import { useRouter } from 'expo-router';
 import React, { useState } from 'react';
 import {
-    ActivityIndicator,
-    Alert,
-    Image,
-    Modal,
-    RefreshControl,
-    ScrollView,
-    StyleSheet,
-    TextInput,
-    TouchableOpacity,
-    View
+  ActivityIndicator,
+  Alert,
+  Image,
+  Modal,
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  TextInput,
+  TouchableOpacity,
+  View
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Button from '../../../components/ui/Button';
@@ -217,14 +217,6 @@ export default function ProfileScreen() {
       subtitle: 'Add or edit delivery addresses',
       icon: 'location-on',
       onPress: () => router.push('/(customer)/profile/addresses'),
-      showChevron: true,
-    },
-    {
-      id: 'payment-methods',
-      title: 'Payment Methods',
-      subtitle: 'Manage your payment options',
-      icon: 'payment',
-      onPress: () => router.push('/(customer)/profile/payment-methods'),
       showChevron: true,
     },
     {

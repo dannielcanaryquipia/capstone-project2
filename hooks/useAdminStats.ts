@@ -23,7 +23,8 @@ export interface AdminStats {
   out_for_delivery: number;
   delivered_orders: number;
   cancelled_orders: number;
-  total_revenue: number;
+  total_income: number;
+  cancelled_income: number;
   average_order_value: number;
   completion_rate: number;
   
@@ -97,7 +98,8 @@ export const useAdminStats = () => {
         out_for_delivery: orderStats.out_for_delivery,
         delivered_orders: orderStats.delivered_orders,
         cancelled_orders: orderStats.cancelled_orders,
-        total_revenue: orderStats.total_revenue,
+        total_income: orderStats.total_income,
+        cancelled_income: orderStats.cancelled_income,
         average_order_value: orderStats.average_order_value,
         completion_rate: orderStats.completion_rate,
         
@@ -139,6 +141,8 @@ export const useAdminStats = () => {
 
   // Real-time subscription for stats updates
   useEffect(() => {
+    console.log('Setting up real-time subscriptions for admin stats');
+    
     const channels = [
       supabase
         .channel('admin-stats-orders')
@@ -150,7 +154,7 @@ export const useAdminStats = () => {
             table: 'orders',
           },
           (payload) => {
-            console.log('Order change for admin stats:', payload);
+            console.log('Order change detected for admin stats:', payload);
             fetchStats();
           }
         ),
@@ -164,7 +168,7 @@ export const useAdminStats = () => {
             table: 'products',
           },
           (payload) => {
-            console.log('Product change for admin stats:', payload);
+            console.log('Product change detected for admin stats:', payload);
             fetchStats();
           }
         ),
@@ -178,15 +182,20 @@ export const useAdminStats = () => {
             table: 'profiles',
           },
           (payload) => {
-            console.log('User change for admin stats:', payload);
+            console.log('User change detected for admin stats:', payload);
             fetchStats();
           }
         ),
     ];
 
-    channels.forEach(channel => channel.subscribe());
+    channels.forEach(channel => {
+      channel.subscribe((status) => {
+        console.log('Subscription status:', status);
+      });
+    });
 
     return () => {
+      console.log('Cleaning up real-time subscriptions for admin stats');
       channels.forEach(channel => supabase.removeChannel(channel));
     };
   }, [fetchStats]);

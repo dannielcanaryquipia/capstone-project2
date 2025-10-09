@@ -1,6 +1,6 @@
 import { MaterialIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -14,8 +14,9 @@ import Button from '../../../components/ui/Button';
 import { ResponsiveText } from '../../../components/ui/ResponsiveText';
 import { ResponsiveView } from '../../../components/ui/ResponsiveView';
 import { Strings } from '../../../constants/Strings';
-import { useAuth } from '../../../hooks/useAuth';
 import { useTheme } from '../../../contexts/ThemeContext';
+import { useDeliveryEarnings, useDeliveryStats, useProfile } from '../../../hooks';
+import { useAuth } from '../../../hooks/useAuth';
 
 interface DeliveryProfile {
   id: string;
@@ -37,62 +38,44 @@ export default function DeliveryProfileScreen() {
   const { colors } = useTheme();
   const { user, signOut } = useAuth();
   const router = useRouter();
-  const [profile, setProfile] = useState<DeliveryProfile | null>(null);
-  const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  
+  // Use real data from hooks
+  const { profile: userProfile, isLoading: profileLoading, refresh: refreshProfile } = useProfile(user?.id || '');
+  const { stats, isLoading: statsLoading, refresh: refreshStats } = useDeliveryStats();
+  const { earnings, isLoading: earningsLoading, refresh: refreshEarnings } = useDeliveryEarnings();
 
-  useEffect(() => {
-    loadProfile();
-  }, []);
-
-  const loadProfile = async () => {
-    try {
-      setLoading(true);
-      // Mock data - replace with actual API call
-      const mockProfile: DeliveryProfile = {
-        id: user?.id || 'delivery1',
-        full_name: 'Mike Johnson',
-        email: 'mike.delivery@example.com',
-        phone_number: '+1234567890',
-        vehicle_type: 'Motorcycle',
-        license_plate: 'ABC-123',
-        is_available: true,
-        rating: 4.8,
-        total_deliveries: 156,
-        completed_deliveries: 148,
-        total_earnings: 1250.75,
-        join_date: '2024-01-01T00:00:00Z',
-        last_active: '2024-01-15T14:30:00Z',
-      };
-      
-      setProfile(mockProfile);
-    } catch (error) {
-      console.error('Error loading profile:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
+  const loading = profileLoading || statsLoading || earningsLoading;
 
   const handleRefresh = async () => {
     setRefreshing(true);
-    await loadProfile();
-    setRefreshing(false);
+    try {
+      await Promise.all([
+        refreshProfile(),
+        refreshStats(),
+        refreshEarnings()
+      ]);
+    } catch (error) {
+      console.error('Error refreshing profile:', error);
+    } finally {
+      setRefreshing(false);
+    }
   };
 
   const handleToggleAvailability = async () => {
-    if (!profile) return;
+    if (!userProfile) return;
 
     Alert.alert(
       'Toggle Availability',
-      `Are you sure you want to ${profile.is_available ? 'go offline' : 'go online'}?`,
+      `Are you sure you want to ${userProfile.is_active ? 'go offline' : 'go online'}?`,
       [
         { text: 'Cancel', style: 'cancel' },
         { 
-          text: profile.is_available ? 'Go Offline' : 'Go Online', 
+          text: userProfile.is_active ? 'Go Offline' : 'Go Online', 
           onPress: async () => {
             try {
-              setProfile(prev => prev ? { ...prev, is_available: !prev.is_available } : null);
-              Alert.alert('Success', `You are now ${!profile.is_available ? 'online' : 'offline'}!`);
+              // TODO: Implement availability toggle in backend
+              Alert.alert('Success', `You are now ${!userProfile.is_active ? 'online' : 'offline'}!`);
             } catch (error) {
               console.error('Error updating availability:', error);
               Alert.alert('Error', 'Failed to update availability. Please try again.');
@@ -165,11 +148,11 @@ export default function DeliveryProfileScreen() {
             <ResponsiveView 
               style={[
                 styles.availabilityBadge, 
-                { backgroundColor: profile?.is_available ? colors.success : colors.error }
+                { backgroundColor: userProfile?.is_active ? colors.success : colors.error }
               ]}
             >
               <MaterialIcons 
-                name={profile?.is_available ? 'check-circle' : 'cancel'} 
+                name={userProfile?.is_active ? 'check-circle' : 'cancel'} 
                 size={12} 
                 color={colors.background} 
               />
@@ -177,10 +160,10 @@ export default function DeliveryProfileScreen() {
           </ResponsiveView>
           
           <ResponsiveText size="xl" weight="bold" color={colors.background}>
-            {profile?.full_name}
+            {userProfile?.full_name || 'Delivery Staff'}
           </ResponsiveText>
           <ResponsiveText size="md" color={colors.background} style={{ opacity: 0.9 }}>
-            {profile?.email}
+            {userProfile?.email || user?.email || 'No email'}
           </ResponsiveText>
           <ResponsiveText size="sm" color={colors.background} style={{ opacity: 0.8 }}>
             Delivery Staff
@@ -192,26 +175,26 @@ export default function DeliveryProfileScreen() {
           <ResponsiveView style={[styles.statusCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
             <ResponsiveView style={styles.statusHeader}>
               <MaterialIcons 
-                name={profile?.is_available ? 'online-prediction' : 'offline-bolt'} 
+                name={userProfile?.is_active ? 'online-prediction' : 'offline-bolt'} 
                 size={24} 
-                color={profile?.is_available ? colors.success : colors.error} 
+                color={userProfile?.is_active ? colors.success : colors.error} 
               />
               <ResponsiveText size="lg" weight="semiBold" color={colors.text}>
-                {profile?.is_available ? 'Online' : 'Offline'}
+                {userProfile?.is_active ? 'Online' : 'Offline'}
               </ResponsiveText>
             </ResponsiveView>
             <ResponsiveView marginBottom="md">
               <ResponsiveText size="sm" color={colors.textSecondary}>
-                {profile?.is_available 
+                {userProfile?.is_active 
                   ? 'You are currently available for deliveries'
                   : 'You are currently offline and not receiving new orders'
                 }
               </ResponsiveText>
             </ResponsiveView>
             <Button
-              title={profile?.is_available ? 'Go Offline' : 'Go Online'}
+              title={userProfile?.is_active ? 'Go Offline' : 'Go Online'}
               onPress={handleToggleAvailability}
-              variant={profile?.is_available ? 'outline' : 'primary'}
+              variant={userProfile?.is_active ? 'outline' : 'primary'}
               size="small"
             />
           </ResponsiveView>
@@ -232,7 +215,7 @@ export default function DeliveryProfileScreen() {
                     Rating
                   </ResponsiveText>
                   <ResponsiveText size="md" weight="semiBold" color={colors.text}>
-                    {profile?.rating}/5.0
+                    {stats?.customerRating || 0}/5.0
                   </ResponsiveText>
                 </ResponsiveView>
               </ResponsiveView>
@@ -244,7 +227,7 @@ export default function DeliveryProfileScreen() {
                     Total Deliveries
                   </ResponsiveText>
                   <ResponsiveText size="md" weight="semiBold" color={colors.text}>
-                    {profile?.total_deliveries}
+                    {stats?.totalDeliveries || 0}
                   </ResponsiveText>
                 </ResponsiveView>
               </ResponsiveView>
@@ -256,7 +239,7 @@ export default function DeliveryProfileScreen() {
                     Completed
                   </ResponsiveText>
                   <ResponsiveText size="md" weight="semiBold" color={colors.text}>
-                    {profile?.completed_deliveries}
+                    {stats?.completedDeliveries || 0}
                   </ResponsiveText>
                 </ResponsiveView>
               </ResponsiveView>
@@ -268,46 +251,44 @@ export default function DeliveryProfileScreen() {
                     Total Earnings
                   </ResponsiveText>
                   <ResponsiveText size="md" weight="semiBold" color={colors.text}>
-                    ₱{profile?.total_earnings.toFixed(2)}
+                    ₱{(earnings?.total || 0).toFixed(2)}
                   </ResponsiveText>
                 </ResponsiveView>
               </ResponsiveView>
             </ResponsiveView>
           </ResponsiveView>
 
-          {/* Vehicle Information */}
+          {/* Performance Summary */}
           <ResponsiveView style={[styles.infoCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
             <ResponsiveView marginBottom="md">
               <ResponsiveText size="lg" weight="semiBold" color={colors.text}>
-                Vehicle Information
+                Performance Summary
               </ResponsiveText>
             </ResponsiveView>
             
             <ResponsiveView style={styles.infoItem}>
-              <MaterialIcons name="two-wheeler" size={20} color={colors.textSecondary} />
+              <MaterialIcons name="schedule" size={20} color={colors.textSecondary} />
               <ResponsiveView marginLeft="sm">
                 <ResponsiveText size="sm" color={colors.textSecondary}>
-                  Vehicle Type
+                  Average Delivery Time
                 </ResponsiveText>
                 <ResponsiveText size="md" weight="medium" color={colors.text}>
-                  {profile?.vehicle_type}
+                  {stats?.averageDeliveryTime ? `${Math.round(stats.averageDeliveryTime)} min` : 'N/A'}
                 </ResponsiveText>
               </ResponsiveView>
             </ResponsiveView>
 
-            {profile?.license_plate && (
-              <ResponsiveView style={styles.infoItem}>
-                <MaterialIcons name="confirmation-number" size={20} color={colors.textSecondary} />
-                <ResponsiveView marginLeft="sm">
-                  <ResponsiveText size="sm" color={colors.textSecondary}>
-                    License Plate
-                  </ResponsiveText>
-                  <ResponsiveText size="md" weight="medium" color={colors.text}>
-                    {profile.license_plate}
-                  </ResponsiveText>
-                </ResponsiveView>
+            <ResponsiveView style={styles.infoItem}>
+              <MaterialIcons name="timer" size={20} color={colors.textSecondary} />
+              <ResponsiveView marginLeft="sm">
+                <ResponsiveText size="sm" color={colors.textSecondary}>
+                  On-Time Deliveries
+                </ResponsiveText>
+                <ResponsiveText size="md" weight="medium" color={colors.text}>
+                  {stats?.onTimeDeliveries || 0}
+                </ResponsiveText>
               </ResponsiveView>
-            )}
+            </ResponsiveView>
           </ResponsiveView>
 
           {/* Account Information */}
@@ -325,7 +306,7 @@ export default function DeliveryProfileScreen() {
                   Full Name
                 </ResponsiveText>
                 <ResponsiveText size="md" weight="medium" color={colors.text}>
-                  {profile?.full_name}
+                  {userProfile?.full_name || 'N/A'}
                 </ResponsiveText>
               </ResponsiveView>
             </ResponsiveView>
@@ -337,7 +318,7 @@ export default function DeliveryProfileScreen() {
                   Email
                 </ResponsiveText>
                 <ResponsiveText size="md" weight="medium" color={colors.text}>
-                  {profile?.email}
+                  {userProfile?.email || user?.email || 'N/A'}
                 </ResponsiveText>
               </ResponsiveView>
             </ResponsiveView>
@@ -349,7 +330,7 @@ export default function DeliveryProfileScreen() {
                   Phone Number
                 </ResponsiveText>
                 <ResponsiveText size="md" weight="medium" color={colors.text}>
-                  {profile?.phone_number}
+                  {userProfile?.phone_number || 'N/A'}
                 </ResponsiveText>
               </ResponsiveView>
             </ResponsiveView>
@@ -361,7 +342,7 @@ export default function DeliveryProfileScreen() {
                   Joined
                 </ResponsiveText>
                 <ResponsiveText size="md" weight="medium" color={colors.text}>
-                  {profile ? formatDate(profile.join_date) : 'N/A'}
+                  {userProfile?.created_at ? formatDate(userProfile.created_at) : 'N/A'}
                 </ResponsiveText>
               </ResponsiveView>
             </ResponsiveView>

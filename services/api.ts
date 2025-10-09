@@ -499,7 +499,7 @@ export const notificationService = {
       title: notification.title,
       message: notification.message,
       type: notification.type,
-      related_id: notification.relatedId || null,
+      related_order_id: notification.relatedId || null,
       is_read: false,
     };
 
@@ -526,7 +526,7 @@ export const notificationService = {
       title: notification.title,
       message: notification.message,
       type: notification.type,
-      related_id: notification.relatedId || null,
+      related_order_id: notification.relatedId || null,
       is_read: false,
     }));
 

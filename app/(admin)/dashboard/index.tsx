@@ -5,19 +5,17 @@ import {
   ActivityIndicator,
   RefreshControl,
   ScrollView,
-  StyleSheet,
-  TouchableOpacity
+  StyleSheet
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { AdminCard, AdminLayout, AdminMetricCard, AdminSection } from '../../../components/admin';
 import Button from '../../../components/ui/Button';
 import { ResponsiveText } from '../../../components/ui/ResponsiveText';
 import { ResponsiveView } from '../../../components/ui/ResponsiveView';
 import Layout from '../../../constants/Layout';
-import Responsive from '../../../constants/Responsive';
+import Responsive, { responsiveValue } from '../../../constants/Responsive';
 import { Strings } from '../../../constants/Strings';
 import { useTheme } from '../../../contexts/ThemeContext';
 import { useAdminOrders, useAdminStats, useAuth } from '../../../hooks';
-import global from '../../../styles/global';
 
 export default function AdminDashboard() {
   const { colors } = useTheme();
@@ -32,6 +30,13 @@ export default function AdminDashboard() {
 
   const loading = statsLoading || ordersLoading;
   const error = statsError || ordersError;
+
+  // Debug: Log stats to see what we're getting
+  React.useEffect(() => {
+    if (stats) {
+      console.log('Admin dashboard stats received:', stats);
+    }
+  }, [stats]);
 
   const handleRefresh = async () => {
     await Promise.all([refreshStats(), refreshOrders()]);
@@ -86,26 +91,22 @@ export default function AdminDashboard() {
       onPress: () => router.push('/(admin)/reports' as any)
     },
     {
-      id: 'inventory',
+      id: 'products',
       title: 'Products',
       description: 'Manage products',
       icon: 'inventory',
       color: colors.accent,
       onPress: () => router.push('/(admin)/products' as any)
-    },
-    {
-      id: 'settings',
-      title: 'Settings',
-      description: 'App settings',
-      icon: 'settings',
-      color: colors.primary,
-      onPress: () => router.push('/(customer)/profile/settings' as any)
     }
   ];
 
   if (loading) {
     return (
-      <SafeAreaView style={[global.screen, styles.center, { backgroundColor: colors.background }]}>
+      <AdminLayout
+        title="Dashboard"
+        subtitle="Loading..."
+        backgroundColor={colors.background}
+      >
         <ResponsiveView style={styles.center}>
           <ActivityIndicator size="large" color={colors.primary} />
           <ResponsiveView marginTop="md">
@@ -114,12 +115,34 @@ export default function AdminDashboard() {
             </ResponsiveText>
           </ResponsiveView>
         </ResponsiveView>
-      </SafeAreaView>
+      </AdminLayout>
     );
   }
 
   return (
-    <SafeAreaView style={[global.screen, { backgroundColor: colors.background }]} edges={['top']}>
+    <AdminLayout
+      title="Dashboard"
+      subtitle={`Welcome back, ${user?.user_metadata?.full_name || 'KitchenOneAdmin'}`}
+      headerActions={
+        <>
+          <Button
+            title=""
+            onPress={handleRefresh}
+            variant="text"
+            icon={<MaterialIcons name="refresh" size={24} color={colors.textSecondary} />}
+            style={styles.profileButton}
+          />
+          <Button
+            title=""
+            onPress={() => router.push('/(admin)/profile' as any)}
+            variant="text"
+            icon={<MaterialIcons name="person" size={24} color={colors.primary} />}
+            style={styles.profileButton}
+          />
+        </>
+      }
+      backgroundColor={colors.background}
+    >
       <ScrollView
         style={{ flex: 1 }}
         refreshControl={
@@ -127,92 +150,78 @@ export default function AdminDashboard() {
         }
         showsVerticalScrollIndicator={false}
       >
-        <ResponsiveView padding="lg">
-          {/* Welcome Header */}
-          <ResponsiveView style={[styles.welcomeHeader, { backgroundColor: colors.surface }]}>
-            <ResponsiveView style={styles.welcomeText}>
-              <ResponsiveText size="md" color={colors.textSecondary}>
-                Welcome back,
-              </ResponsiveText>
-              <ResponsiveText size="xl" weight="bold" color={colors.text}>
-                {user?.user_metadata?.full_name || 'KitchenOneAdmin'}
-              </ResponsiveText>
-            </ResponsiveView>
-            <ResponsiveView style={styles.headerActions}>
-              <Button
-                title=""
-                onPress={() => router.push('/(admin)/profile' as any)}
-                variant="text"
-                icon={<MaterialIcons name="person" size={24} color={colors.primary} />}
-                style={styles.profileButton}
-              />
-              <Button
-                title=""
-                onPress={() => router.push('/(customer)/profile/settings' as any)}
-                variant="text"
-                icon={<MaterialIcons name="settings" size={24} color={colors.textSecondary} />}
-                style={styles.profileButton}
-              />
-            </ResponsiveView>
-          </ResponsiveView>
 
           {/* Key Metrics Cards */}
           <ResponsiveView style={styles.metricsContainer}>
-            <ResponsiveView style={[styles.metricCard, { 
-              backgroundColor: colors.surface,
-              ...Layout.shadows.sm
-            }]}>
-              <ResponsiveView style={styles.metricHeader}>
-                <ResponsiveView style={[styles.metricIcon, { backgroundColor: colors.primary + '20' }]}>
-                  <MaterialIcons name="receipt" size={Responsive.responsiveValue(20, 22, 24, 28)} color={colors.primary} />
-                </ResponsiveView>
-                <ResponsiveText size="sm" color={colors.textSecondary} weight="medium">
-                  Total Orders
-                </ResponsiveText>
-              </ResponsiveView>
-              <ResponsiveText size="xxl" weight="bold" color={colors.text}>
-                {stats?.total_orders || 0}
-              </ResponsiveText>
-              <ResponsiveText size="xs" color={colors.textSecondary}>
-                {stats?.pending_orders || 0} pending
-              </ResponsiveText>
-            </ResponsiveView>
-
-            <ResponsiveView style={[styles.metricCard, { 
-              backgroundColor: colors.surface,
-              ...Layout.shadows.sm
-            }]}>
-              <ResponsiveView style={styles.metricHeader}>
-                <ResponsiveView style={[styles.metricIcon, { backgroundColor: colors.secondary + '20' }]}>
-                  <MaterialIcons name="attach-money" size={Responsive.responsiveValue(20, 22, 24, 28)} color={colors.secondary} />
-                </ResponsiveView>
-                <ResponsiveText size="sm" color={colors.textSecondary} weight="medium">
-                  Revenue
-                </ResponsiveText>
-              </ResponsiveView>
-              <ResponsiveText size="xxl" weight="bold" color={colors.text}>
-                ₱{(stats?.total_revenue || 0).toFixed(2)}
-              </ResponsiveText>
-              <ResponsiveText size="xs" color={colors.textSecondary}>
-                This month
-              </ResponsiveText>
-            </ResponsiveView>
+            <AdminMetricCard
+              title="Total Orders"
+              value={stats?.total_orders || 0}
+              subtitle={`${stats?.pending_orders || 0} pending`}
+              icon="receipt"
+              iconColor={colors.primary}
+              variant="outlined"
+              size="medium"
+            />
+            <AdminMetricCard
+              title="Income"
+              value={`₱${(stats?.total_income || 0).toFixed(2)}`}
+              subtitle={`Delivered orders`}
+              icon="attach-money"
+              iconColor={colors.secondary}
+              variant="outlined"
+              size="medium"
+            />
           </ResponsiveView>
 
+        {/* Cancelled Orders Income */}
+        {(stats?.cancelled_income || 0) > 0 && (
+          <AdminSection
+            title="Cancelled Orders Income"
+            subtitle="Revenue lost from cancelled orders"
+            variant="card"
+          >
+            <ResponsiveView style={styles.cancelledIncomeContainer}>
+              <ResponsiveView style={[
+                styles.cancelledIncomeItem,
+                { 
+                  backgroundColor: colors.error + '10',
+                  borderColor: colors.error + '30'
+                }
+              ]}>
+                <ResponsiveView style={styles.cancelledIncomeHeader}>
+                  <MaterialIcons 
+                    name="cancel" 
+                    size={responsiveValue(20, 22, 24, 28)} 
+                    color={colors.error} 
+                  />
+                  <ResponsiveText size="md" color={colors.error} weight="semiBold">
+                    Cancelled Orders Income
+                  </ResponsiveText>
+                </ResponsiveView>
+                <ResponsiveText size="xl" weight="bold" color={colors.error}>
+                  ₱{(stats?.cancelled_income || 0).toFixed(2)}
+                </ResponsiveText>
+                <ResponsiveText size="sm" color={colors.textSecondary}>
+                  {stats?.cancelled_orders || 0} cancelled orders
+                </ResponsiveText>
+              </ResponsiveView>
+            </ResponsiveView>
+          </AdminSection>
+        )}
+
         {/* Order Status Summary */}
-        <ResponsiveView style={[styles.statusSummarySection, { backgroundColor: colors.surface }]}>
-          <ResponsiveView style={styles.sectionHeader}>
-            <ResponsiveText size="lg" weight="semiBold" color={colors.text}>
-              Order Status
-            </ResponsiveText>
+        <AdminSection
+          title="Order Status"
+          headerAction={
             <Button
               title="Manage Orders"
               onPress={() => router.push('/(admin)/orders' as any)}
               variant="text"
               size="small"
             />
-          </ResponsiveView>
-
+          }
+          variant="card"
+        >
           <ResponsiveView style={styles.statusSummaryGrid}>
             {[
               { key: 'pending', label: 'Pending', value: stats?.pending_orders || 0 },
@@ -242,64 +251,51 @@ export default function AdminDashboard() {
               </ResponsiveView>
             ))}
           </ResponsiveView>
-        </ResponsiveView>
+        </AdminSection>
 
           {/* Management Grid */}
           <ResponsiveView style={styles.managementGrid}>
             {managementSections.map((section) => (
-              <TouchableOpacity
+              <AdminCard
                 key={section.id}
-                style={[styles.managementCard, { 
-                  backgroundColor: colors.surface,
-                  ...Layout.shadows.sm
-                }]}
-                onPress={section.onPress}
-                activeOpacity={0.7}
-              >
-                <ResponsiveView style={[styles.managementIcon, { backgroundColor: section.color + '20' }]}>
+                title={section.title}
+                subtitle={section.description}
+                icon={
                   <MaterialIcons 
                     name={section.icon as any} 
                     size={Responsive.responsiveValue(24, 26, 28, 32)} 
                     color={section.color} 
                   />
-                </ResponsiveView>
-                <ResponsiveView marginTop="sm">
-                  <ResponsiveText size="md" weight="semiBold" color={colors.text}>
-                    {section.title}
-                  </ResponsiveText>
-                  <ResponsiveText size="sm" color={colors.textSecondary}>
-                    {section.description}
-                  </ResponsiveText>
-                </ResponsiveView>
-              </TouchableOpacity>
+                }
+                onPress={section.onPress}
+                variant="elevated"
+                style={styles.managementCard}
+              >
+                <ResponsiveView>{null}</ResponsiveView>
+              </AdminCard>
             ))}
           </ResponsiveView>
 
           {/* Recent Orders */}
-          <ResponsiveView style={styles.recentOrdersSection}>
-            <ResponsiveView style={styles.sectionHeader}>
-              <ResponsiveText size="lg" weight="semiBold" color={colors.text}>
-                Recent Orders
-              </ResponsiveText>
+          <AdminSection
+            title="Recent Orders"
+            headerAction={
               <Button
                 title="View All"
                 onPress={() => router.push('/(admin)/orders' as any)}
                 variant="text"
                 size="small"
               />
-            </ResponsiveView>
-
+            }
+          >
             {recentOrders.length > 0 ? (
               <ResponsiveView style={styles.ordersList}>
                 {recentOrders.slice(0, 3).map((order) => (
-                  <TouchableOpacity
+                  <AdminCard
                     key={order.id}
-                    style={[styles.orderCard, { 
-                      backgroundColor: colors.surface,
-                      ...Layout.shadows.sm
-                    }]}
                     onPress={() => router.push(`/(admin)/orders/${order.id}` as any)}
-                    activeOpacity={0.7}
+                    variant="outlined"
+                    style={styles.orderCard}
                   >
                     <ResponsiveView style={styles.orderHeader}>
                       <ResponsiveText size="md" weight="semiBold" color={colors.text}>
@@ -331,7 +327,7 @@ export default function AdminDashboard() {
                         ₱{(order.total_amount || 0).toFixed(2)}
                       </ResponsiveText>
                     </ResponsiveView>
-                  </TouchableOpacity>
+                  </AdminCard>
                 ))}
               </ResponsiveView>
             ) : (
@@ -351,10 +347,9 @@ export default function AdminDashboard() {
                 </ResponsiveView>
               </ResponsiveView>
             )}
-          </ResponsiveView>
-        </ResponsiveView>
-      </ScrollView>
-    </SafeAreaView>
+          </AdminSection>
+        </ScrollView>
+    </AdminLayout>
   );
 }
 
@@ -363,48 +358,16 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  welcomeHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: Responsive.ResponsiveSpacing.lg,
-    padding: Responsive.ResponsiveSpacing.md,
-    borderRadius: Responsive.ResponsiveBorderRadius.lg,
-    ...Layout.shadows.sm,
-  },
-  welcomeText: {
-    flex: 1,
-  },
-  headerActions: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Responsive.ResponsiveSpacing.sm,
-  },
   profileButton: {
     padding: Responsive.ResponsiveSpacing.sm,
   },
   metricsContainer: {
     flexDirection: 'row',
-    gap: Responsive.ResponsiveSpacing.md,
-    marginBottom: Responsive.ResponsiveSpacing.lg,
-  },
-  metricCard: {
-    flex: 1,
-    padding: Responsive.ResponsiveSpacing.lg,
-    borderRadius: Responsive.ResponsiveBorderRadius.lg,
-  },
-  metricHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: Responsive.ResponsiveSpacing.sm,
-    gap: Responsive.ResponsiveSpacing.sm,
-  },
-  metricIcon: {
-    width: Responsive.responsiveValue(40, 44, 48, 56),
-    height: Responsive.responsiveValue(40, 44, 48, 56),
-    borderRadius: Responsive.responsiveValue(20, 22, 24, 28),
     justifyContent: 'center',
-    alignItems: 'center',
+    alignItems: 'stretch',
+    gap: Responsive.ResponsiveSpacing.lg,
+    marginBottom: Responsive.ResponsiveSpacing.xl,
+    paddingHorizontal: Responsive.ResponsiveSpacing.lg,
   },
   managementGrid: {
     flexDirection: 'row',
@@ -414,28 +377,8 @@ const styles = StyleSheet.create({
   },
   managementCard: {
     width: '48%',
-    padding: Responsive.ResponsiveSpacing.lg,
-    borderRadius: Responsive.ResponsiveBorderRadius.lg,
     alignItems: 'center',
-    marginBottom: Responsive.ResponsiveSpacing.md,
     minHeight: Responsive.responsiveValue(120, 130, 140, 150),
-  },
-  managementIcon: {
-    width: Responsive.responsiveValue(48, 52, 56, 64),
-    height: Responsive.responsiveValue(48, 52, 56, 64),
-    borderRadius: Responsive.responsiveValue(24, 26, 28, 32),
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: Responsive.ResponsiveSpacing.sm,
-  },
-  recentOrdersSection: {
-    marginBottom: Responsive.ResponsiveSpacing.xl,
-  },
-  statusSummarySection: {
-    marginBottom: Responsive.ResponsiveSpacing.xl,
-    padding: Responsive.ResponsiveSpacing.lg,
-    borderRadius: Responsive.ResponsiveBorderRadius.lg,
-    ...Layout.shadows.sm,
   },
   statusSummaryGrid: {
     flexDirection: 'row',
@@ -461,18 +404,11 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  sectionHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: Responsive.ResponsiveSpacing.md,
-  },
   ordersList: {
     gap: Responsive.ResponsiveSpacing.sm,
   },
   orderCard: {
-    padding: Responsive.ResponsiveSpacing.md,
-    borderRadius: Responsive.ResponsiveBorderRadius.md,
+    marginBottom: Responsive.ResponsiveSpacing.sm,
   },
   orderHeader: {
     flexDirection: 'row',
@@ -507,5 +443,20 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: Responsive.ResponsiveSpacing.md,
+  },
+  cancelledIncomeContainer: {
+    alignItems: 'center',
+  },
+  cancelledIncomeItem: {
+    alignItems: 'center',
+    padding: Responsive.ResponsiveSpacing.lg,
+    borderRadius: Responsive.ResponsiveBorderRadius.lg,
+    borderWidth: 1,
+  },
+  cancelledIncomeHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: Responsive.ResponsiveSpacing.sm,
+    gap: Responsive.ResponsiveSpacing.sm,
   },
 });

@@ -165,7 +165,10 @@ export default function EditProductScreen() {
 
   if (loading || categoriesLoading) {
     return (
-      <SafeAreaView style={[global.screen, styles.center, { backgroundColor: colors.background }]}>
+      <SafeAreaView 
+        style={[global.screen, styles.center, { backgroundColor: colors.background }]}
+        edges={['top', 'bottom', 'left', 'right']}
+      >
         <ResponsiveView style={styles.center}>
           <ActivityIndicator size="large" color={colors.primary} />
           <ResponsiveView marginTop="md">
@@ -180,7 +183,10 @@ export default function EditProductScreen() {
 
   if (!product && id !== 'new') {
     return (
-      <SafeAreaView style={[global.screen, styles.center, { backgroundColor: colors.background }]}>
+      <SafeAreaView 
+        style={[global.screen, styles.center, { backgroundColor: colors.background }]}
+        edges={['top', 'bottom', 'left', 'right']}
+      >
         <ResponsiveView style={styles.center}>
           <MaterialIcons name="error" size={responsiveValue(48, 56, 64, 72)} color={colors.error} />
           <ResponsiveView marginTop="md">
@@ -206,7 +212,10 @@ export default function EditProductScreen() {
   }
 
   return (
-    <SafeAreaView style={[global.screen, { backgroundColor: colors.background }]}>
+    <SafeAreaView 
+      style={[global.screen, { backgroundColor: colors.background }]}
+      edges={['top', 'bottom', 'left', 'right']}
+    >
       {/* Header */}
       <ResponsiveView style={[styles.header, { backgroundColor: colors.surface }]}>
         <TouchableOpacity onPress={() => router.replace('/(admin)/products' as any)} style={styles.backButton}>

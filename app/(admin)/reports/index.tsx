@@ -4,13 +4,13 @@ import React, { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  FlatList,
   RefreshControl,
   ScrollView,
   StyleSheet,
-  TouchableOpacity,
-  View
+  TouchableOpacity
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { AdminCard, AdminLayout, AdminMetricCard, AdminSection } from '../../../components/admin';
 import { ResponsiveText } from '../../../components/ui/ResponsiveText';
 import { ResponsiveView } from '../../../components/ui/ResponsiveView';
 import Layout from '../../../constants/Layout';
@@ -18,10 +18,9 @@ import { ResponsiveBorderRadius, ResponsiveSpacing, responsiveValue } from '../.
 import { Strings } from '../../../constants/Strings';
 import { useTheme } from '../../../contexts/ThemeContext';
 import { useAdminStats, useTopProducts } from '../../../hooks';
+import { supabase } from '../../../lib/supabase';
 import { ReportData, ReportsService } from '../../../services/reports.service';
-import global from '../../../styles/global';
-
-const reportTabs = ['Overview', 'Sales', 'Products', 'Customers', 'Delivery'];
+const reportTabs = ['Overview', 'Sales', 'Products', 'Customers'];
 const timePeriods = [
   { key: 'week', label: 'Week' },
   { key: 'month', label: 'Month' },
@@ -46,40 +45,157 @@ export default function AdminReportsScreen() {
   const refreshRevenue = async () => {
     setRevenueLoading(true);
     try {
-      // Simple revenue calculation from stats with sample monthly data
       const currentDate = new Date();
-      const currentMonth = currentDate.getMonth();
-      const currentYear = currentDate.getFullYear();
+      let startDate: Date;
+      let endDate: Date = currentDate;
+
+      // Calculate date range based on selected period
+      switch (selectedPeriod) {
+        case 'week':
+          startDate = new Date(currentDate);
+          startDate.setDate(currentDate.getDate() - 7);
+          break;
+        case 'month':
+          startDate = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1);
+          break;
+        case 'year':
+          startDate = new Date(currentDate.getFullYear(), 0, 1);
+          break;
+        default:
+          startDate = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1);
+      }
+
+      // Fetch orders within the selected time period
+      const { data: orders, error } = await supabase
+        .from('orders')
+        .select('total_amount, created_at, status, payment_status')
+        .eq('status', 'Delivered')
+        .gte('created_at', startDate.toISOString())
+        .lte('created_at', endDate.toISOString())
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+
+      // Calculate totals for the selected period
+      const totalIncome = orders?.reduce((sum: number, order: any) => sum + (order.total_amount || 0), 0) || 0;
+      const totalOrders = orders?.length || 0;
+      const averageOrderValue = totalOrders > 0 ? totalIncome / totalOrders : 0;
+
+      // Calculate period-specific data
+      let periodData: any[] = [];
       
-      const monthlyData = [];
-      for (let i = 0; i < 6; i++) {
-        const date = new Date(currentYear, currentMonth - i, 1);
-        const monthName = date.toLocaleString('default', { month: 'long' });
-        const baseRevenue = (stats?.total_revenue || 0) / 6;
-        const baseOrders = Math.floor((stats?.total_orders || 0) / 6);
+      if (selectedPeriod === 'week') {
+        // Group by day for the last 7 days
+        const dailyMap = new Map<string, { income: number; orderCount: number }>();
         
-        monthlyData.push({
-          month: monthName,
-          year: date.getFullYear(),
-          revenue: baseRevenue + (Math.random() * baseRevenue * 0.3),
-          orderCount: baseOrders + Math.floor(Math.random() * 5),
+        orders?.forEach((order: any) => {
+          const orderDate = new Date(order.created_at);
+          const dateKey = orderDate.toISOString().split('T')[0];
+          const dayName = orderDate.toLocaleDateString('en-US', { weekday: 'short' });
+          
+          if (dailyMap.has(dateKey)) {
+            const existing = dailyMap.get(dateKey)!;
+            existing.income += order.total_amount || 0;
+            existing.orderCount += 1;
+          } else {
+            dailyMap.set(dateKey, { 
+              income: order.total_amount || 0, 
+              orderCount: 1 
+            });
+          }
         });
+
+        // Fill in missing days
+        for (let i = 6; i >= 0; i--) {
+          const date = new Date();
+          date.setDate(date.getDate() - i);
+          const dateKey = date.toISOString().split('T')[0];
+          const dayName = date.toLocaleDateString('en-US', { weekday: 'short' });
+          
+          const dayData = dailyMap.get(dateKey) || { income: 0, orderCount: 0 };
+          periodData.push({
+            period: dayName,
+            date: dateKey,
+            income: dayData.income,
+            orderCount: dayData.orderCount,
+          });
+        }
+      } else if (selectedPeriod === 'month') {
+        // Group by week for the current month
+        const weeklyMap = new Map<string, { income: number; orderCount: number }>();
+        
+        orders?.forEach((order: any) => {
+          const orderDate = new Date(order.created_at);
+          const weekStart = new Date(orderDate);
+          weekStart.setDate(orderDate.getDate() - orderDate.getDay());
+          const weekKey = weekStart.toISOString().split('T')[0];
+          const weekLabel = `Week ${Math.ceil(orderDate.getDate() / 7)}`;
+          
+          if (weeklyMap.has(weekKey)) {
+            const existing = weeklyMap.get(weekKey)!;
+            existing.income += order.total_amount || 0;
+            existing.orderCount += 1;
+          } else {
+            weeklyMap.set(weekKey, { 
+              income: order.total_amount || 0, 
+              orderCount: 1 
+            });
+          }
+        });
+
+        // Convert to array and sort
+        periodData = Array.from(weeklyMap.entries()).map(([date, data]) => ({
+          period: `Week ${Math.ceil(new Date(date).getDate() / 7)}`,
+          date: date,
+          income: data.income,
+          orderCount: data.orderCount,
+        })).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+      } else if (selectedPeriod === 'year') {
+        // Group by month for the current year
+        const monthlyMap = new Map<string, { income: number; orderCount: number }>();
+        
+        orders?.forEach((order: any) => {
+          const orderDate = new Date(order.created_at);
+          const monthKey = `${orderDate.getFullYear()}-${String(orderDate.getMonth() + 1).padStart(2, '0')}`;
+          const monthName = orderDate.toLocaleDateString('default', { month: 'long' });
+          
+          if (monthlyMap.has(monthKey)) {
+            const existing = monthlyMap.get(monthKey)!;
+            existing.income += order.total_amount || 0;
+            existing.orderCount += 1;
+          } else {
+            monthlyMap.set(monthKey, { 
+              income: order.total_amount || 0, 
+              orderCount: 1 
+            });
+          }
+        });
+
+        // Fill in missing months
+        for (let i = 0; i < 12; i++) {
+          const date = new Date(currentDate.getFullYear(), i, 1);
+          const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+          const monthName = date.toLocaleDateString('default', { month: 'long' });
+          
+          const monthData = monthlyMap.get(monthKey) || { income: 0, orderCount: 0 };
+          periodData.push({
+            period: monthName,
+            date: monthKey,
+            income: monthData.income,
+            orderCount: monthData.orderCount,
+          });
+        }
       }
       
       const analytics = {
-        totalRevenue: stats?.total_revenue || 0,
-        totalOrders: stats?.total_orders || 0,
-        averageOrderValue: stats?.average_order_value || 0,
-        monthly: monthlyData.reverse(),
-        yearly: [
-          {
-            month: 'Year',
-            year: currentYear,
-            revenue: stats?.total_revenue || 0,
-            orderCount: stats?.total_orders || 0,
-          }
-        ]
+        totalIncome,
+        totalOrders,
+        averageOrderValue,
+        periodData,
+        selectedPeriod
       };
+      
+      console.log(`Revenue analytics for ${selectedPeriod}:`, analytics);
       setRevenueAnalytics(analytics);
     } catch (error) {
       console.error('Error loading revenue analytics:', error);
@@ -101,14 +217,67 @@ export default function AdminReportsScreen() {
   const loadReportData = async () => {
     try {
       setLoading(true);
-      // Fetch real report data from backend
-      const reportData = await ReportsService.getReportData();
+      
+      // Calculate date range based on selected period
+      const currentDate = new Date();
+      let startDate: Date;
+      let endDate: Date = currentDate;
+
+      switch (selectedPeriod) {
+        case 'week':
+          startDate = new Date(currentDate);
+          startDate.setDate(currentDate.getDate() - 7);
+          break;
+        case 'month':
+          startDate = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1);
+          break;
+        case 'year':
+          startDate = new Date(currentDate.getFullYear(), 0, 1);
+          break;
+        default:
+          startDate = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1);
+      }
+
+      // Fetch orders within the selected time period
+      const { data: orders, error: ordersError } = await supabase
+        .from('orders')
+        .select('total_amount, created_at, status')
+        .gte('created_at', startDate.toISOString())
+        .lte('created_at', endDate.toISOString())
+        .eq('status', 'Delivered');
+
+      if (ordersError) throw ordersError;
+
+      // Calculate period-specific totals
+      const totalIncome = orders?.reduce((sum: number, order: any) => sum + (order.total_amount || 0), 0) || 0;
+      const totalOrders = orders?.length || 0;
+      const averageOrderValue = totalOrders > 0 ? totalIncome / totalOrders : 0;
+
+      // Fetch other report data (these don't need time filtering)
+      const [topProducts, customerStats, orderStatusBreakdown, recentOrders] = await Promise.all([
+        ReportsService.getTopProducts(5),
+        ReportsService.getCustomerStats(),
+        ReportsService.getOrderStatusBreakdown(),
+        ReportsService.getRecentOrders(5)
+      ]);
+
+      const reportData: ReportData = {
+        totalIncome,
+        totalOrders,
+        averageOrderValue,
+        topProducts,
+        orderStatusBreakdown,
+        dailyIncome: [], // We'll use periodData from revenueAnalytics instead
+        customerStats,
+        recentOrders
+      };
+
       setReportData(reportData);
     } catch (error) {
       console.error('Error loading report data:', error);
       // Fallback to stats data if reports service fails
       const fallbackData: ReportData = {
-        totalRevenue: stats?.total_revenue || 0,
+        totalIncome: stats?.total_income || 0,
         totalOrders: stats?.total_orders || 0,
         averageOrderValue: stats?.average_order_value || 0,
         topProducts: [],
@@ -119,7 +288,7 @@ export default function AdminReportsScreen() {
           delivered: stats?.delivered_orders || 0,
           cancelled: stats?.cancelled_orders || 0,
         },
-        dailyRevenue: [],
+        dailyIncome: [],
         customerStats: {
           totalCustomers: stats?.total_users || 0,
           newCustomers: 0,
@@ -160,121 +329,40 @@ export default function AdminReportsScreen() {
     <ResponsiveView style={styles.tabContent}>
       {/* Revenue Cards */}
       <ResponsiveView style={styles.cardsGrid}>
-        <ResponsiveView style={[styles.reportCard, { backgroundColor: colors.surface }]}>
-          <ResponsiveView style={styles.cardHeader}>
-            <ResponsiveView style={[styles.cardIcon, { backgroundColor: colors.success }]}>
-              <MaterialIcons name="attach-money" size={responsiveValue(20, 24, 28, 32)} color={colors.surface} />
-            </ResponsiveView>
-            <ResponsiveView style={styles.cardContent}>
-              <ResponsiveText size="sm" color={colors.textSecondary}>
-                Total Revenue
-              </ResponsiveText>
-              <ResponsiveText size="xl" weight="bold" color={colors.text}>
-                ₱{(reportData?.totalRevenue || 0).toFixed(2)}
-              </ResponsiveText>
-              <ResponsiveText size="xs" color={colors.textSecondary}>
-                {selectedPeriod === 'week' ? 'This week' : selectedPeriod === 'month' ? 'This month' : 'This year'}
-              </ResponsiveText>
-            </ResponsiveView>
-          </ResponsiveView>
-        </ResponsiveView>
-
-        <ResponsiveView style={[styles.reportCard, { backgroundColor: colors.surface }]}>
-          <ResponsiveView style={styles.cardHeader}>
-            <ResponsiveView style={[styles.cardIcon, { backgroundColor: colors.primary }]}>
-              <MaterialIcons name="receipt" size={responsiveValue(20, 24, 28, 32)} color={colors.surface} />
-            </ResponsiveView>
-            <ResponsiveView style={styles.cardContent}>
-              <ResponsiveText size="sm" color={colors.textSecondary}>
-                Total Orders
-              </ResponsiveText>
-              <ResponsiveText size="xl" weight="bold" color={colors.text}>
-                {reportData?.totalOrders || 0}
-              </ResponsiveText>
-              <ResponsiveText size="xs" color={colors.textSecondary}>
-                {selectedPeriod === 'week' ? 'This week' : selectedPeriod === 'month' ? 'This month' : 'This year'}
-              </ResponsiveText>
-            </ResponsiveView>
-          </ResponsiveView>
-        </ResponsiveView>
-
-        <ResponsiveView style={[styles.reportCard, { backgroundColor: colors.surface }]}>
-          <ResponsiveView style={styles.cardHeader}>
-            <ResponsiveView style={[styles.cardIcon, { backgroundColor: colors.info }]}>
-              <MaterialIcons name="trending-up" size={responsiveValue(20, 24, 28, 32)} color={colors.surface} />
-            </ResponsiveView>
-            <ResponsiveView style={styles.cardContent}>
-              <ResponsiveText size="sm" color={colors.textSecondary}>
-                Average Order
-              </ResponsiveText>
-              <ResponsiveText size="xl" weight="bold" color={colors.text}>
-                ₱{(reportData?.averageOrderValue || 0).toFixed(2)}
-              </ResponsiveText>
-              <ResponsiveText size="xs" color={colors.textSecondary}>
-                Per order
-              </ResponsiveText>
-            </ResponsiveView>
-          </ResponsiveView>
-        </ResponsiveView>
-      </ResponsiveView>
-
-      {/* Revenue Trend Section */}
-      <ResponsiveView style={[styles.sectionCard, { backgroundColor: colors.surface }]} marginBottom="md">
-        <ResponsiveView marginBottom="md">
-          <ResponsiveText size="lg" weight="semiBold" color={colors.text}>
-            Revenue Trend
-          </ResponsiveText>
-        </ResponsiveView>
-        
-        {revenueAnalytics?.monthly ? (
-          <ResponsiveView style={styles.trendContainer}>
-            {revenueAnalytics.monthly.slice(0, 2).map((item: any, index: number) => (
-              <ResponsiveView key={index} style={styles.trendItem} marginBottom="sm">
-                <ResponsiveView style={styles.trendHeader}>
-                  <ResponsiveText size="md" color={colors.text} weight="semiBold">
-                    {item.year}-{String(item.month).padStart(2, '0')}
-                  </ResponsiveText>
-                  <ResponsiveText size="md" color={colors.primary} weight="semiBold">
-                    ₱{item.revenue.toFixed(2)}
-                  </ResponsiveText>
-                </ResponsiveView>
-                <ResponsiveView style={[styles.progressBar, { backgroundColor: 'rgba(0,0,0,0.1)' }]}>
-                  <ResponsiveView 
-                    style={[
-                      styles.progressFill, 
-                      { 
-                        backgroundColor: colors.primary,
-                        width: `${Math.min((item.revenue / Math.max(...revenueAnalytics.monthly.map((m: any) => m.revenue))) * 100, 100)}%`
-                      }
-                    ]} 
-                  >
-                    <View />
-                  </ResponsiveView>
-                </ResponsiveView>
-              </ResponsiveView>
-            ))}
-          </ResponsiveView>
-        ) : (
-          <ResponsiveView style={styles.center}>
-            <ResponsiveText size="md" color={colors.textSecondary}>
-              No revenue data available
-            </ResponsiveText>
-          </ResponsiveView>
-        )}
+        <AdminMetricCard
+          title="Total Income"
+          value={`₱${(reportData?.totalIncome || 0).toFixed(2)}`}
+          subtitle={selectedPeriod === 'week' ? 'This week' : selectedPeriod === 'month' ? 'This month' : 'This year'}
+          icon="attach-money"
+          iconColor={colors.success}
+          variant="outlined"
+          size="medium"
+        />
+        <AdminMetricCard
+          title="Total Orders"
+          value={reportData?.totalOrders || 0}
+          subtitle={selectedPeriod === 'week' ? 'This week' : selectedPeriod === 'month' ? 'This month' : 'This year'}
+          icon="receipt"
+          iconColor={colors.primary}
+          variant="outlined"
+          size="medium"
+        />
       </ResponsiveView>
 
       {/* Recent Orders Section */}
-      <ResponsiveView style={[styles.sectionCard, { backgroundColor: colors.surface }]}>
-        <ResponsiveView marginBottom="md">
-          <ResponsiveText size="lg" weight="semiBold" color={colors.text}>
-            Recent Orders
-          </ResponsiveText>
-        </ResponsiveView>
-        
+      <AdminSection
+        title="Recent Orders"
+        subtitle="Latest order activity"
+        variant="card"
+      >
         {reportData?.recentOrders && reportData.recentOrders.length > 0 ? (
           <ResponsiveView style={styles.ordersList}>
             {reportData.recentOrders.slice(0, 3).map((order: any, index: number) => (
-              <ResponsiveView key={index} style={[styles.orderCard, { backgroundColor: colors.background }]} marginBottom="sm">
+              <AdminCard
+                key={index}
+                variant="outlined"
+                style={styles.orderCard}
+              >
                 <ResponsiveView style={styles.orderHeader}>
                   <ResponsiveText size="md" color={colors.text} weight="semiBold">
                     #{order.id.slice(-8)}
@@ -304,7 +392,7 @@ export default function AdminReportsScreen() {
                     })}
                   </ResponsiveText>
                 </ResponsiveView>
-              </ResponsiveView>
+              </AdminCard>
             ))}
           </ResponsiveView>
         ) : (
@@ -314,15 +402,14 @@ export default function AdminReportsScreen() {
             </ResponsiveText>
           </ResponsiveView>
         )}
-      </ResponsiveView>
+      </AdminSection>
 
       {/* Order Status Breakdown */}
-      <ResponsiveView style={[styles.sectionCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-        <ResponsiveView marginBottom="md">
-          <ResponsiveText size="lg" weight="semiBold" color={colors.text}>
-            Order Status Breakdown
-          </ResponsiveText>
-        </ResponsiveView>
+      <AdminSection
+        title="Order Status Breakdown"
+        subtitle="Distribution of orders by status"
+        variant="outlined"
+      >
         <ResponsiveView style={styles.statusList}>
           {Object.entries(reportData?.orderStatusBreakdown || {}).map(([status, count]) => (
             <ResponsiveView key={status} style={styles.statusItem}>
@@ -335,15 +422,14 @@ export default function AdminReportsScreen() {
             </ResponsiveView>
           ))}
         </ResponsiveView>
-      </ResponsiveView>
+      </AdminSection>
 
       {/* Top Products Preview */}
-      <ResponsiveView style={[styles.sectionCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-        <ResponsiveView marginBottom="md">
-          <ResponsiveText size="lg" weight="semiBold" color={colors.text}>
-            Top Products
-          </ResponsiveText>
-        </ResponsiveView>
+      <AdminSection
+        title="Top Products"
+        subtitle="Best performing products"
+        variant="outlined"
+      >
         {topProductsLoading ? (
           <ResponsiveView style={styles.loadingContainer}>
             <ActivityIndicator size="small" color={colors.primary} />
@@ -355,7 +441,11 @@ export default function AdminReportsScreen() {
           <ResponsiveView style={styles.productsList}>
             {topProducts.length > 0 ? (
               topProducts.slice(0, 5).map((product, index) => (
-                <ResponsiveView key={product.id} style={styles.productItem}>
+                <AdminCard
+                  key={product.id}
+                  variant="outlined"
+                  style={styles.productItem}
+                >
                   <ResponsiveView style={styles.productInfo}>
                     <ResponsiveText size="md" weight="medium" color={colors.text}>
                       #{index + 1} {product.name}
@@ -367,7 +457,7 @@ export default function AdminReportsScreen() {
                   <ResponsiveText size="sm" weight="semiBold" color={colors.primary}>
                     ₱{product.base_price.toFixed(2)}
                   </ResponsiveText>
-                </ResponsiveView>
+                </AdminCard>
               ))
             ) : (
               <ResponsiveText size="md" color={colors.textSecondary} align="center">
@@ -376,19 +466,57 @@ export default function AdminReportsScreen() {
             )}
           </ResponsiveView>
         )}
+      </AdminSection>
       </ResponsiveView>
+  );
+
+  const renderCustomersTab = () => (
+    <ResponsiveView style={styles.tabContent}>
+      <ScrollView 
+        horizontal 
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={styles.horizontalCardsContainer}
+        style={styles.horizontalScrollView}
+      >
+        <AdminMetricCard
+          title="Total Customers"
+          value={reportData?.customerStats?.totalCustomers || 0}
+          icon="people"
+          iconColor={colors.primary}
+          variant="outlined"
+          size="medium"
+          fixedWidth={true}
+        />
+        <AdminMetricCard
+          title="New Customers"
+          value={reportData?.customerStats?.newCustomers || 0}
+          icon="person-add"
+          iconColor={colors.success}
+          variant="outlined"
+          size="medium"
+          fixedWidth={true}
+        />
+        <AdminMetricCard
+          title="Returning Customers"
+          value={reportData?.customerStats?.returningCustomers || 0}
+          icon="repeat"
+          iconColor={colors.info}
+          variant="outlined"
+          size="medium"
+          fixedWidth={true}
+        />
+      </ScrollView>
     </ResponsiveView>
   );
 
   const renderSalesTab = () => (
     <ResponsiveView style={styles.tabContent}>
       {/* Revenue Summary */}
-      <ResponsiveView style={[styles.sectionCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-        <ResponsiveView marginBottom="md">
-          <ResponsiveText size="lg" weight="semiBold" color={colors.text}>
-            Revenue Summary
-          </ResponsiveText>
-        </ResponsiveView>
+      <AdminSection
+        title="Revenue Summary"
+        subtitle="Financial performance overview"
+        variant="outlined"
+      >
         {revenueLoading ? (
           <ResponsiveView style={styles.loadingContainer}>
             <ActivityIndicator size="small" color={colors.primary} />
@@ -397,46 +525,37 @@ export default function AdminReportsScreen() {
             </ResponsiveText>
           </ResponsiveView>
         ) : revenueAnalytics ? (
-          <ResponsiveView style={styles.revenueSummary}>
-            <ResponsiveView style={styles.revenueCard}>
-              <ResponsiveText size="sm" color={colors.textSecondary}>
-                Total Revenue
-              </ResponsiveText>
-              <ResponsiveText size="xl" weight="bold" color={colors.primary}>
-                ₱{revenueAnalytics.totalRevenue.toFixed(2)}
-              </ResponsiveText>
-            </ResponsiveView>
-            <ResponsiveView style={styles.revenueCard}>
-              <ResponsiveText size="sm" color={colors.textSecondary}>
-                Total Orders
-              </ResponsiveText>
-              <ResponsiveText size="lg" weight="semiBold" color={colors.text}>
-                {revenueAnalytics.totalOrders}
-              </ResponsiveText>
-            </ResponsiveView>
-            <ResponsiveView style={styles.revenueCard}>
-              <ResponsiveText size="sm" color={colors.textSecondary}>
-                Avg Order Value
-              </ResponsiveText>
-              <ResponsiveText size="lg" weight="semiBold" color={colors.text}>
-                ₱{revenueAnalytics.averageOrderValue.toFixed(2)}
-              </ResponsiveText>
-            </ResponsiveView>
+          <ResponsiveView style={styles.cardsGrid}>
+            <AdminMetricCard
+              title="Total Income"
+              value={`₱${revenueAnalytics.totalIncome.toFixed(2)}`}
+              icon="attach-money"
+              iconColor={colors.primary}
+              variant="outlined"
+              size="medium"
+            />
+            <AdminMetricCard
+              title="Total Orders"
+              value={revenueAnalytics.totalOrders}
+              icon="receipt"
+              iconColor={colors.info}
+              variant="outlined"
+              size="medium"
+            />
           </ResponsiveView>
         ) : (
           <ResponsiveText size="md" color={colors.textSecondary} align="center">
             No revenue data available
           </ResponsiveText>
         )}
-      </ResponsiveView>
+      </AdminSection>
 
       {/* Monthly/Yearly Revenue */}
-      <ResponsiveView style={[styles.sectionCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-        <ResponsiveView marginBottom="md">
-          <ResponsiveText size="lg" weight="semiBold" color={colors.text}>
-            Revenue by {selectedPeriod === 'month' ? 'Month' : 'Year'}
-          </ResponsiveText>
-        </ResponsiveView>
+      <AdminSection
+        title={`Income by ${selectedPeriod === 'week' ? 'Day' : selectedPeriod === 'month' ? 'Week' : 'Month'}`}
+        subtitle="Periodic income breakdown"
+        variant="outlined"
+      >
         {revenueLoading ? (
           <ResponsiveView style={styles.loadingContainer}>
             <ActivityIndicator size="small" color={colors.primary} />
@@ -446,22 +565,26 @@ export default function AdminReportsScreen() {
           </ResponsiveView>
         ) : revenueAnalytics ? (
           <ResponsiveView style={styles.revenueList}>
-            {(selectedPeriod === 'month' ? revenueAnalytics.monthly : revenueAnalytics.yearly)
-              .slice(0, 12) // Show last 12 months/years
+            {revenueAnalytics.periodData
+              .slice(0, 12) // Show last 12 periods
               .map((period: any, index: number) => (
-                <ResponsiveView key={`${period.year}-${period.month}`} style={styles.revenueItem}>
+                <AdminCard
+                  key={`${period.date}-${index}`}
+                  variant="outlined"
+                  style={styles.revenueItem}
+                >
                   <ResponsiveView style={styles.periodInfo}>
                     <ResponsiveText size="md" weight="medium" color={colors.text}>
-                      {period.month} {period.year}
+                      {period.period}
                     </ResponsiveText>
                     <ResponsiveText size="sm" color={colors.textSecondary}>
                       {period.orderCount} orders
                     </ResponsiveText>
                   </ResponsiveView>
                   <ResponsiveText size="lg" weight="semiBold" color={colors.primary}>
-                    ₱{period.revenue.toFixed(2)}
+                    ₱{period.income.toFixed(2)}
                   </ResponsiveText>
-                </ResponsiveView>
+                </AdminCard>
               ))}
           </ResponsiveView>
         ) : (
@@ -469,18 +592,17 @@ export default function AdminReportsScreen() {
             No revenue data available
           </ResponsiveText>
         )}
-      </ResponsiveView>
+      </AdminSection>
     </ResponsiveView>
   );
 
   const renderProductsTab = () => (
     <ResponsiveView style={styles.tabContent}>
-      <ResponsiveView style={[styles.sectionCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-        <ResponsiveView marginBottom="md">
-          <ResponsiveText size="lg" weight="semiBold" color={colors.text}>
-            Top Selling Products
-          </ResponsiveText>
-        </ResponsiveView>
+      <AdminSection
+        title="Top Selling Products"
+        subtitle="Best performing products by sales"
+        variant="outlined"
+      >
         {topProductsLoading ? (
           <ResponsiveView style={styles.loadingContainer}>
             <ActivityIndicator size="small" color={colors.primary} />
@@ -492,7 +614,11 @@ export default function AdminReportsScreen() {
           <ResponsiveView style={styles.productsList}>
             {topProducts.length > 0 ? (
               topProducts.map((product, index) => (
-                <ResponsiveView key={product.id} style={styles.productItem}>
+                <AdminCard
+                  key={product.id}
+                  variant="outlined"
+                  style={styles.productItem}
+                >
                   <ResponsiveView style={styles.productInfo}>
                     <ResponsiveText size="md" weight="medium" color={colors.text}>
                       {product.name}
@@ -512,7 +638,7 @@ export default function AdminReportsScreen() {
                       {product.is_available ? 'Available' : 'Unavailable'}
                     </ResponsiveText>
                   </ResponsiveView>
-                </ResponsiveView>
+                </AdminCard>
               ))
             ) : (
               <ResponsiveView style={styles.emptyState}>
@@ -523,98 +649,7 @@ export default function AdminReportsScreen() {
             )}
           </ResponsiveView>
         )}
-      </ResponsiveView>
-    </ResponsiveView>
-  );
-
-  const renderCustomersTab = () => (
-    <ResponsiveView style={styles.tabContent}>
-      <ResponsiveView style={styles.cardsGrid}>
-        <ResponsiveView style={[styles.reportCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-          <ResponsiveView style={styles.cardHeader}>
-            <MaterialIcons name="people" size={24} color={colors.primary} />
-            <ResponsiveText size="sm" color={colors.textSecondary}>
-              Total Customers
-            </ResponsiveText>
-          </ResponsiveView>
-          <ResponsiveText size="xxl" weight="bold" color={colors.primary}>
-            {reportData?.customerStats.totalCustomers}
-          </ResponsiveText>
-        </ResponsiveView>
-
-        <ResponsiveView style={[styles.reportCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-          <ResponsiveView style={styles.cardHeader}>
-            <MaterialIcons name="person-add" size={24} color={colors.success} />
-            <ResponsiveText size="sm" color={colors.textSecondary}>
-              New Customers
-            </ResponsiveText>
-          </ResponsiveView>
-          <ResponsiveText size="xxl" weight="bold" color={colors.success}>
-            {reportData?.customerStats.newCustomers}
-          </ResponsiveText>
-        </ResponsiveView>
-
-        <ResponsiveView style={[styles.reportCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-          <ResponsiveView style={styles.cardHeader}>
-            <MaterialIcons name="repeat" size={24} color={colors.info} />
-            <ResponsiveText size="sm" color={colors.textSecondary}>
-              Returning Customers
-            </ResponsiveText>
-          </ResponsiveView>
-          <ResponsiveText size="xxl" weight="bold" color={colors.info}>
-            {reportData?.customerStats.returningCustomers}
-          </ResponsiveText>
-        </ResponsiveView>
-      </ResponsiveView>
-    </ResponsiveView>
-  );
-
-  const renderDeliveryTab = () => (
-    <ResponsiveView style={styles.tabContent}>
-      <ResponsiveView style={[styles.sectionCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-        <ResponsiveView marginBottom="md">
-          <ResponsiveText size="lg" weight="semiBold" color={colors.text}>
-            Delivery Performance
-          </ResponsiveText>
-        </ResponsiveView>
-        <ResponsiveView style={styles.deliveryStats}>
-          <ResponsiveView style={styles.deliveryStatItem}>
-            <MaterialIcons name="delivery-dining" size={20} color={colors.primary} />
-            <ResponsiveView marginLeft="sm">
-              <ResponsiveText size="sm" color={colors.textSecondary}>
-                Average Delivery Time
-              </ResponsiveText>
-              <ResponsiveText size="md" weight="semiBold" color={colors.text}>
-                25 minutes
-              </ResponsiveText>
-            </ResponsiveView>
-          </ResponsiveView>
-          
-          <ResponsiveView style={styles.deliveryStatItem}>
-            <MaterialIcons name="check-circle" size={20} color={colors.success} />
-            <ResponsiveView marginLeft="sm">
-              <ResponsiveText size="sm" color={colors.textSecondary}>
-                On-Time Delivery Rate
-              </ResponsiveText>
-              <ResponsiveText size="md" weight="semiBold" color={colors.text}>
-                94.2%
-              </ResponsiveText>
-            </ResponsiveView>
-          </ResponsiveView>
-          
-          <ResponsiveView style={styles.deliveryStatItem}>
-            <MaterialIcons name="star" size={20} color={colors.warning} />
-            <ResponsiveView marginLeft="sm">
-              <ResponsiveText size="sm" color={colors.textSecondary}>
-                Customer Rating
-              </ResponsiveText>
-              <ResponsiveText size="md" weight="semiBold" color={colors.text}>
-                4.8/5.0
-              </ResponsiveText>
-            </ResponsiveView>
-          </ResponsiveView>
-        </ResponsiveView>
-      </ResponsiveView>
+      </AdminSection>
     </ResponsiveView>
   );
 
@@ -624,14 +659,23 @@ export default function AdminReportsScreen() {
       case 'Sales': return renderSalesTab();
       case 'Products': return renderProductsTab();
       case 'Customers': return renderCustomersTab();
-      case 'Delivery': return renderDeliveryTab();
       default: return renderOverviewTab();
     }
   };
 
   if (loading) {
     return (
-      <SafeAreaView style={[global.screen, styles.center, { backgroundColor: colors.background }]}>
+      <AdminLayout
+        title="Reports & Analytics"
+        subtitle="Business insights and performance metrics"
+        showBackButton={true}
+        onBackPress={() => router.replace('/(admin)/dashboard')}
+        headerActions={
+          <TouchableOpacity onPress={handleRefresh} style={styles.refreshButton}>
+            <MaterialIcons name="refresh" size={responsiveValue(20, 24, 28, 32)} color={colors.primary} />
+          </TouchableOpacity>
+        }
+      >
         <ResponsiveView style={styles.center}>
           <ActivityIndicator size="large" color={colors.primary} />
           <ResponsiveView marginTop="md">
@@ -640,100 +684,88 @@ export default function AdminReportsScreen() {
             </ResponsiveText>
           </ResponsiveView>
         </ResponsiveView>
-      </SafeAreaView>
+      </AdminLayout>
     );
   }
 
   return (
-    <SafeAreaView style={[global.screen, { backgroundColor: colors.background }]} edges={['top']}>
-      <ResponsiveView padding="lg">
-        <ResponsiveView style={[styles.header, { backgroundColor: colors.surface }]}>
-          <ResponsiveView style={styles.headerLeft}>
-            <ResponsiveText size="xl" weight="bold" color={colors.text}>
-              Reports & Analytics
-            </ResponsiveText>
-            <ResponsiveText size="md" color={colors.textSecondary}>
-              Business insights and performance metrics
-            </ResponsiveText>
-          </ResponsiveView>
-          <ResponsiveView style={styles.headerRight}>
-            <ResponsiveView style={[styles.chartIcon, { backgroundColor: colors.primary }]}>
-              <MaterialIcons name="bar-chart" size={responsiveValue(16, 18, 20, 22)} color={colors.surface} />
-            </ResponsiveView>
-            <TouchableOpacity onPress={handleRefresh} style={styles.refreshButton}>
-              <MaterialIcons name="refresh" size={responsiveValue(20, 24, 28, 32)} color={colors.primary} />
-            </TouchableOpacity>
-          </ResponsiveView>
-        </ResponsiveView>
-      </ResponsiveView>
-
+    <AdminLayout
+      title="Reports & Analytics"
+      subtitle="Business insights and performance metrics"
+      showBackButton={true}
+      onBackPress={() => router.replace('/(admin)/dashboard')}
+      headerActions={
+              <TouchableOpacity onPress={handleRefresh} style={styles.refreshButton}>
+                <MaterialIcons name="refresh" size={responsiveValue(20, 24, 28, 32)} color={colors.primary} />
+              </TouchableOpacity>
+      }
+    >
       {/* Time Period Selection */}
-      <ResponsiveView padding="lg">
-        <ResponsiveView style={styles.timePeriodContainer}>
-          <ResponsiveText size="sm" color={colors.textSecondary} style={styles.timePeriodLabel}>
-            Time Period:
-          </ResponsiveText>
-          <ScrollView
+      <ResponsiveView marginBottom="sm">
+        <FlatList
+          data={timePeriods}
             horizontal
             showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.timePeriodList}
-          >
-            {timePeriods.map((period) => (
+          contentContainerStyle={{ paddingHorizontal: ResponsiveSpacing.md }}
+          renderItem={({ item }) => (
               <TouchableOpacity
-                key={period.key}
                 style={[
-                  styles.timePeriodTab,
-                  selectedPeriod === period.key && { 
-                    backgroundColor: colors.primary,
-                    borderColor: colors.primary,
-                  },
-                  selectedPeriod !== period.key && { borderColor: colors.border },
-                ]}
-                onPress={() => setSelectedPeriod(period.key)}
+                styles.categoryItem,
+                {
+                  backgroundColor: selectedPeriod === item.key ? colors.primary : 'transparent',
+                  borderColor: selectedPeriod === item.key ? colors.primary : colors.border,
+                  borderWidth: 1,
+                },
+                selectedPeriod === item.key && styles.categoryItemActive,
+              ]}
+              onPress={() => setSelectedPeriod(item.key)}
               >
                 <ResponsiveText 
                   size="sm" 
-                  weight="medium"
-                  color={selectedPeriod === period.key ? colors.background : colors.text}
+                color={selectedPeriod === item.key ? 'white' : colors.text}
+                weight={selectedPeriod === item.key ? 'semiBold' : 'regular'}
+                style={{ textAlign: 'center', lineHeight: undefined }}
                 >
-                  {period.label}
+                {item.label}
                 </ResponsiveText>
               </TouchableOpacity>
-            ))}
-          </ScrollView>
+          )}
+          keyExtractor={(item) => item.key}
+        />
         </ResponsiveView>
 
         {/* Report Tabs */}
-        <ResponsiveView style={styles.tabsContainer}>
-          <ScrollView
+      <ResponsiveView marginBottom="sm">
+        <FlatList
+          data={reportTabs}
             horizontal
             showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.tabsList}
-          >
-            {reportTabs.map((tab) => (
+          contentContainerStyle={{ paddingHorizontal: ResponsiveSpacing.md }}
+          renderItem={({ item }) => (
               <TouchableOpacity
-                key={tab}
                 style={[
-                  styles.tab,
-                  activeTab === tab && { 
-                    backgroundColor: colors.primary,
-                    borderColor: colors.primary,
-                  },
-                  activeTab !== tab && { borderColor: colors.border },
-                ]}
-                onPress={() => setActiveTab(tab)}
+                styles.categoryItem,
+                {
+                  backgroundColor: activeTab === item ? colors.primary : 'transparent',
+                  borderColor: activeTab === item ? colors.primary : colors.border,
+                  borderWidth: 1,
+                },
+                activeTab === item && styles.categoryItemActive,
+              ]}
+              onPress={() => setActiveTab(item)}
               >
                 <ResponsiveText 
                   size="sm" 
-                  weight="medium"
-                  color={activeTab === tab ? colors.background : colors.text}
+                color={activeTab === item ? 'white' : colors.text}
+                weight={activeTab === item ? 'semiBold' : 'regular'}
+                style={{ textAlign: 'center', lineHeight: undefined }}
                 >
-                  {tab}
+                {item}
                 </ResponsiveText>
               </TouchableOpacity>
-            ))}
-          </ScrollView>
-        </ResponsiveView>
+          )}
+          keyExtractor={(item) => item}
+        />
       </ResponsiveView>
 
       <ScrollView
@@ -744,7 +776,7 @@ export default function AdminReportsScreen() {
       >
         {renderTabContent()}
       </ScrollView>
-    </SafeAreaView>
+    </AdminLayout>
   );
 }
 
@@ -753,59 +785,20 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: ResponsiveSpacing.lg,
-    padding: ResponsiveSpacing.md,
-    borderRadius: ResponsiveBorderRadius.lg,
-    ...Layout.shadows.sm,
-  },
-  headerLeft: {
-    flex: 1,
-  },
-  headerRight: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: ResponsiveSpacing.sm,
-  },
-  chartIcon: {
-    width: responsiveValue(32, 36, 40, 44),
-    height: responsiveValue(32, 36, 40, 44),
-    borderRadius: responsiveValue(16, 18, 20, 22),
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
   refreshButton: {
     padding: ResponsiveSpacing.sm,
-  },
-  timePeriodContainer: {
-    marginBottom: ResponsiveSpacing.lg,
-  },
-  timePeriodLabel: {
-    marginBottom: ResponsiveSpacing.sm,
   },
   timePeriodList: {
     gap: ResponsiveSpacing.sm,
   },
-  timePeriodTab: {
-    paddingHorizontal: ResponsiveSpacing.md,
-    paddingVertical: ResponsiveSpacing.sm,
-    borderRadius: ResponsiveBorderRadius.pill,
-    borderWidth: 1,
-  },
-  tabsContainer: {
-    marginBottom: ResponsiveSpacing.lg,
+  timePeriodPill: {
+    marginRight: ResponsiveSpacing.sm,
   },
   tabsList: {
     gap: ResponsiveSpacing.sm,
   },
-  tab: {
-    paddingHorizontal: ResponsiveSpacing.md,
-    paddingVertical: ResponsiveSpacing.sm,
-    borderRadius: ResponsiveBorderRadius.pill,
-    borderWidth: 1,
+  tabPill: {
+    marginRight: ResponsiveSpacing.sm,
   },
   scrollView: {
     flex: 1,
@@ -815,56 +808,19 @@ const styles = StyleSheet.create({
   },
   cardsGrid: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: ResponsiveSpacing.md,
-    marginBottom: ResponsiveSpacing.lg,
-  },
-  reportCard: {
-    flex: 1,
-    minWidth: responsiveValue(150, 160, 170, 180),
-    padding: ResponsiveSpacing.md,
-    borderRadius: ResponsiveBorderRadius.lg,
-    ...Layout.shadows.sm,
-  },
-  cardHeader: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-  },
-  cardIcon: {
-    width: responsiveValue(40, 44, 48, 52),
-    height: responsiveValue(40, 44, 48, 52),
-    borderRadius: responsiveValue(20, 22, 24, 26),
     justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: ResponsiveSpacing.md,
+    alignItems: 'stretch',
+    gap: ResponsiveSpacing.lg,
+    marginBottom: ResponsiveSpacing.xl,
+    paddingHorizontal: ResponsiveSpacing.lg,
   },
-  cardContent: {
-    flex: 1,
+  horizontalScrollView: {
+    marginBottom: ResponsiveSpacing.xl,
   },
-  sectionCard: {
-    padding: ResponsiveSpacing.md,
-    borderRadius: ResponsiveBorderRadius.lg,
-    ...Layout.shadows.sm,
-  },
-  trendContainer: {
-    gap: ResponsiveSpacing.sm,
-  },
-  trendItem: {
-    gap: ResponsiveSpacing.xs,
-  },
-  trendHeader: {
+  horizontalCardsContainer: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  progressBar: {
-    height: responsiveValue(6, 8, 10, 12),
-    borderRadius: responsiveValue(3, 4, 5, 6),
-    overflow: 'hidden',
-  },
-  progressFill: {
-    height: '100%',
-    borderRadius: responsiveValue(3, 4, 5, 6),
+    paddingHorizontal: ResponsiveSpacing.lg,
+    gap: ResponsiveSpacing.lg,
   },
   ordersList: {
     gap: ResponsiveSpacing.sm,
@@ -884,13 +840,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-  },
-  sectionCardOld: {
-    padding: ResponsiveSpacing.md,
-    borderRadius: ResponsiveBorderRadius.lg,
-    borderWidth: 1,
-    marginBottom: ResponsiveSpacing.lg,
-    ...Layout.shadows.sm,
   },
   statusList: {
     gap: ResponsiveSpacing.sm,
@@ -925,25 +874,12 @@ const styles = StyleSheet.create({
   productInfo: {
     flex: 1,
   },
-  deliveryStats: {
-    gap: ResponsiveSpacing.md,
-  },
-  deliveryStatItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: ResponsiveSpacing.sm,
-  },
   emptyState: {
     alignItems: 'center',
     paddingVertical: ResponsiveSpacing.xl,
   },
   productStats: {
     alignItems: 'flex-end',
-  },
-  revenueSummary: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    marginBottom: ResponsiveSpacing.md,
   },
   revenueCard: {
     alignItems: 'center',
@@ -968,5 +904,23 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  categoryItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: responsiveValue(12, 14, 16, 18),
+    paddingVertical: responsiveValue(6, 8, 10, 12),
+    borderRadius: responsiveValue(16, 18, 20, 22),
+    marginRight: responsiveValue(6, 8, 10, 12),
+    minWidth: responsiveValue(72, 80, 88, 100),
+    minHeight: responsiveValue(36, 40, 44, 48),
+  },
+  categoryItemActive: {
+    shadowColor: '#FFE44D',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 3,
+    elevation: 0,
   },
 });

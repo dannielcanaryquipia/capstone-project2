@@ -1,12 +1,12 @@
 import { MaterialIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import {
-    ActivityIndicator,
-    RefreshControl,
-    ScrollView,
-    StyleSheet,
-    TouchableOpacity
+  ActivityIndicator,
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  TouchableOpacity
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Button from '../../../components/ui/Button';
@@ -16,6 +16,7 @@ import Layout from '../../../constants/Layout';
 import { ResponsiveBorderRadius, ResponsiveSpacing, responsiveValue } from '../../../constants/Responsive';
 import { Strings } from '../../../constants/Strings';
 import { useTheme } from '../../../contexts/ThemeContext';
+import { useDeliveryEarnings, useDeliveryStats, useMyDeliveryOrders } from '../../../hooks';
 import { useAuth } from '../../../hooks/useAuth';
 import global from '../../../styles/global';
 
@@ -41,54 +42,24 @@ export default function DeliveryDashboard() {
   const { colors } = useTheme();
   const { user } = useAuth();
   const router = useRouter();
-  const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [stats, setStats] = useState<DeliveryStats | null>(null);
-  const [recentOrders, setRecentOrders] = useState<RecentOrder[]>([]);
+  
+  // Use real data from hooks
+  const { orders: myOrders, isLoading: ordersLoading, refresh: refreshOrders } = useMyDeliveryOrders();
+  const { stats, isLoading: statsLoading, refresh: refreshStats } = useDeliveryStats();
+  const { earnings, isLoading: earningsLoading, refresh: refreshEarnings } = useDeliveryEarnings();
 
-  useEffect(() => {
-    loadData();
-  }, []);
+  const loading = ordersLoading || statsLoading || earningsLoading;
 
   const loadData = async () => {
     try {
-      setLoading(true);
-      // Mock data - replace with actual API calls
-      const mockStats: DeliveryStats = {
-        total_orders: 45,
-        completed_orders: 38,
-        pending_orders: 7,
-        total_earnings: 1250.50,
-        today_earnings: 85.25
-      };
-
-      const mockRecentOrders: RecentOrder[] = [
-        {
-          id: '1',
-          order_number: 'ORD-001',
-          customer_name: 'John Doe',
-          total_amount: 125.50,
-          status: 'ready_for_pickup',
-          created_at: new Date().toISOString(),
-          delivery_address: '123 Main St, City'
-        },
-        {
-          id: '2',
-          order_number: 'ORD-002',
-          customer_name: 'Jane Smith',
-          total_amount: 89.75,
-          status: 'out_for_delivery',
-          created_at: new Date().toISOString(),
-          delivery_address: '456 Oak Ave, City'
-        }
-      ];
-
-      setStats(mockStats);
-      setRecentOrders(mockRecentOrders);
+      await Promise.all([
+        refreshOrders(),
+        refreshStats(),
+        refreshEarnings()
+      ]);
     } catch (error) {
       console.error('Error loading delivery data:', error);
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -218,10 +189,10 @@ export default function DeliveryDashboard() {
                 </ResponsiveText>
               </ResponsiveView>
               <ResponsiveText size="xxl" weight="bold" color={colors.text}>
-                {stats?.total_orders || 0}
+                {stats?.totalDeliveries || 0}
               </ResponsiveText>
               <ResponsiveText size="xs" color={colors.textSecondary}>
-                {stats?.completed_orders || 0} completed
+                {stats?.completedDeliveries || 0} completed
               </ResponsiveText>
             </ResponsiveView>
 
@@ -238,10 +209,10 @@ export default function DeliveryDashboard() {
                 </ResponsiveText>
               </ResponsiveView>
               <ResponsiveText size="xxl" weight="bold" color={colors.text}>
-                ₱{(stats?.today_earnings || 0).toFixed(2)}
+                ₱{(earnings?.today || 0).toFixed(2)}
               </ResponsiveText>
               <ResponsiveText size="xs" color={colors.textSecondary}>
-                ₱{(stats?.total_earnings || 0).toFixed(2)} total
+                ₱{(earnings?.total || 0).toFixed(2)} total
               </ResponsiveText>
             </ResponsiveView>
           </ResponsiveView>
@@ -291,9 +262,9 @@ export default function DeliveryDashboard() {
               />
             </ResponsiveView>
 
-            {recentOrders.length > 0 ? (
+            {myOrders.length > 0 ? (
               <ResponsiveView style={styles.ordersList}>
-                {recentOrders.slice(0, 3).map((order) => (
+                {myOrders.slice(0, 3).map((order: any) => (
                   <TouchableOpacity
                     key={order.id}
                     style={[styles.orderCard, { 
@@ -305,7 +276,7 @@ export default function DeliveryDashboard() {
                   >
                     <ResponsiveView style={styles.orderHeader}>
                       <ResponsiveText size="md" weight="semiBold" color={colors.text}>
-                        {order.order_number}
+                        {order.order_number || `#${order.id.slice(-6).toUpperCase()}`}
                       </ResponsiveText>
                       <ResponsiveView style={[styles.orderStatus, { 
                         backgroundColor: getStatusColor(order.status) + '20' 
@@ -327,10 +298,10 @@ export default function DeliveryDashboard() {
                     
                     <ResponsiveView style={styles.orderDetails}>
                       <ResponsiveText size="sm" color={colors.textSecondary}>
-                        Customer: {order.customer_name}
+                        Customer: {order.customer?.full_name || 'Unknown'}
                       </ResponsiveText>
                       <ResponsiveText size="sm" color={colors.textSecondary}>
-                        Address: {order.delivery_address}
+                        Address: {order.delivery_address?.address || 'Address not available'}
                       </ResponsiveText>
                     </ResponsiveView>
                     

@@ -9,18 +9,16 @@ import {
   StyleSheet,
   TouchableOpacity
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { AdminCard, AdminLayout, AdminSection } from '../../../components/admin';
 import Button from '../../../components/ui/Button';
 import { ResponsiveText } from '../../../components/ui/ResponsiveText';
 import { ResponsiveView } from '../../../components/ui/ResponsiveView';
-import SelectablePill from '../../../components/ui/SelectablePill';
 import Layout from '../../../constants/Layout';
 import { ResponsiveBorderRadius, ResponsiveSpacing, responsiveValue } from '../../../constants/Responsive';
 import { Strings } from '../../../constants/Strings';
 import { useTheme } from '../../../contexts/ThemeContext';
 import { useProductCategories, useProducts } from '../../../hooks';
 import { ProductService } from '../../../services/product.service';
-import global from '../../../styles/global';
 import { Product, ProductCategory } from '../../../types/product.types';
 
 export default function AdminProductsScreen() {
@@ -109,43 +107,36 @@ export default function AdminProductsScreen() {
   const getCategoryName = (categoryId: string) => categoryMap.get(categoryId) || 'Unknown';
 
   const renderProductItem = ({ item }: { item: Product }) => (
-    <TouchableOpacity
-      style={[styles.productCard, { 
-        backgroundColor: colors.surface, 
-        ...Layout.shadows.sm
-      }]}
+    <AdminCard
+      title={item.name}
+      subtitle={item.description}
+      icon={
+        <MaterialIcons 
+          name="restaurant-menu" 
+          size={responsiveValue(20, 22, 24, 28)} 
+          color={colors.primary} 
+        />
+      }
       onPress={() => router.push(`/(admin)/products/${item.id}` as any)}
-      activeOpacity={0.7}
+      variant="outlined"
+      style={styles.productCard}
     >
-      <ResponsiveView style={styles.productHeader}>
-        <ResponsiveView style={styles.productInfo}>
-          <ResponsiveText size="lg" weight="semiBold" color={colors.text}>
-            {item.name}
+      <ResponsiveView style={styles.productMeta}>
+        <ResponsiveView style={[styles.categoryBadge, { backgroundColor: `${colors.primary}20` }]}>
+          <ResponsiveText size="xs" color={colors.primary} weight="semiBold">
+            {getCategoryName(item.category_id)}
           </ResponsiveText>
-          <ResponsiveView style={styles.productMeta}>
-            <ResponsiveView style={[styles.categoryBadge, { backgroundColor: `${colors.primary}20` }]}>
-              <ResponsiveText size="xs" color={colors.primary} weight="semiBold">
-                {getCategoryName(item.category_id)}
+        </ResponsiveView>
+        {item.is_recommended && (
+          <ResponsiveView style={[styles.recommendedBadge, { backgroundColor: `${colors.success}20` }]}>
+            <MaterialIcons name="star" size={responsiveValue(12, 14, 16, 18)} color={colors.success} />
+            <ResponsiveView marginLeft="xs">
+              <ResponsiveText size="xs" color={colors.success} weight="semiBold">
+                Recommended
               </ResponsiveText>
             </ResponsiveView>
-            {item.is_recommended && (
-              <ResponsiveView style={[styles.recommendedBadge, { backgroundColor: `${colors.success}20` }]}>
-                <MaterialIcons name="star" size={responsiveValue(12, 14, 16, 18)} color={colors.success} />
-                <ResponsiveView marginLeft="xs">
-                  <ResponsiveText size="xs" color={colors.success} weight="semiBold">
-                    Recommended
-                  </ResponsiveText>
-                </ResponsiveView>
-              </ResponsiveView>
-            )}
           </ResponsiveView>
-        </ResponsiveView>
-      </ResponsiveView>
-
-      <ResponsiveView style={styles.productDescription}>
-        <ResponsiveText size="sm" color={colors.textSecondary} numberOfLines={2}>
-          {item.description}
-        </ResponsiveText>
+        )}
       </ResponsiveView>
 
       <ResponsiveView style={styles.productFooter}>
@@ -219,12 +210,18 @@ export default function AdminProductsScreen() {
           size="small"
         />
       </ResponsiveView>
-    </TouchableOpacity>
+    </AdminCard>
   );
 
   if (loading) {
     return (
-      <SafeAreaView style={[global.screen, styles.center, { backgroundColor: colors.background }]}>
+      <AdminLayout
+        title="Manage Products"
+        subtitle="Loading..."
+        showBackButton={true}
+        onBackPress={() => router.replace('/(admin)/dashboard')}
+        backgroundColor={colors.background}
+      >
         <ResponsiveView style={styles.center}>
           <ActivityIndicator size="large" color={colors.primary} />
           <ResponsiveView marginTop="md">
@@ -233,53 +230,59 @@ export default function AdminProductsScreen() {
             </ResponsiveText>
           </ResponsiveView>
         </ResponsiveView>
-      </SafeAreaView>
+      </AdminLayout>
     );
   }
 
   return (
-    <SafeAreaView style={[global.screen, { backgroundColor: colors.background }]} edges={['top']}>
-      <ResponsiveView padding="lg">
-        <ResponsiveView padding="md" borderRadius="lg" style={[styles.headerContainer, { backgroundColor: colors.surface }] }>
-          <ResponsiveView style={styles.headerTop}>
-            <ResponsiveText size="xl" weight="bold" color={colors.text}>
-              Manage Products
-            </ResponsiveText>
-            <Button
-              title="Add Product"
-              onPress={() => router.push('/(admin)/products/new' as any)}
-              variant="primary"
-              size="small"
-              icon={<MaterialIcons name="add" size={16} color={colors.background} />}
-            />
-          </ResponsiveView>
-          <ResponsiveText size="md" color={colors.textSecondary}>
-            Manage your restaurant menu items and inventory
-          </ResponsiveText>
-        </ResponsiveView>
-      </ResponsiveView>
-
-      {/* Category Tabs */}
-      <ResponsiveView padding="lg">
-        <ResponsiveView style={styles.tabsContainer}>
-          <FlatList
-            data={[{ id: 'all', name: 'All' }, ...categories]}
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            renderItem={({ item }) => (
-              <SelectablePill
-                label={(item.name || '').trim()}
-                selected={activeCategory === item.id}
-                onPress={() => setActiveCategory(item.id)}
-                style={styles.tab}
-                size="md"
-                textTransform="capitalize"
-              />
-            )}
-            keyExtractor={(item) => item.id}
-            contentContainerStyle={styles.tabsList}
-          />
-        </ResponsiveView>
+    <AdminLayout
+      title="Manage Products"
+      subtitle="Manage your restaurant menu items and inventory"
+      showBackButton={true}
+      onBackPress={() => router.replace('/(admin)/dashboard')}
+      headerActions={
+        <Button
+          title="Add Product"
+          onPress={() => router.push('/(admin)/products/new' as any)}
+          variant="primary"
+          size="small"
+          icon={<MaterialIcons name="add" size={16} color={colors.background} />}
+        />
+      }
+      backgroundColor={colors.background}
+    >
+      {/* Category Filter */}
+      <ResponsiveView marginBottom="sm">
+        <FlatList
+          data={[{ id: 'all', name: 'All' }, ...categories]}
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={{ paddingHorizontal: ResponsiveSpacing.md }}
+          renderItem={({ item }) => (
+            <TouchableOpacity
+              style={[
+                styles.categoryItem,
+                {
+                  backgroundColor: activeCategory === item.id ? colors.primary : 'transparent',
+                  borderColor: activeCategory === item.id ? colors.primary : colors.border,
+                  borderWidth: 1,
+                },
+                activeCategory === item.id && styles.categoryItemActive,
+              ]}
+              onPress={() => setActiveCategory(item.id)}
+            >
+              <ResponsiveText
+                size="sm"
+                color={activeCategory === item.id ? 'white' : colors.text}
+                weight={activeCategory === item.id ? 'semiBold' : 'regular'}
+                style={{ textAlign: 'center', lineHeight: undefined, textTransform: 'capitalize' }}
+              >
+                {(item.name || '').trim()}
+              </ResponsiveText>
+            </TouchableOpacity>
+          )}
+          keyExtractor={(item) => item.id}
+        />
       </ResponsiveView>
 
       {products.length > 0 ? (
@@ -305,34 +308,36 @@ export default function AdminProductsScreen() {
           }
         />
       ) : (
-        <ResponsiveView style={[styles.emptyState, { backgroundColor: colors.surface }]}>
-          <ResponsiveView style={[styles.emptyIcon, { backgroundColor: colors.surfaceVariant }]}>
-            <MaterialIcons name="restaurant-menu" size={responsiveValue(48, 56, 64, 72)} color={colors.primary} />
+        <AdminSection title="No Products Found" variant="card">
+          <ResponsiveView style={[styles.emptyState, { backgroundColor: colors.surface }]}>
+            <ResponsiveView style={[styles.emptyIcon, { backgroundColor: colors.surfaceVariant }]}>
+              <MaterialIcons name="restaurant-menu" size={responsiveValue(48, 56, 64, 72)} color={colors.primary} />
+            </ResponsiveView>
+            <ResponsiveView marginTop="md">
+              <ResponsiveText size="lg" weight="semiBold" color={colors.text}>
+                No Products Found
+              </ResponsiveText>
+            </ResponsiveView>
+            <ResponsiveView marginTop="sm">
+              <ResponsiveText size="md" color={colors.textSecondary} style={{ textAlign: 'center' }}>
+                {activeCategory === 'all' 
+                  ? 'No products have been added yet.'
+                  : `No products found in this category.`
+                }
+              </ResponsiveText>
+            </ResponsiveView>
+            
+            <ResponsiveView marginTop="lg">
+              <Button
+                title="Add First Product"
+                onPress={() => router.push('/(admin)/products/new' as any)}
+                variant="primary"
+              />
+            </ResponsiveView>
           </ResponsiveView>
-          <ResponsiveView marginTop="md">
-            <ResponsiveText size="lg" weight="semiBold" color={colors.text}>
-              No Products Found
-            </ResponsiveText>
-          </ResponsiveView>
-          <ResponsiveView marginTop="sm">
-            <ResponsiveText size="md" color={colors.textSecondary} style={{ textAlign: 'center' }}>
-              {activeCategory === 'all' 
-                ? 'No products have been added yet.'
-                : `No products found in this category.`
-              }
-            </ResponsiveText>
-          </ResponsiveView>
-          
-          <ResponsiveView marginTop="lg">
-            <Button
-              title="Add First Product"
-              onPress={() => router.push('/(admin)/products/new' as any)}
-              variant="primary"
-            />
-          </ResponsiveView>
-        </ResponsiveView>
+        </AdminSection>
       )}
-    </SafeAreaView>
+    </AdminLayout>
   );
 }
 
@@ -341,49 +346,19 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  headerContainer: {
-    flexDirection: 'column',
-    justifyContent: 'center',
-    alignItems: 'stretch',
-    marginBottom: ResponsiveSpacing.lg,
-    borderRadius: ResponsiveBorderRadius.lg,
-    ...Layout.shadows.sm,
-  },
-  headerTop: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: ResponsiveSpacing.sm,
-  },
-  tabsContainer: {
-    marginBottom: ResponsiveSpacing.lg,
-  },
   tabsList: {
+    paddingHorizontal: ResponsiveSpacing.md,
     gap: ResponsiveSpacing.sm,
   },
-  tab: {
-    paddingHorizontal: ResponsiveSpacing.md,
-    paddingVertical: ResponsiveSpacing.sm,
-    borderRadius: ResponsiveBorderRadius.pill,
-    borderWidth: 1,
+  categoryPill: {
+    marginRight: ResponsiveSpacing.sm,
   },
   productsList: {
     paddingHorizontal: ResponsiveSpacing.lg,
     paddingTop: 0,
   },
   productCard: {
-    padding: ResponsiveSpacing.md,
-    borderRadius: ResponsiveBorderRadius.lg,
     marginBottom: ResponsiveSpacing.md,
-  },
-  productHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    marginBottom: ResponsiveSpacing.sm,
-  },
-  productInfo: {
-    flex: 1,
   },
   productMeta: {
     flexDirection: 'row',
@@ -402,9 +377,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: ResponsiveSpacing.sm,
     paddingVertical: ResponsiveSpacing.xs,
     borderRadius: ResponsiveBorderRadius.sm,
-  },
-  productDescription: {
-    marginBottom: ResponsiveSpacing.sm,
   },
   productFooter: {
     flexDirection: 'row',
@@ -441,12 +413,9 @@ const styles = StyleSheet.create({
     gap: ResponsiveSpacing.sm,
   },
   emptyState: {
-    flex: 1,
-    justifyContent: 'center',
     alignItems: 'center',
     paddingVertical: ResponsiveSpacing.xxxl,
     paddingHorizontal: ResponsiveSpacing.lg,
-    marginHorizontal: ResponsiveSpacing.lg,
     borderRadius: ResponsiveBorderRadius.lg,
     ...Layout.shadows.sm,
   },
@@ -458,9 +427,22 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: ResponsiveSpacing.md,
   },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
+  categoryItem: {
+    flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: responsiveValue(12, 14, 16, 18),
+    paddingVertical: responsiveValue(6, 8, 10, 12),
+    borderRadius: responsiveValue(16, 18, 20, 22),
+    marginRight: responsiveValue(6, 8, 10, 12),
+    minWidth: responsiveValue(72, 80, 88, 100),
+    minHeight: responsiveValue(36, 40, 44, 48),
+  },
+  categoryItemActive: {
+    shadowColor: '#FFE44D',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 3,
+    elevation: 0,
   },
 });

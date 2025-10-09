@@ -22,7 +22,8 @@
         "backgroundColor": "transparent"
       },
       "edgeToEdgeEnabled": true,
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "package": "com.dannielcanaryquipia.capstoneproject2"
     },
     "web": {
       "bundler": "metro",
@@ -30,7 +31,8 @@
       "favicon": "./assets/images/favicon.png"
     },
     "plugins": [
-      "expo-router"
+      "expo-router",
+      "expo-asset"
     ],
     "experiments": {
       "typedRoutes": true

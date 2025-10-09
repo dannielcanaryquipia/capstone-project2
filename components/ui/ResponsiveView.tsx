@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, ViewProps } from 'react-native';
+import { Text, View, ViewProps } from 'react-native';
 import Responsive from '../../constants/Responsive';
 
 interface ResponsiveViewProps extends ViewProps {
@@ -180,9 +180,16 @@ export const ResponsiveView: React.FC<ResponsiveViewProps> = ({
     ...(shadow && Responsive.Shadows[shadowLevel]),
   };
 
+  const wrappedChildren = React.Children.map(children, (child) => {
+    if (typeof child === 'string' || typeof child === 'number') {
+      return <Text>{child}</Text>;
+    }
+    return child as React.ReactNode;
+  });
+
   return (
     <View style={[containerStyle, style]} {...props}>
-      {children}
+      {wrappedChildren}
     </View>
   );
 };

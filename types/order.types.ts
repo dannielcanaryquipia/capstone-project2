@@ -139,7 +139,8 @@ export interface OrderStats {
   out_for_delivery: number;
   delivered_orders: number;
   cancelled_orders: number;
-  total_revenue: number;
+  total_income: number;
+  cancelled_income: number;
   average_order_value: number;
   completion_rate: number;
 }

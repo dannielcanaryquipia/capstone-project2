@@ -9,13 +9,12 @@ import {
   StyleSheet,
   TouchableOpacity
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { AdminLayout, AdminSection } from '../../../components/admin';
 import Button from '../../../components/ui/Button';
 import { LoadingState } from '../../../components/ui/LoadingState';
 import { OrderCard } from '../../../components/ui/OrderCard';
 import { ResponsiveText } from '../../../components/ui/ResponsiveText';
 import { ResponsiveView } from '../../../components/ui/ResponsiveView';
-import SelectablePill from '../../../components/ui/SelectablePill';
 import type { TabItem } from '../../../components/ui/TabBar';
 import Layout from '../../../constants/Layout';
 import { ResponsiveBorderRadius, ResponsiveSpacing, responsiveValue } from '../../../constants/Responsive';
@@ -23,7 +22,6 @@ import { Strings } from '../../../constants/Strings';
 import { useTheme } from '../../../contexts/ThemeContext';
 import { useAdminOrders } from '../../../hooks';
 import { OrderService } from '../../../services/order.service';
-import global from '../../../styles/global';
 import { Order, OrderStatus } from '../../../types/order.types';
 
 const getStatusTabs = (colors: any): TabItem[] => [
@@ -131,17 +129,44 @@ export default function AdminOrdersScreen() {
   };
 
   const renderOrderItem = ({ item }: { item: Order }) => {
-    const nextStatus = getNextStatus(item.status);
-    
+    // Enforce role-based action policy for Admin:
+    // - COD: no actions in admin (verification and delivered handled by rider)
+    // - GCash: require payment verification before allowing status transitions
+    // - Admin never marks as delivered (that happens on rider app)
+    const paymentMethod = (item.payment_method as any)?.toLowerCase?.() || '';
+    const paymentStatus = (item.payment_status as any)?.toLowerCase?.() || '';
+    const isCOD = paymentMethod === 'cod';
+    const isGCash = paymentMethod === 'gcash';
+    const isPaymentVerified = paymentStatus === 'verified';
+
+    let nextStatus = getNextStatus(item.status);
+
+    // Block admin from transitioning to Delivered
+    if (nextStatus === 'delivered') {
+      nextStatus = null;
+    }
+
+    // Block all actions for COD in admin
+    if (isCOD) {
+      nextStatus = null;
+    }
+
+    // For GCash, require payment verification before any transitions
+    if (isGCash && !isPaymentVerified) {
+      nextStatus = null;
+    }
+
+    const showAction = !!nextStatus;
+
     return (
       <OrderCard
         order={item}
         onPress={() => router.push(`/(admin)/orders/${item.id}` as any)}
         showCustomerInfo={true}
         showDeliveryInfo={true}
-        showActionButton={!!nextStatus}
+        showActionButton={showAction}
         actionButtonTitle={nextStatus ? `Mark as ${nextStatus.replace('_', ' ')}` : undefined}
-        onActionPress={nextStatus ? () => handleStatusUpdate(item.id, nextStatus) : undefined}
+        onActionPress={nextStatus ? () => handleStatusUpdate(item.id, nextStatus as OrderStatus) : undefined}
         actionButtonLoading={updatingOrder === item.id}
         actionButtonDisabled={updatingOrder === item.id}
         variant="detailed"
@@ -151,96 +176,113 @@ export default function AdminOrdersScreen() {
 
   if (loading) {
     return (
-      <SafeAreaView style={[global.screen, styles.center, { backgroundColor: colors.background }]}>
+      <AdminLayout
+        title="Order Management"
+        subtitle="Loading..."
+        showBackButton={true}
+        onBackPress={() => router.replace('/(admin)/dashboard')}
+        backgroundColor={colors.background}
+      >
         <ResponsiveView style={styles.center}>
           <LoadingState 
             message={Strings.loading} 
             fullScreen 
           />
         </ResponsiveView>
-      </SafeAreaView>
+      </AdminLayout>
     );
   }
 
-  const renderHeader = () => (
-    <ResponsiveView padding="lg">
-      {/* Header with Title and Refresh */}
-      <ResponsiveView style={[styles.header, { backgroundColor: colors.surface }]} marginBottom="md">
-        <ResponsiveView style={styles.headerLeft}>
-          <ResponsiveText size="xl" weight="bold" color={colors.text}>
-            Order Management
-          </ResponsiveText>
-          <ResponsiveText size="md" color={colors.textSecondary}>
-            View and manage customer orders
-          </ResponsiveText>
-        </ResponsiveView>
-        <TouchableOpacity onPress={handleRefresh} style={styles.refreshButton}>
-          <MaterialIcons name="refresh" size={responsiveValue(20, 24, 28, 32)} color={colors.primary} />
-        </TouchableOpacity>
-      </ResponsiveView>
-
-      {/* Search removed - redundant with dashboard */}
-
-      {/* Summary removed - shown on dashboard */}
-
-      {/* Status Chips */}
-      <ResponsiveView style={styles.tabsContainer}>
-        <FlatList
-          data={statusTabs}
-          keyExtractor={(item) => item.key}
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.tabsList}
-          renderItem={({ item }) => (
-            <SelectablePill
-              label={item.label}
-              selected={activeTab === (item.key as any)}
-              onPress={() => setActiveTab(item.key as OrderStatus | 'all')}
-              size="md"
-            />
-          )}
-        />
-      </ResponsiveView>
+  const renderStatusFilter = () => (
+    <ResponsiveView marginBottom="sm">
+      <FlatList
+        data={statusTabs}
+        keyExtractor={(item) => item.key}
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={{ paddingHorizontal: ResponsiveSpacing.md }}
+        renderItem={({ item }) => (
+          <TouchableOpacity
+            style={[
+              styles.categoryItem,
+              {
+                backgroundColor: activeTab === item.key ? colors.primary : 'transparent',
+                borderColor: activeTab === item.key ? colors.primary : colors.border,
+                borderWidth: 1,
+              },
+              activeTab === item.key && styles.categoryItemActive,
+            ]}
+            onPress={() => setActiveTab(item.key as OrderStatus | 'all')}
+          >
+            <ResponsiveText
+              size="sm"
+              color={activeTab === item.key ? 'white' : colors.text}
+              weight={activeTab === item.key ? 'semiBold' : 'regular'}
+              style={{ textAlign: 'center', lineHeight: undefined }}
+            >
+              {item.label}
+            </ResponsiveText>
+          </TouchableOpacity>
+        )}
+      />
     </ResponsiveView>
   );
 
   const renderEmptyState = () => (
-    <ResponsiveView style={[styles.emptyState, { backgroundColor: colors.surface }]}>
-      <ResponsiveView style={[styles.emptyIcon, { backgroundColor: colors.surfaceVariant }]}>
-        <MaterialIcons name="receipt-long" size={responsiveValue(48, 56, 64, 72)} color={colors.primary} />
+    <AdminSection title="No Orders Found" variant="card">
+      <ResponsiveView style={[styles.emptyState, { backgroundColor: colors.surface }]}>
+        <ResponsiveView style={[styles.emptyIcon, { backgroundColor: colors.surfaceVariant }]}>
+          <MaterialIcons name="receipt-long" size={responsiveValue(48, 56, 64, 72)} color={colors.primary} />
+        </ResponsiveView>
+        <ResponsiveView marginTop="md">
+          <ResponsiveText size="lg" weight="semiBold" color={colors.text} align="center">
+            No Orders Found
+          </ResponsiveText>
+        </ResponsiveView>
+        <ResponsiveView marginTop="sm">
+          <ResponsiveText size="md" color={colors.textSecondary} align="center">
+            {activeTab === 'all' 
+              ? 'No orders have been placed yet.'
+              : `No ${activeTab.replace('_', ' ')} orders found.`
+            }
+          </ResponsiveText>
+        </ResponsiveView>
+        <ResponsiveView marginTop="lg">
+          <Button
+            title="Refresh"
+            onPress={handleRefresh}
+            variant="primary"
+            size="medium"
+          />
+        </ResponsiveView>
       </ResponsiveView>
-      <ResponsiveView marginTop="md">
-        <ResponsiveText size="lg" weight="semiBold" color={colors.text} align="center">
-          No Orders Found
-        </ResponsiveText>
-      </ResponsiveView>
-      <ResponsiveView marginTop="sm">
-        <ResponsiveText size="md" color={colors.textSecondary} align="center">
-          {activeTab === 'all' 
-            ? 'No orders have been placed yet.'
-            : `No ${activeTab.replace('_', ' ')} orders found.`
-          }
-        </ResponsiveText>
-      </ResponsiveView>
-      <ResponsiveView marginTop="lg">
-        <Button
-          title="Refresh"
-          onPress={handleRefresh}
-          variant="primary"
-          size="medium"
-        />
-      </ResponsiveView>
-    </ResponsiveView>
+    </AdminSection>
   );
 
   return (
-    <SafeAreaView style={[global.screen, { backgroundColor: colors.background }]} edges={['top']}>
+    <AdminLayout
+      title="Order Management"
+      subtitle="View and manage customer orders"
+      showBackButton={true}
+      onBackPress={() => router.replace('/(admin)/dashboard')}
+      headerActions={
+        <Button
+          title=""
+          onPress={handleRefresh}
+          variant="text"
+          icon={<MaterialIcons name="refresh" size={24} color={colors.primary} />}
+          style={styles.refreshButton}
+        />
+      }
+      backgroundColor={colors.background}
+    >
+      {renderStatusFilter()}
+      
       {orders.length > 0 ? (
         <FlatList
           data={orders}
           renderItem={renderOrderItem}
           keyExtractor={(item) => item.id}
-          ListHeaderComponent={renderHeader}
           contentContainerStyle={styles.ordersList}
           showsVerticalScrollIndicator={false}
           refreshControl={
@@ -263,11 +305,10 @@ export default function AdminOrdersScreen() {
             />
           }
         >
-          {renderHeader()}
           {renderEmptyState()}
         </ScrollView>
       )}
-    </SafeAreaView>
+    </AdminLayout>
   );
 }
 
@@ -276,60 +317,15 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    padding: ResponsiveSpacing.md,
-    borderRadius: ResponsiveBorderRadius.lg,
-    ...Layout.shadows.sm,
-  },
-  headerLeft: {
-    flex: 1,
-  },
   refreshButton: {
     padding: ResponsiveSpacing.sm,
   },
-  searchSection: {
-    padding: ResponsiveSpacing.md,
-    borderRadius: ResponsiveBorderRadius.lg,
-    ...Layout.shadows.sm,
-  },
-  searchContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(0,0,0,0.05)',
-    borderRadius: ResponsiveBorderRadius.md,
-    paddingHorizontal: ResponsiveSpacing.md,
-    paddingVertical: ResponsiveSpacing.sm,
-  },
-  searchInput: {
-    flex: 1,
-    marginLeft: ResponsiveSpacing.sm,
-    fontSize: responsiveValue(14, 16, 18, 20),
-  },
-  clearButton: {
-    padding: ResponsiveSpacing.xs,
-  },
-  summaryContainer: {
-    marginBottom: ResponsiveSpacing.lg,
-    padding: ResponsiveSpacing.md,
-    borderRadius: ResponsiveBorderRadius.lg,
-    ...Layout.shadows.sm,
-  },
-  summaryGrid: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-  },
-  summaryItem: {
-    alignItems: 'center',
-    padding: ResponsiveSpacing.sm,
-  },
-  tabsContainer: {
-    marginBottom: ResponsiveSpacing.lg,
-  },
   tabsList: {
+    paddingHorizontal: ResponsiveSpacing.md,
     gap: ResponsiveSpacing.sm,
+  },
+  statusPill: {
+    marginRight: ResponsiveSpacing.sm,
   },
   ordersList: {
     paddingHorizontal: ResponsiveSpacing.lg,
@@ -339,7 +335,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: ResponsiveSpacing.xxxl,
     paddingHorizontal: ResponsiveSpacing.lg,
-    marginHorizontal: ResponsiveSpacing.lg,
     borderRadius: ResponsiveBorderRadius.lg,
     ...Layout.shadows.sm,
   },
@@ -350,5 +345,23 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: ResponsiveSpacing.md,
+  },
+  categoryItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: responsiveValue(12, 14, 16, 18),
+    paddingVertical: responsiveValue(6, 8, 10, 12),
+    borderRadius: responsiveValue(16, 18, 20, 22),
+    marginRight: responsiveValue(6, 8, 10, 12),
+    minWidth: responsiveValue(72, 80, 88, 100),
+    minHeight: responsiveValue(36, 40, 44, 48),
+  },
+  categoryItemActive: {
+    shadowColor: '#FFE44D',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 3,
+    elevation: 0,
   },
 });

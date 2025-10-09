@@ -1,5 +1,6 @@
+import * as ImagePicker from 'expo-image-picker';
 import { useRouter } from 'expo-router';
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import {
   Alert,
   FlatList,
@@ -16,6 +17,8 @@ import { TabBar, TabItem } from '../../../components/ui/TabBar';
 import { Strings } from '../../../constants/Strings';
 import { useTheme } from '../../../contexts/ThemeContext';
 import { useAuth } from '../../../hooks/useAuth';
+import { useMyDeliveryOrders } from '../../../hooks/useDeliveryOrders';
+import { OrderService } from '../../../services/order.service';
 import { Order } from '../../../types/order.types';
 
 const statusTabs: TabItem[] = [
@@ -29,151 +32,97 @@ export default function MyOrdersScreen() {
   const { colors } = useTheme();
   const { user } = useAuth();
   const router = useRouter();
-  const [orders, setOrders] = useState<Order[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { orders, isLoading: loading, error, refresh } = useMyDeliveryOrders();
   const [refreshing, setRefreshing] = useState(false);
   const [activeTab, setActiveTab] = useState('All');
-
-  useEffect(() => {
-    loadMyOrders();
-  }, [activeTab]);
-
-  const loadMyOrders = async () => {
-    try {
-      setLoading(true);
-      // Mock data - replace with actual API call
-      const mockOrders: Order[] = [
-        {
-          id: '1',
-          user_id: 'user1',
-          order_number: 'KO-240115-001',
-          status: 'out_for_delivery',
-          payment_status: 'verified',
-          payment_method: 'cod',
-          items: [
-            {
-              id: '1',
-              product_id: 'prod1',
-              product_name: 'Margherita Pizza',
-              quantity: 1,
-              unit_price: 12.99,
-              total_price: 12.99,
-            }
-          ],
-          subtotal: 12.99,
-          delivery_fee: 50,
-          tax_amount: 1.56,
-          discount_amount: 0,
-          total_amount: 64.55,
-          delivery_address: {
-            id: 'addr1',
-            user_id: 'user1',
-            label: 'Home',
-            full_address: '123 Main St, City, State 12345',
-            street: '123 Main St',
-            city: 'City',
-            state: 'State',
-            postal_code: '12345',
-            country: 'US',
-            is_default: true,
-          },
-          assigned_delivery_id: user?.id || 'delivery1',
-          delivery_person_name: 'Mike Johnson',
-          delivery_person_phone: '+1234567890',
-          created_at: '2024-01-15T10:30:00Z',
-          updated_at: '2024-01-15T11:00:00Z',
-        },
-        {
-          id: '2',
-          user_id: 'user2',
-          order_number: 'KO-240115-002',
-          status: 'delivered',
-          payment_status: 'verified',
-          payment_method: 'gcash',
-          items: [
-            {
-              id: '2',
-              product_id: 'prod2',
-              product_name: 'Pepperoni Pizza',
-              quantity: 2,
-              unit_price: 14.99,
-              total_price: 29.98,
-            }
-          ],
-          subtotal: 29.98,
-          delivery_fee: 50,
-          tax_amount: 3.60,
-          discount_amount: 0,
-          total_amount: 83.58,
-          delivery_address: {
-            id: 'addr2',
-            user_id: 'user2',
-            label: 'Office',
-            full_address: '456 Business Ave, City, State 12345',
-            street: '456 Business Ave',
-            city: 'City',
-            state: 'State',
-            postal_code: '12345',
-            country: 'US',
-            is_default: false,
-          },
-          assigned_delivery_id: user?.id || 'delivery1',
-          delivery_person_name: 'Mike Johnson',
-          delivery_person_phone: '+1234567890',
-          created_at: '2024-01-15T09:15:00Z',
-          updated_at: '2024-01-15T10:45:00Z',
-          delivered_at: '2024-01-15T10:45:00Z',
-        },
-      ];
-
-      const filteredOrders = activeTab === 'All' 
-        ? mockOrders 
-        : mockOrders.filter(order => {
-            switch (activeTab) {
-              case 'Out for Delivery': return order.status === 'out_for_delivery';
-              case 'Delivered': return order.status === 'delivered';
-              case 'Cancelled': return order.status === 'cancelled';
-              default: return true;
-            }
-          });
-      
-      setOrders(filteredOrders);
-    } catch (error) {
-      console.error('Error loading my orders:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
+  const filteredOrders = orders.filter(order => {
+    if (activeTab === 'All') return true;
+    if (activeTab === 'Out for Delivery') return order.status === 'out_for_delivery';
+    if (activeTab === 'Delivered') return order.status === 'delivered';
+    if (activeTab === 'Cancelled') return order.status === 'cancelled';
+    return true;
+  });
 
   const handleRefresh = async () => {
     setRefreshing(true);
-    await loadMyOrders();
+    await refresh();
     setRefreshing(false);
   };
 
-  const handleUpdateStatus = async (orderId: string, newStatus: string) => {
+  const handleMarkDelivered = async (orderId: string) => {
     Alert.alert(
-      'Update Delivery Status',
-      `Mark this order as ${newStatus.replace('_', ' ')}?`,
+      'Mark as Delivered',
+      'How would you like to confirm delivery?',
       [
         { text: 'Cancel', style: 'cancel' },
-        { 
-          text: 'Update', 
-          onPress: async () => {
-            try {
-              // Update order status
-              setOrders(prev => prev.map(order => 
-                order.id === orderId 
-                  ? { ...order, status: newStatus as any, updated_at: new Date().toISOString() }
-                  : order
-              ));
-              Alert.alert('Success', 'Order status updated successfully!');
-            } catch (error) {
-              console.error('Error updating order status:', error);
-              Alert.alert('Error', 'Failed to update order status. Please try again.');
-            }
+        { text: 'Skip Photo', onPress: async () => {
+          try {
+            if (!user?.id) throw new Error('Not authenticated');
+            await OrderService.markOrderDelivered(orderId, user.id);
+            Alert.alert('Success', 'Order marked as delivered successfully!');
+            await refresh();
+          } catch (e: any) {
+            Alert.alert('Error', e.message || 'Failed to mark delivered');
           }
-        }
+        }},
+        { text: 'Take Photo', onPress: async () => {
+          try {
+            const res = await ImagePicker.launchCameraAsync({ 
+              mediaTypes: ImagePicker.MediaTypeOptions.Images, 
+              quality: 0.8,
+              allowsEditing: true,
+              aspect: [4, 3]
+            });
+            if (!res.canceled) {
+              const uri = res.assets[0].uri;
+              if (!user?.id) throw new Error('Not authenticated');
+              await OrderService.markOrderDelivered(orderId, user.id, uri);
+              Alert.alert('Success', 'Order marked as delivered with proof photo!');
+              await refresh();
+            }
+          } catch (e: any) {
+            Alert.alert('Error', e.message || 'Failed to take photo');
+          }
+        }},
+        { text: 'Choose from Gallery', onPress: async () => {
+          try {
+            const res = await ImagePicker.launchImageLibraryAsync({ 
+              mediaTypes: ImagePicker.MediaTypeOptions.Images, 
+              quality: 0.8,
+              allowsEditing: true,
+              aspect: [4, 3]
+            });
+            if (!res.canceled) {
+              const uri = res.assets[0].uri;
+              if (!user?.id) throw new Error('Not authenticated');
+              await OrderService.markOrderDelivered(orderId, user.id, uri);
+              Alert.alert('Success', 'Order marked as delivered with proof photo!');
+              await refresh();
+            }
+          } catch (e: any) {
+            Alert.alert('Error', e.message || 'Failed to select photo');
+          }
+        }}
+      ]
+    );
+  };
+
+  const handleVerifyCODPayment = async (orderId: string) => {
+    Alert.alert(
+      'Verify COD Payment',
+      'Have you received the cash payment from the customer?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Verify Payment', onPress: async () => {
+          try {
+            if (!user?.id) throw new Error('Not authenticated');
+            await OrderService.verifyCODPayment(orderId, user.id);
+            Alert.alert('Success', 'COD payment verified successfully!');
+            await refresh();
+          } catch (e: any) {
+            Alert.alert('Error', e.message || 'Failed to verify payment');
+          }
+        }}
       ]
     );
   };
@@ -205,18 +154,55 @@ export default function MyOrdersScreen() {
     });
   };
 
-  const renderOrderItem = ({ item }: { item: Order }) => (
-    <OrderCard
-      order={item}
-      onPress={() => router.push(`/(delivery)/order-details/${item.id}` as any)}
-      showCustomerInfo={true}
-      showDeliveryInfo={true}
-      showActionButton={item.status === 'out_for_delivery'}
-      actionButtonTitle={item.status === 'out_for_delivery' ? 'Mark as Delivered' : undefined}
-      onActionPress={item.status === 'out_for_delivery' ? () => handleUpdateStatus(item.id, 'delivered') : undefined}
-      variant="detailed"
-    />
-  );
+  const renderOrderItem = ({ item }: { item: Order }) => {
+    const isCOD = item.payment_method === 'cod';
+    const needsPaymentVerification = isCOD && item.payment_status === 'pending' && item.status === 'out_for_delivery';
+    const needsDeliveryConfirmation = item.status === 'out_for_delivery';
+
+    // For COD orders that need payment verification, show Verify Payment button
+    if (needsPaymentVerification) {
+      return (
+        <OrderCard
+          order={item}
+          onPress={() => router.push(`/(delivery)/order-details/${item.id}` as any)}
+          showCustomerInfo={true}
+          showDeliveryInfo={true}
+          showActionButton={true}
+          actionButtonTitle="Verify Payment"
+          onActionPress={() => handleVerifyCODPayment(item.id)}
+          variant="detailed"
+        />
+      );
+    }
+
+    // For orders that need delivery confirmation, show Mark as Delivered button
+    if (needsDeliveryConfirmation) {
+      return (
+        <OrderCard
+          order={item}
+          onPress={() => router.push(`/(delivery)/order-details/${item.id}` as any)}
+          showCustomerInfo={true}
+          showDeliveryInfo={true}
+          showActionButton={true}
+          actionButtonTitle="Mark as Delivered"
+          onActionPress={() => handleMarkDelivered(item.id)}
+          variant="detailed"
+        />
+      );
+    }
+
+    // For other orders, show without action button
+    return (
+      <OrderCard
+        order={item}
+        onPress={() => router.push(`/(delivery)/order-details/${item.id}` as any)}
+        showCustomerInfo={true}
+        showDeliveryInfo={true}
+        showActionButton={false}
+        variant="detailed"
+      />
+    );
+  };
 
   if (loading) {
     return (

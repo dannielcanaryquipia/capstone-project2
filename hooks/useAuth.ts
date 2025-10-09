@@ -80,9 +80,9 @@ const useAuthStore = create<AuthState>((set, get) => ({
           } else {
             const profile = (data as any) ?? null;
             set({ 
-              profile,
+              profile, 
               isAdmin: profile?.role === 'admin',
-              isDelivery: profile?.role === 'delivery'
+              isDelivery: profile?.role === 'delivery' || profile?.role === 'delivery_staff'
             });
           }
         } catch (profileError) {
@@ -266,7 +266,7 @@ if (!authListenerInitialized) {
           useAuthStore.getState().setState({ 
             profile,
             isAdmin: profile?.role === 'admin',
-            isDelivery: profile?.role === 'delivery',
+            isDelivery: profile?.role === 'delivery' || profile?.role === 'delivery_staff',
             error: null 
           });
         }

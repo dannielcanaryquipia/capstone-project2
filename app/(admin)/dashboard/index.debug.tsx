@@ -111,7 +111,10 @@ export default function AdminDashboard() {
   // Show error state if there are critical errors
   if (error && debugInfo.connectionStatus === 'error') {
     return (
-      <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
+      <SafeAreaView 
+        style={[styles.container, { backgroundColor: colors.background }]}
+        edges={['top', 'bottom', 'left', 'right']}
+      >
         <View style={styles.errorContainer}>
           <MaterialIcons name="error" size={64} color={colors.error} />
           <ResponsiveView marginTop="md">
@@ -142,7 +145,10 @@ export default function AdminDashboard() {
 
   if (loading) {
     return (
-      <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
+      <SafeAreaView 
+        style={[styles.container, { backgroundColor: colors.background }]}
+        edges={['top', 'bottom', 'left', 'right']}
+      >
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={colors.primary} />
           <ResponsiveView marginTop="md">
@@ -164,7 +170,10 @@ export default function AdminDashboard() {
   }
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
+    <SafeAreaView 
+      style={[styles.container, { backgroundColor: colors.background }]} 
+      edges={['top', 'bottom', 'left', 'right']}
+    >
       <ScrollView
         style={styles.scrollView}
         refreshControl={
@@ -222,7 +231,7 @@ export default function AdminDashboard() {
               </ResponsiveText>
             </ResponsiveView>
             <ResponsiveText size="xxl" weight="bold" color={colors.text}>
-              ₱{(stats?.total_revenue || 0).toFixed(2)}
+              ₱{(stats?.total_income || 0).toFixed(2)}
             </ResponsiveText>
             <ResponsiveText size="xs" color={colors.textSecondary}>
               This month

@@ -2,25 +2,23 @@ import { MaterialIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import {
-    ActivityIndicator,
-    Alert,
-    ScrollView,
-    StyleSheet,
-    TouchableOpacity
+  ActivityIndicator,
+  Alert,
+  ScrollView,
+  StyleSheet,
+  TouchableOpacity
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { AdminCard, AdminLayout, AdminSection } from '../../../components/admin';
 import Button from '../../../components/ui/Button';
 import { ResponsiveText } from '../../../components/ui/ResponsiveText';
 import { ResponsiveView } from '../../../components/ui/ResponsiveView';
-import Layout from '../../../constants/Layout';
 import { ResponsiveBorderRadius, ResponsiveSpacing, responsiveValue } from '../../../constants/Responsive';
 import { Strings } from '../../../constants/Strings';
 import { useTheme } from '../../../contexts/ThemeContext';
 import { useAuth } from '../../../hooks';
 import { User, UserService } from '../../../services/user.service';
-import global from '../../../styles/global';
 
-export default function AdminProfileScreen() {
+export default function AdminProfile() {
   const { colors } = useTheme();
   const router = useRouter();
   const { user, signOut } = useAuth();
@@ -89,7 +87,17 @@ export default function AdminProfileScreen() {
 
   if (loading) {
     return (
-      <SafeAreaView style={[global.screen, styles.center, { backgroundColor: colors.background }]}>
+      <AdminLayout
+        title="Admin Profile"
+        subtitle="Manage your account settings"
+        showBackButton={true}
+        onBackPress={() => router.back()}
+        headerActions={
+          <TouchableOpacity onPress={handleEditProfile} style={styles.editButton}>
+            <MaterialIcons name="edit" size={responsiveValue(20, 24, 28, 32)} color={colors.primary} />
+          </TouchableOpacity>
+        }
+      >
         <ResponsiveView style={styles.center}>
           <ActivityIndicator size="large" color={colors.primary} />
           <ResponsiveView marginTop="md">
@@ -98,13 +106,23 @@ export default function AdminProfileScreen() {
             </ResponsiveText>
           </ResponsiveView>
         </ResponsiveView>
-      </SafeAreaView>
+      </AdminLayout>
     );
   }
 
   if (!profile) {
     return (
-      <SafeAreaView style={[global.screen, styles.center, { backgroundColor: colors.background }]}>
+      <AdminLayout
+        title="Admin Profile"
+        subtitle="Manage your account settings"
+        showBackButton={true}
+        onBackPress={() => router.back()}
+        headerActions={
+          <TouchableOpacity onPress={handleEditProfile} style={styles.editButton}>
+            <MaterialIcons name="edit" size={responsiveValue(20, 24, 28, 32)} color={colors.primary} />
+          </TouchableOpacity>
+        }
+      >
         <ResponsiveView style={styles.center}>
           <MaterialIcons name="error" size={responsiveValue(48, 56, 64, 72)} color={colors.error} />
           <ResponsiveView marginTop="md">
@@ -125,24 +143,22 @@ export default function AdminProfileScreen() {
             />
           </ResponsiveView>
         </ResponsiveView>
-      </SafeAreaView>
+      </AdminLayout>
     );
   }
 
   return (
-    <SafeAreaView style={[global.screen, { backgroundColor: colors.background }]}>
-      {/* Header */}
-      <ResponsiveView style={[styles.header, { backgroundColor: colors.surface }]}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-          <MaterialIcons name="arrow-back" size={responsiveValue(20, 24, 28, 32)} color={colors.text} />
-        </TouchableOpacity>
-        <ResponsiveText size="lg" weight="semiBold" color={colors.text}>
-          Admin Profile
-        </ResponsiveText>
+    <AdminLayout
+      title="Admin Profile"
+      subtitle="Manage your account settings"
+      showBackButton={true}
+      onBackPress={() => router.back()}
+      headerActions={
         <TouchableOpacity onPress={handleEditProfile} style={styles.editButton}>
           <MaterialIcons name="edit" size={responsiveValue(20, 24, 28, 32)} color={colors.primary} />
         </TouchableOpacity>
-      </ResponsiveView>
+      }
+    >
 
       <ScrollView 
         style={styles.scrollView}
@@ -167,106 +183,81 @@ export default function AdminProfileScreen() {
         </ResponsiveView>
 
         {/* Profile Information */}
-        <ResponsiveView style={[styles.section, { backgroundColor: colors.surface }]}>
-          <ResponsiveView marginBottom="md">
-            <ResponsiveText size="lg" weight="semiBold" color={colors.text}>
-              Profile Information
-            </ResponsiveText>
-          </ResponsiveView>
+        <AdminSection
+          title="Profile Information"
+          subtitle="Your personal details"
+          variant="card"
+        >
           
-          <ResponsiveView style={styles.infoRow} marginBottom="md">
-            <ResponsiveView style={styles.infoLabel}>
-              <ResponsiveText size="md" color={colors.textSecondary}>
-                Full Name
-              </ResponsiveText>
-            </ResponsiveView>
-            <ResponsiveView style={styles.infoValue}>
-              <ResponsiveText size="md" color={colors.text} weight="semiBold">
-                {profile.full_name || 'Not provided'}
-              </ResponsiveText>
-            </ResponsiveView>
-          </ResponsiveView>
+          <AdminCard
+            title="Full Name"
+            subtitle={profile.full_name || 'Not provided'}
+            icon={<MaterialIcons name="person" size={20} color={colors.primary} />}
+            variant="outlined"
+            style={styles.infoCard}
+          >
+            {null}
+          </AdminCard>
 
-          <ResponsiveView style={styles.infoRow} marginBottom="md">
-            <ResponsiveView style={styles.infoLabel}>
-              <ResponsiveText size="md" color={colors.textSecondary}>
-                Username
-              </ResponsiveText>
-            </ResponsiveView>
-            <ResponsiveView style={styles.infoValue}>
-              <ResponsiveText size="md" color={colors.text} weight="semiBold">
-                {profile.email}
-              </ResponsiveText>
-            </ResponsiveView>
-          </ResponsiveView>
+          <AdminCard
+            title="Username"
+            subtitle={profile.email}
+            icon={<MaterialIcons name="alternate-email" size={20} color={colors.primary} />}
+            variant="outlined"
+            style={styles.infoCard}
+          >
+            {null}
+          </AdminCard>
 
-          <ResponsiveView style={styles.infoRow} marginBottom="md">
-            <ResponsiveView style={styles.infoLabel}>
-              <ResponsiveText size="md" color={colors.textSecondary}>
-                Phone Number
-              </ResponsiveText>
-            </ResponsiveView>
-            <ResponsiveView style={styles.infoValue}>
-              <ResponsiveText size="md" color={colors.text} weight="semiBold">
-                {profile.phone_number || 'Not provided'}
-              </ResponsiveText>
-            </ResponsiveView>
-          </ResponsiveView>
+          <AdminCard
+            title="Phone Number"
+            subtitle={profile.phone_number || 'Not provided'}
+            icon={<MaterialIcons name="phone" size={20} color={colors.primary} />}
+            variant="outlined"
+            style={styles.infoCard}
+          >
+            {null}
+          </AdminCard>
 
-          <ResponsiveView style={styles.infoRow} marginBottom="md">
-            <ResponsiveView style={styles.infoLabel}>
-              <ResponsiveText size="md" color={colors.textSecondary}>
-                Email
-              </ResponsiveText>
-            </ResponsiveView>
-            <ResponsiveView style={styles.infoValue}>
-              <ResponsiveText size="md" color={colors.text} weight="semiBold">
-                {profile.email}
-              </ResponsiveText>
-            </ResponsiveView>
-          </ResponsiveView>
+          <AdminCard
+            title="Email"
+            subtitle={profile.email}
+            icon={<MaterialIcons name="email" size={20} color={colors.primary} />}
+            variant="outlined"
+            style={styles.infoCard}
+          >
+            {null}
+          </AdminCard>
 
-          <ResponsiveView style={styles.infoRow}>
-            <ResponsiveView style={styles.infoLabel}>
-              <ResponsiveText size="md" color={colors.textSecondary}>
-                Role
-              </ResponsiveText>
-            </ResponsiveView>
-            <ResponsiveView style={styles.infoValue}>
-              <ResponsiveView style={[styles.roleBadge, { backgroundColor: colors.primary }]}>
-                <ResponsiveText size="sm" weight="semiBold" color={colors.surface}>
-                  {profile.role.toUpperCase()}
-                </ResponsiveText>
-              </ResponsiveView>
-            </ResponsiveView>
-          </ResponsiveView>
-        </ResponsiveView>
+          <AdminCard
+            title="Role"
+            subtitle={profile.role.toUpperCase()}
+            icon={<MaterialIcons name="admin-panel-settings" size={20} color={colors.primary} />}
+            variant="outlined"
+            style={styles.infoCard}
+          >
+            {null}
+          </AdminCard>
+        </AdminSection>
 
         {/* Account Security */}
-        <ResponsiveView style={[styles.section, { backgroundColor: colors.surface }]}>
-          <ResponsiveView marginBottom="md">
-            <ResponsiveText size="lg" weight="semiBold" color={colors.text}>
-              Account Security
-            </ResponsiveText>
-          </ResponsiveView>
-          
+        <AdminSection
+          title="Account Security"
+          subtitle="Manage your account security settings"
+          variant="card"
+        >
           {/* Account Status */}
-          <ResponsiveView style={styles.securityItem} marginBottom="md">
-            <ResponsiveView style={styles.securityIcon}>
-              <MaterialIcons 
-                name="verified" 
-                size={responsiveValue(20, 22, 24, 26)} 
-                color={profile.is_active ? colors.success : colors.warning} 
-              />
-            </ResponsiveView>
-            <ResponsiveView style={styles.securityInfo} flex={1}>
-              <ResponsiveText size="md" color={colors.text} weight="semiBold">
-                Account Status
-              </ResponsiveText>
-              <ResponsiveText size="sm" color={colors.textSecondary}>
-                {profile.is_active ? 'Your account is active' : 'Your account is inactive'}
-              </ResponsiveText>
-            </ResponsiveView>
+          <AdminCard
+            title="Account Status"
+            subtitle={profile.is_active ? 'Your account is active' : 'Your account is inactive'}
+            icon={<MaterialIcons 
+              name="verified" 
+              size={20} 
+              color={profile.is_active ? colors.success : colors.warning} 
+            />}
+            variant="outlined"
+            style={styles.infoCard}
+          >
             <ResponsiveView style={[styles.statusBadge, { 
               backgroundColor: profile.is_active ? `${colors.success}20` : `${colors.warning}20` 
             }]}>
@@ -278,75 +269,56 @@ export default function AdminProfileScreen() {
                 {profile.is_active ? 'ACTIVE' : 'INACTIVE'}
               </ResponsiveText>
             </ResponsiveView>
-          </ResponsiveView>
+          </AdminCard>
 
           {/* Password */}
-          <TouchableOpacity 
-            style={styles.securityItem} 
+          <AdminCard
+            title="Password"
+            subtitle="Change your password"
+            icon={<MaterialIcons name="lock" size={20} color={colors.primary} />}
+            variant="outlined"
             onPress={handleChangePassword}
-            activeOpacity={0.7}
+            style={styles.infoCard}
           >
-            <ResponsiveView style={styles.securityIcon}>
-              <MaterialIcons 
-                name="lock" 
-                size={responsiveValue(20, 22, 24, 26)} 
-                color={colors.primary} 
-              />
-            </ResponsiveView>
-            <ResponsiveView style={styles.securityInfo} flex={1}>
-              <ResponsiveText size="md" color={colors.text} weight="semiBold">
-                Password
-              </ResponsiveText>
-              <ResponsiveText size="sm" color={colors.textSecondary}>
-                Change your password
-              </ResponsiveText>
-            </ResponsiveView>
-            <MaterialIcons 
-              name="chevron-right" 
-              size={responsiveValue(20, 22, 24, 26)} 
-              color={colors.textSecondary} 
-            />
-          </TouchableOpacity>
-        </ResponsiveView>
+            {null}
+          </AdminCard>
+        </AdminSection>
 
         {/* Account Information */}
-        <ResponsiveView style={[styles.section, { backgroundColor: colors.surface }]}>
-          <ResponsiveView marginBottom="md">
-            <ResponsiveText size="lg" weight="semiBold" color={colors.text}>
-              Account Information
-            </ResponsiveText>
-          </ResponsiveView>
-          
-          <ResponsiveView style={styles.infoRow} marginBottom="md">
-            <ResponsiveView style={styles.infoLabel}>
-              <ResponsiveText size="md" color={colors.textSecondary}>
-                Member Since
-              </ResponsiveText>
-            </ResponsiveView>
-            <ResponsiveView style={styles.infoValue}>
-              <ResponsiveText size="md" color={colors.text} weight="semiBold">
-                {formatDate(profile.created_at)}
-              </ResponsiveText>
-            </ResponsiveView>
-          </ResponsiveView>
+        <AdminSection
+          title="Account Information"
+          subtitle="Your account details and statistics"
+          variant="card"
+        >
+          <AdminCard
+            title="Member Since"
+            subtitle={formatDate(profile.created_at)}
+            icon={<MaterialIcons name="calendar-today" size={20} color={colors.primary} />}
+            variant="outlined"
+            style={styles.infoCard}
+          >
+            {null}
+          </AdminCard>
 
-          <ResponsiveView style={styles.infoRow}>
-            <ResponsiveView style={styles.infoLabel}>
-              <ResponsiveText size="md" color={colors.textSecondary}>
-                Total Orders
-              </ResponsiveText>
-            </ResponsiveView>
-            <ResponsiveView style={styles.infoValue}>
-              <ResponsiveText size="md" color={colors.text} weight="semiBold">
-                {profile.total_orders || 0}
-              </ResponsiveText>
-            </ResponsiveView>
-          </ResponsiveView>
-        </ResponsiveView>
+          <AdminCard
+            title="Total Orders"
+            subtitle={`${profile.total_orders || 0} orders`}
+            icon={<MaterialIcons name="shopping-cart" size={20} color={colors.primary} />}
+            variant="outlined"
+            style={styles.infoCard}
+          >
+            {null}
+          </AdminCard>
+        </AdminSection>
       </ScrollView>
 
       {/* Action Buttons */}
-      <ResponsiveView style={[styles.actionContainer, { backgroundColor: colors.surface }]}>
+      <AdminSection
+        title="Actions"
+        subtitle="Manage your profile"
+        variant="card"
+        padding="lg"
+      >
         <Button
           title="Edit Profile"
           onPress={handleEditProfile}
@@ -359,8 +331,8 @@ export default function AdminProfileScreen() {
             variant="outline"
           />
         </ResponsiveView>
-      </ResponsiveView>
-    </SafeAreaView>
+      </AdminSection>
+    </AdminLayout>
   );
 }
 
@@ -368,16 +340,6 @@ const styles = StyleSheet.create({
   center: {
     justifyContent: 'center',
     alignItems: 'center',
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: ResponsiveSpacing.lg,
-    paddingVertical: ResponsiveSpacing.md,
-    ...Layout.shadows.sm,
-  },
-  backButton: {
-    padding: ResponsiveSpacing.sm,
   },
   editButton: {
     padding: ResponsiveSpacing.sm,
@@ -404,48 +366,13 @@ const styles = StyleSheet.create({
     paddingVertical: ResponsiveSpacing.xs,
     borderRadius: ResponsiveBorderRadius.md,
   },
-  section: {
-    padding: ResponsiveSpacing.lg,
-    borderRadius: ResponsiveBorderRadius.lg,
-    marginBottom: ResponsiveSpacing.md,
-    ...Layout.shadows.sm,
-  },
-  infoRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  infoLabel: {
-    flex: 1,
-  },
-  infoValue: {
-    flex: 1,
-    alignItems: 'flex-end',
-  },
-  securityItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: ResponsiveSpacing.sm,
-  },
-  securityIcon: {
-    width: responsiveValue(40, 44, 48, 52),
-    height: responsiveValue(40, 44, 48, 52),
-    borderRadius: responsiveValue(20, 22, 24, 26),
-    backgroundColor: 'rgba(0,0,0,0.05)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: ResponsiveSpacing.md,
-  },
-  securityInfo: {
-    flex: 1,
+  infoCard: {
+    marginBottom: ResponsiveSpacing.sm,
   },
   statusBadge: {
     paddingHorizontal: ResponsiveSpacing.sm,
     paddingVertical: ResponsiveSpacing.xs,
     borderRadius: ResponsiveBorderRadius.sm,
-  },
-  actionContainer: {
-    padding: ResponsiveSpacing.lg,
-    ...Layout.shadows.sm,
+    alignSelf: 'flex-end',
   },
 });

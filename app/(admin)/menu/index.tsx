@@ -2,27 +2,20 @@ import { MaterialIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import {
-  ActivityIndicator,
   Alert,
   FlatList,
   RefreshControl,
-  StyleSheet,
-  TouchableOpacity,
-  View
+  StyleSheet
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { AdminCard, AdminLayout, AdminMetricCard, AdminSection } from '../../../components/admin';
 import Button from '../../../components/ui/Button';
 import { ResponsiveText } from '../../../components/ui/ResponsiveText';
 import { ResponsiveView } from '../../../components/ui/ResponsiveView';
-import Layout from '../../../constants/Layout';
+import SelectablePill from '../../../components/ui/SelectablePill';
 import { ResponsiveBorderRadius, ResponsiveSpacing, responsiveValue } from '../../../constants/Responsive';
-import { Strings } from '../../../constants/Strings';
 import { useTheme } from '../../../contexts/ThemeContext';
 import { ProductService } from '../../../services/product.service';
 import { Product, ProductCategory } from '../../../types/product.types';
-
-const categoryTabs = ['All', 'Pizza', 'Burgers', 'Pasta', 'Salads', 'Beverages', 'Desserts'];
-
 export default function AdminMenuScreen() {
   const { colors } = useTheme();
   const router = useRouter();
@@ -130,60 +123,44 @@ export default function AdminMenuScreen() {
   };
 
   const renderProductItem = ({ item }: { item: Product }) => (
-    <TouchableOpacity
-      style={[styles.productCard, { 
-        backgroundColor: colors.surface,
-        ...Layout.shadows.sm
-      }]}
-      onPress={() => router.push(`/(admin)/menu/${item.id}` as any)}
-      activeOpacity={0.7}
-    >
-      <ResponsiveView style={styles.productHeader}>
-        <ResponsiveView style={styles.productInfo}>
-          <ResponsiveText size="lg" weight="semiBold" color={colors.text}>
-            {item.name}
-          </ResponsiveText>
-          <ResponsiveView style={styles.productMeta}>
-            <ResponsiveView style={[styles.categoryBadge, { backgroundColor: `${colors.primary}20` }]}>
-              <ResponsiveText size="xs" color={colors.primary} weight="semiBold">
-                {getCategoryName(item.category_id)}
-              </ResponsiveText>
-            </ResponsiveView>
-            {item.is_recommended && (
-              <ResponsiveView style={[styles.recommendedBadge, { backgroundColor: `${colors.success}20` }]}>
-                <MaterialIcons name="star" size={responsiveValue(12, 14, 16, 18)} color={colors.success} />
-                <ResponsiveView marginLeft="xs">
-                  <ResponsiveText size="xs" color={colors.success} weight="semiBold">
-                    Recommended
-                  </ResponsiveText>
-                </ResponsiveView>
-              </ResponsiveView>
-            )}
-          </ResponsiveView>
-        </ResponsiveView>
+    <AdminCard
+      title={item.name}
+      subtitle={`${getCategoryName(item.category_id)} • ₱${(item.price || 0).toFixed(2)}`}
+      icon={
         <MaterialIcons 
-          name="keyboard-arrow-right" 
+          name="restaurant-menu" 
           size={responsiveValue(20, 22, 24, 28)} 
-          color={colors.textSecondary} 
+          color={colors.primary} 
         />
-      </ResponsiveView>
+      }
+      variant="outlined"
+      onPress={() => router.push(`/(admin)/menu/${item.id}` as any)}
+    >
+      <ResponsiveView style={styles.productContent}>
+        <ResponsiveView style={styles.productMeta}>
+          <ResponsiveView style={[styles.categoryBadge, { backgroundColor: `${colors.primary}20` }]}>
+            <ResponsiveText size="xs" color={colors.primary} weight="semiBold">
+              {getCategoryName(item.category_id)}
+            </ResponsiveText>
+          </ResponsiveView>
+          {item.is_recommended && (
+            <ResponsiveView style={[styles.recommendedBadge, { backgroundColor: `${colors.success}20` }]}>
+              <MaterialIcons name="star" size={responsiveValue(12, 14, 16, 18)} color={colors.success} />
+              <ResponsiveView marginLeft="xs">
+                <ResponsiveText size="xs" color={colors.success} weight="semiBold">
+                  Recommended
+                </ResponsiveText>
+              </ResponsiveView>
+            </ResponsiveView>
+          )}
+        </ResponsiveView>
 
-      <ResponsiveView style={styles.productDescription}>
-        <ResponsiveText size="sm" color={colors.textSecondary}>
-          {item.description}
-        </ResponsiveText>
-      </ResponsiveView>
-
-      <ResponsiveView style={styles.productFooter}>
-        <ResponsiveView style={styles.priceContainer}>
-          <ResponsiveText size="sm" color={colors.textSecondary} weight="medium">
-            Price:
-          </ResponsiveText>
-          <ResponsiveText size="lg" weight="semiBold" color={colors.primary}>
-            ₱{(item.price || 0).toFixed(2)}
+        <ResponsiveView style={styles.productDescription}>
+          <ResponsiveText size="sm" color={colors.textSecondary}>
+            {item.description}
           </ResponsiveText>
         </ResponsiveView>
-        
+
         <ResponsiveView style={styles.statusContainer}>
           <ResponsiveView 
             style={[
@@ -207,151 +184,110 @@ export default function AdminMenuScreen() {
             </ResponsiveView>
           </ResponsiveView>
         </ResponsiveView>
-      </ResponsiveView>
 
-      <ResponsiveView style={styles.productActions}>
-        <Button
-          title={item.is_available ? 'Disable' : 'Enable'}
-          onPress={() => handleToggleAvailability(item.id, item.is_available)}
-          variant="outline"
-          size="small"
-        />
-        <Button
-          title="Edit"
-          onPress={() => router.push(`/(admin)/products/${item.id}` as any)}
-          variant="primary"
-          size="small"
-        />
-        <Button
-          title="Delete"
-          onPress={() => handleDeleteProduct(item.id, item.name)}
-          variant="danger"
-          size="small"
-        />
+        <ResponsiveView style={styles.productActions}>
+          <Button
+            title={item.is_available ? 'Disable' : 'Enable'}
+            onPress={() => handleToggleAvailability(item.id, item.is_available)}
+            variant="outline"
+            size="small"
+          />
+          <Button
+            title="Edit"
+            onPress={() => router.push(`/(admin)/products/${item.id}` as any)}
+            variant="primary"
+            size="small"
+          />
+          <Button
+            title="Delete"
+            onPress={() => handleDeleteProduct(item.id, item.name)}
+            variant="danger"
+            size="small"
+          />
+        </ResponsiveView>
       </ResponsiveView>
-    </TouchableOpacity>
+    </AdminCard>
   );
 
-  if (loading) {
-    return (
-      <SafeAreaView style={[global.screen, styles.center, { backgroundColor: colors.background }]}>
-        <ResponsiveView style={styles.center}>
-          <ActivityIndicator size="large" color={colors.primary} />
-          <ResponsiveView marginTop="md">
-            <ResponsiveText size="md" color={colors.textSecondary}>
-              {Strings.loading}
-            </ResponsiveText>
-          </ResponsiveView>
-        </ResponsiveView>
-      </SafeAreaView>
-    );
-  }
+  const headerActions = (
+    <Button
+      title="Add Product"
+      onPress={() => router.push('/(admin)/products/new' as any)}
+      variant="primary"
+      size="small"
+      icon={<MaterialIcons name="add" size={16} color={colors.background} />}
+    />
+  );
 
   return (
-    <SafeAreaView style={[global.screen, { backgroundColor: colors.background }]} edges={['top']}>
-      <View style={{ flex: 1 }}>
-        <ResponsiveView padding="lg">
-          {/* Header */}
-          <ResponsiveView style={[styles.header, { backgroundColor: colors.surface }]}>
-            <ResponsiveView style={styles.headerLeft}>
-              <ResponsiveText size="xl" weight="bold" color={colors.text}>
-                Product Management
-              </ResponsiveText>
-              <ResponsiveText size="md" color={colors.textSecondary}>
-                Manage {productCounts.total} products in your menu
-              </ResponsiveText>
-            </ResponsiveView>
-            <Button
-              title="Add Product"
-              onPress={() => router.push('/(admin)/products/new' as any)}
-              variant="primary"
-              size="small"
-              icon={<MaterialIcons name="add" size={16} color={colors.background} />}
-            />
-          </ResponsiveView>
-
-          {/* Product Summary */}
-          <ResponsiveView style={[styles.summaryContainer, { backgroundColor: colors.surface }]}>
-            <ResponsiveView style={styles.summaryGrid}>
-              <ResponsiveView style={styles.summaryItem}>
-                <ResponsiveText size="sm" color={colors.textSecondary} weight="medium">
-                  Total
-                </ResponsiveText>
-                <ResponsiveText size="lg" weight="bold" color={colors.text}>
-                  {productCounts.total}
-                </ResponsiveText>
-              </ResponsiveView>
-              <ResponsiveView style={styles.summaryItem}>
-                <ResponsiveText size="sm" color={colors.textSecondary} weight="medium">
-                  Active
-                </ResponsiveText>
-                <ResponsiveText size="lg" weight="bold" color={colors.success}>
-                  {productCounts.active}
-                </ResponsiveText>
-              </ResponsiveView>
-              <ResponsiveView style={styles.summaryItem}>
-                <ResponsiveText size="sm" color={colors.textSecondary} weight="medium">
-                  Inactive
-                </ResponsiveText>
-                <ResponsiveText size="lg" weight="bold" color={colors.error}>
-                  {productCounts.inactive}
-                </ResponsiveText>
-              </ResponsiveView>
-              <ResponsiveView style={styles.summaryItem}>
-                <ResponsiveText size="sm" color={colors.textSecondary} weight="medium">
-                  Recommended
-                </ResponsiveText>
-                <ResponsiveText size="lg" weight="bold" color={colors.warning}>
-                  {productCounts.recommended}
-                </ResponsiveText>
-              </ResponsiveView>
-            </ResponsiveView>
-          </ResponsiveView>
-
-          {/* Category Tabs */}
-          <ResponsiveView style={styles.tabsContainer}>
-            <FlatList
-              data={categoryTabs}
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              renderItem={({ item }) => (
-                <TouchableOpacity
-                  style={[
-                    styles.tab,
-                    activeTab === item && { 
-                      backgroundColor: colors.primary,
-                      borderColor: colors.primary,
-                    },
-                    activeTab !== item && { 
-                      backgroundColor: colors.surface,
-                      borderColor: colors.border 
-                    },
-                  ]}
-                  onPress={() => setActiveTab(item)}
-                  activeOpacity={0.7}
-                >
-                  <ResponsiveText 
-                    size="sm" 
-                    weight="medium"
-                    color={activeTab === item ? colors.background : colors.text}
-                  >
-                    {item}
-                  </ResponsiveText>
-                </TouchableOpacity>
-              )}
-              keyExtractor={(item) => item}
-              contentContainerStyle={styles.tabsList}
-            />
-          </ResponsiveView>
+    <AdminLayout
+      title="Product Management"
+      subtitle={`Manage ${productCounts.total} products in your menu`}
+      showBackButton={true}
+      onBackPress={() => router.replace('/(admin)/dashboard')}
+      headerActions={headerActions}
+      padding="lg"
+    >
+      {/* Product Summary */}
+      <AdminSection title="Product Overview" variant="card">
+        <ResponsiveView style={styles.summaryGrid}>
+          <AdminMetricCard
+            title="Total Products"
+            value={productCounts.total}
+            icon="restaurant-menu"
+            iconColor={colors.primary}
+          />
+          <AdminMetricCard
+            title="Active"
+            value={productCounts.active}
+            icon="check-circle"
+            iconColor={colors.success}
+          />
+          <AdminMetricCard
+            title="Inactive"
+            value={productCounts.inactive}
+            icon="cancel"
+            iconColor={colors.error}
+          />
+          <AdminMetricCard
+            title="Recommended"
+            value={productCounts.recommended}
+            icon="star"
+            iconColor={colors.warning}
+          />
         </ResponsiveView>
+      </AdminSection>
 
-        {/* Products List */}
-        {products.length > 0 ? (
+      {/* Category Filter */}
+      <AdminSection title="Filter by Category" variant="card">
+        <FlatList
+          data={categoryTabs}
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          renderItem={({ item }) => (
+            <SelectablePill
+              label={item}
+              selected={activeTab === item}
+              onPress={() => setActiveTab(item)}
+              style={styles.filterPill}
+            />
+          )}
+          keyExtractor={(item) => item}
+          contentContainerStyle={styles.tabsList}
+        />
+      </AdminSection>
+
+      {/* Products List */}
+      {products.length > 0 ? (
+        <AdminSection 
+          title={`${activeTab} Products`} 
+          subtitle={`${products.length} products found`}
+          variant="card"
+        >
           <FlatList
             data={products}
             renderItem={renderProductItem}
             keyExtractor={(item) => item.id}
-            contentContainerStyle={styles.productsList}
             showsVerticalScrollIndicator={false}
             refreshControl={
               <RefreshControl 
@@ -361,23 +297,19 @@ export default function AdminMenuScreen() {
               />
             }
           />
-        ) : (
-          <ResponsiveView style={[styles.emptyState, { backgroundColor: colors.surface }]}>
+        </AdminSection>
+      ) : (
+        <AdminSection 
+          title="No Products Found" 
+          subtitle={activeTab === 'All' 
+            ? 'No products have been added yet.'
+            : `No ${activeTab.toLowerCase()} products found.`
+          }
+          variant="card"
+        >
+          <ResponsiveView style={styles.emptyState}>
             <ResponsiveView style={[styles.emptyIcon, { backgroundColor: colors.surfaceVariant }]}>
               <MaterialIcons name="restaurant-menu" size={responsiveValue(48, 56, 64, 72)} color={colors.primary} />
-            </ResponsiveView>
-            <ResponsiveView marginTop="md">
-              <ResponsiveText size="lg" weight="semiBold" color={colors.text} align="center">
-                No Products Found
-              </ResponsiveText>
-            </ResponsiveView>
-            <ResponsiveView marginTop="sm">
-              <ResponsiveText size="md" color={colors.textSecondary} align="center">
-                {activeTab === 'All' 
-                  ? 'No products have been added yet.'
-                  : `No ${activeTab.toLowerCase()} products found.`
-                }
-              </ResponsiveText>
             </ResponsiveView>
             
             <ResponsiveView marginTop="lg">
@@ -389,77 +321,33 @@ export default function AdminMenuScreen() {
               />
             </ResponsiveView>
           </ResponsiveView>
-        )}
-      </View>
-    </SafeAreaView>
+        </AdminSection>
+      )}
+    </AdminLayout>
   );
 }
 
+const categoryTabs = ['All', 'Pizza', 'Burgers', 'Pasta', 'Salads', 'Beverages', 'Desserts'];
+
 const styles = StyleSheet.create({
-  center: {
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: ResponsiveSpacing.lg,
-    padding: ResponsiveSpacing.md,
-    borderRadius: ResponsiveBorderRadius.lg,
-    ...Layout.shadows.sm,
-  },
-  headerLeft: {
-    flex: 1,
-  },
-  summaryContainer: {
-    marginBottom: ResponsiveSpacing.lg,
-    padding: ResponsiveSpacing.md,
-    borderRadius: ResponsiveBorderRadius.lg,
-    ...Layout.shadows.sm,
-  },
   summaryGrid: {
     flexDirection: 'row',
-    justifyContent: 'space-around',
-  },
-  summaryItem: {
-    alignItems: 'center',
-    padding: ResponsiveSpacing.sm,
-  },
-  tabsContainer: {
-    marginBottom: ResponsiveSpacing.lg,
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+    gap: ResponsiveSpacing.sm,
   },
   tabsList: {
     gap: ResponsiveSpacing.sm,
   },
-  tab: {
-    paddingHorizontal: ResponsiveSpacing.md,
-    paddingVertical: ResponsiveSpacing.sm,
-    borderRadius: ResponsiveBorderRadius.pill,
-    borderWidth: 1,
+  filterPill: {
+    marginRight: ResponsiveSpacing.sm,
   },
-  productsList: {
-    paddingHorizontal: ResponsiveSpacing.lg,
-    paddingTop: 0,
-  },
-  productCard: {
-    padding: ResponsiveSpacing.md,
-    borderRadius: ResponsiveBorderRadius.md,
-    marginBottom: ResponsiveSpacing.md,
-  },
-  productHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    marginBottom: ResponsiveSpacing.sm,
-  },
-  productInfo: {
-    flex: 1,
+  productContent: {
+    gap: ResponsiveSpacing.sm,
   },
   productMeta: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginTop: ResponsiveSpacing.sm,
     gap: ResponsiveSpacing.sm,
   },
   categoryBadge: {
@@ -475,18 +363,7 @@ const styles = StyleSheet.create({
     borderRadius: ResponsiveBorderRadius.sm,
   },
   productDescription: {
-    marginBottom: ResponsiveSpacing.sm,
-  },
-  productFooter: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: ResponsiveSpacing.md,
-  },
-  priceContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: ResponsiveSpacing.sm,
+    marginVertical: ResponsiveSpacing.xs,
   },
   statusContainer: {
     alignItems: 'flex-end',
@@ -502,16 +379,11 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     gap: ResponsiveSpacing.sm,
+    marginTop: ResponsiveSpacing.sm,
   },
   emptyState: {
-    flex: 1,
-    justifyContent: 'center',
     alignItems: 'center',
     paddingVertical: ResponsiveSpacing.xxxl,
-    paddingHorizontal: ResponsiveSpacing.lg,
-    marginHorizontal: ResponsiveSpacing.lg,
-    borderRadius: ResponsiveBorderRadius.lg,
-    ...Layout.shadows.sm,
   },
   emptyIcon: {
     width: responsiveValue(80, 90, 100, 120),

@@ -10,9 +10,9 @@ export interface TopProduct {
   imageUrl: string | null;
 }
 
-export interface DailyRevenue {
+export interface DailyIncome {
   date: string;
-  revenue: number;
+  income: number;
   orders: number;
 }
 
@@ -31,12 +31,12 @@ export interface OrderStatusBreakdown {
 }
 
 export interface ReportData {
-  totalRevenue: number;
+  totalIncome: number;
   totalOrders: number;
   averageOrderValue: number;
   topProducts: TopProduct[];
   orderStatusBreakdown: OrderStatusBreakdown;
-  dailyRevenue: DailyRevenue[];
+  dailyIncome: DailyIncome[];
   customerStats: CustomerStats;
   recentOrders?: Array<{
     id: string;
@@ -148,8 +148,8 @@ export class ReportsService {
     }
   }
 
-  // Get daily revenue for the last 7 days
-  static async getDailyRevenue(days: number = 7): Promise<DailyRevenue[]> {
+  // Get daily income for the last 7 days
+  static async getDailyIncome(days: number = 7): Promise<DailyIncome[]> {
     try {
       const endDate = new Date();
       const startDate = new Date();
@@ -165,7 +165,7 @@ export class ReportsService {
       if (error) throw error;
 
       // Group by date
-      const dailyMap = new Map<string, { revenue: number; orders: number }>();
+      const dailyMap = new Map<string, { income: number; orders: number }>();
       
       data?.forEach((order: any) => {
         const date = new Date(order.created_at).toISOString().split('T')[0];
@@ -173,31 +173,31 @@ export class ReportsService {
         
         if (dailyMap.has(date)) {
           const existing = dailyMap.get(date)!;
-          existing.revenue += amount;
+          existing.income += amount;
           existing.orders += 1;
         } else {
-          dailyMap.set(date, { revenue: amount, orders: 1 });
+          dailyMap.set(date, { income: amount, orders: 1 });
         }
       });
 
       // Fill in missing dates with zero values
-      const dailyRevenue: DailyRevenue[] = [];
+      const dailyIncome: DailyIncome[] = [];
       for (let i = days - 1; i >= 0; i--) {
         const date = new Date();
         date.setDate(date.getDate() - i);
         const dateStr = date.toISOString().split('T')[0];
         
-        const dayData = dailyMap.get(dateStr) || { revenue: 0, orders: 0 };
-        dailyRevenue.push({
+        const dayData = dailyMap.get(dateStr) || { income: 0, orders: 0 };
+        dailyIncome.push({
           date: dateStr,
-          revenue: dayData.revenue,
+          income: dayData.income,
           orders: dayData.orders
         });
       }
 
-      return dailyRevenue;
+      return dailyIncome;
     } catch (error) {
-      console.error('Error fetching daily revenue:', error);
+      console.error('Error fetching daily income:', error);
       return [];
     }
   }
@@ -294,30 +294,30 @@ export class ReportsService {
     try {
       const [
         topProducts,
-        dailyRevenue,
+        dailyIncome,
         customerStats,
         orderStatusBreakdown,
         recentOrders
       ] = await Promise.all([
         this.getTopProducts(5),
-        this.getDailyRevenue(7),
+        this.getDailyIncome(7),
         this.getCustomerStats(),
         this.getOrderStatusBreakdown(),
         this.getRecentOrders(5)
       ]);
 
       // Calculate totals
-      const totalRevenue = dailyRevenue.reduce((sum, day) => sum + day.revenue, 0);
-      const totalOrders = dailyRevenue.reduce((sum, day) => sum + day.orders, 0);
-      const averageOrderValue = totalOrders > 0 ? totalRevenue / totalOrders : 0;
+      const totalIncome = dailyIncome.reduce((sum, day) => sum + day.income, 0);
+      const totalOrders = dailyIncome.reduce((sum, day) => sum + day.orders, 0);
+      const averageOrderValue = totalOrders > 0 ? totalIncome / totalOrders : 0;
 
       return {
-        totalRevenue,
+        totalIncome,
         totalOrders,
         averageOrderValue,
         topProducts,
         orderStatusBreakdown,
-        dailyRevenue,
+        dailyIncome,
         customerStats,
         recentOrders
       };

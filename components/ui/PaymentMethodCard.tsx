@@ -70,8 +70,7 @@ export const PaymentMethodCard: React.FC<PaymentMethodCardProps> = ({
               weight="semiBold" 
               color={isDisabled ? colors.textSecondary : colors.text}
             >
-              {method.name}
-              {isDisabled && ' (Unavailable)'}
+              {method.name}{isDisabled ? ' (Unavailable)' : ''}
             </ResponsiveText>
             <ResponsiveText 
               size="sm" 

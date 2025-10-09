@@ -15,8 +15,9 @@ import Button from '../../../components/ui/Button';
 import { ResponsiveText } from '../../../components/ui/ResponsiveText';
 import { ResponsiveView } from '../../../components/ui/ResponsiveView';
 import { Strings } from '../../../constants/Strings';
-import { useAuth } from '../../../hooks/useAuth';
 import { useTheme } from '../../../contexts/ThemeContext';
+import { useAuth } from '../../../hooks/useAuth';
+import { supabase } from '../../../lib/supabase';
 
 interface EarningsData {
   totalEarnings: number;
@@ -60,68 +61,137 @@ export default function EarningsScreen() {
   const loadEarningsData = async () => {
     try {
       setLoading(true);
-      // Mock data - replace with actual API call
-      const mockData: EarningsData = {
-        totalEarnings: 1250.75,
-        thisWeek: 320.50,
-        lastWeek: 285.25,
-        thisMonth: 1250.75,
-        lastMonth: 980.30,
-        totalDeliveries: 156,
-        completedDeliveries: 148,
-        averageEarningPerDelivery: 8.45,
-        rating: 4.8,
-        weeklyBreakdown: [
-          { day: 'Mon', earnings: 45.50, deliveries: 6 },
-          { day: 'Tue', earnings: 52.25, deliveries: 7 },
-          { day: 'Wed', earnings: 38.75, deliveries: 5 },
-          { day: 'Thu', earnings: 61.00, deliveries: 8 },
-          { day: 'Fri', earnings: 48.50, deliveries: 6 },
-          { day: 'Sat', earnings: 55.25, deliveries: 7 },
-          { day: 'Sun', earnings: 19.25, deliveries: 3 },
-        ],
-        recentDeliveries: [
-          {
-            id: '1',
-            orderNumber: 'KO-240115-001',
-            earnings: 8.50,
-            date: '2024-01-15T14:30:00Z',
-            status: 'completed',
-          },
-          {
-            id: '2',
-            orderNumber: 'KO-240115-002',
-            earnings: 7.25,
-            date: '2024-01-15T12:15:00Z',
-            status: 'completed',
-          },
-          {
-            id: '3',
-            orderNumber: 'KO-240115-003',
-            earnings: 9.00,
-            date: '2024-01-15T10:45:00Z',
-            status: 'completed',
-          },
-          {
-            id: '4',
-            orderNumber: 'KO-240114-015',
-            earnings: 6.75,
-            date: '2024-01-14T18:20:00Z',
-            status: 'completed',
-          },
-          {
-            id: '5',
-            orderNumber: 'KO-240114-012',
-            earnings: 8.25,
-            date: '2024-01-14T16:30:00Z',
-            status: 'completed',
-          },
-        ],
+      
+      if (!user?.id) {
+        setEarningsData(null);
+        return;
+      }
+
+      // Fetch real earnings data from the database
+      const { data: assignments, error } = await supabase
+        .from('delivery_assignments')
+        .select(`
+          *,
+          order:orders(
+            id,
+            order_number,
+            total_amount,
+            status,
+            created_at,
+            delivered_at
+          )
+        `)
+        .eq('rider_id', user.id)
+        .eq('status', 'Delivered')
+        .order('delivered_at', { ascending: false });
+
+      if (error) throw error;
+
+      const deliveredAssignments = assignments || [];
+      
+      // Calculate earnings (assuming 10% of order total as delivery fee)
+      const deliveryFeeRate = 0.1;
+      const earnings = deliveredAssignments.map((assignment: any) => ({
+        id: assignment.id,
+        orderNumber: assignment.order?.order_number || 'N/A',
+        earnings: (assignment.order?.total_amount || 0) * deliveryFeeRate,
+        date: assignment.delivered_at || assignment.order?.created_at || '',
+        status: 'completed',
+        orderId: assignment.order?.id || '',
+      }));
+
+      // Calculate time-based earnings
+      const now = new Date();
+      const thisWeekStart = new Date(now.setDate(now.getDate() - now.getDay()));
+      const lastWeekStart = new Date(thisWeekStart.getTime() - 7 * 24 * 60 * 60 * 1000);
+      const thisMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+      const lastMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+
+      const thisWeekEarnings = earnings
+        .filter(e => new Date(e.date) >= thisWeekStart)
+        .reduce((sum, e) => sum + e.earnings, 0);
+
+      const lastWeekEarnings = earnings
+        .filter(e => {
+          const date = new Date(e.date);
+          return date >= lastWeekStart && date < thisWeekStart;
+        })
+        .reduce((sum, e) => sum + e.earnings, 0);
+
+      const thisMonthEarnings = earnings
+        .filter(e => new Date(e.date) >= thisMonthStart)
+        .reduce((sum, e) => sum + e.earnings, 0);
+
+      const lastMonthEarnings = earnings
+        .filter(e => {
+          const date = new Date(e.date);
+          return date >= lastMonthStart && date < thisMonthStart;
+        })
+        .reduce((sum, e) => sum + e.earnings, 0);
+
+      const totalEarnings = earnings.reduce((sum, e) => sum + e.earnings, 0);
+      const totalDeliveries = deliveredAssignments.length;
+      const completedDeliveries = deliveredAssignments.length;
+      const averageEarningPerDelivery = totalDeliveries > 0 ? totalEarnings / totalDeliveries : 0;
+
+      // Generate weekly breakdown
+      const weeklyBreakdown = [];
+      const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+      for (let i = 0; i < 7; i++) {
+        const dayStart = new Date(thisWeekStart.getTime() + i * 24 * 60 * 60 * 1000);
+        const dayEnd = new Date(dayStart.getTime() + 24 * 60 * 60 * 1000);
+        
+        const dayEarnings = earnings
+          .filter(e => {
+            const date = new Date(e.date);
+            return date >= dayStart && date < dayEnd;
+          })
+          .reduce((sum, e) => sum + e.earnings, 0);
+
+        const dayDeliveries = earnings
+          .filter(e => {
+            const date = new Date(e.date);
+            return date >= dayStart && date < dayEnd;
+          }).length;
+
+        weeklyBreakdown.push({
+          day: days[i],
+          earnings: dayEarnings,
+          deliveries: dayDeliveries,
+        });
+      }
+
+      const realData: EarningsData = {
+        totalEarnings,
+        thisWeek: thisWeekEarnings,
+        lastWeek: lastWeekEarnings,
+        thisMonth: thisMonthEarnings,
+        lastMonth: lastMonthEarnings,
+        totalDeliveries,
+        completedDeliveries,
+        averageEarningPerDelivery,
+        rating: 4.8, // Keep mock rating for now
+        weeklyBreakdown,
+        recentDeliveries: earnings.slice(0, 10), // Show last 10 deliveries
       };
       
-      setEarningsData(mockData);
+      setEarningsData(realData);
     } catch (error) {
       console.error('Error loading earnings data:', error);
+      // Fallback to empty data on error
+      setEarningsData({
+        totalEarnings: 0,
+        thisWeek: 0,
+        lastWeek: 0,
+        thisMonth: 0,
+        lastMonth: 0,
+        totalDeliveries: 0,
+        completedDeliveries: 0,
+        averageEarningPerDelivery: 0,
+        rating: 0,
+        weeklyBreakdown: [],
+        recentDeliveries: [],
+      });
     } finally {
       setLoading(false);
     }

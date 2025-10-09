@@ -9,6 +9,7 @@ import {
   OrderTracking,
   OrderUpdate
 } from '../types/order.types';
+import { notificationService } from './api';
 
 export class OrderService {
   // Helper function to convert app status to database status
@@ -79,11 +80,32 @@ export class OrderService {
 
       if (error) throw error;
       
-      // Convert database status back to app format
-      const convertedData = (data || []).map((order: any) => ({
-        ...order,
-        status: this.convertStatusFromDb(order.status)
-      }));
+      // Convert database status back to app format and convert order items
+      const convertedData = (data || []).map((order: any) => {
+        const convertedItems = order.items?.map((item: any) => {
+          const customization = item.customization_details || {};
+          return {
+            id: item.id,
+            product_id: item.product_id,
+            product_name: customization.product_name || item.product?.name || 'Unknown Product',
+            product_image: customization.product_image || item.product?.image_url || '',
+            quantity: item.quantity,
+            unit_price: item.unit_price,
+            total_price: customization.total_price || (item.quantity * item.unit_price),
+            special_instructions: customization.special_instructions || '',
+            pizza_size: customization.pizza_size || item.selected_size,
+            pizza_crust: customization.pizza_crust || '',
+            toppings: customization.toppings || [],
+            customization_details: customization,
+          };
+        }) || [];
+
+        return {
+          ...order,
+          status: this.convertStatusFromDb(order.status),
+          items: convertedItems,
+        };
+      });
       
       return convertedData;
     } catch (error) {
@@ -111,10 +133,30 @@ export class OrderService {
 
       if (error) throw error;
       
+      // Convert order items to match expected format
+      const convertedItems = data.items?.map((item: any) => {
+        const customization = item.customization_details || {};
+        return {
+          id: item.id,
+          product_id: item.product_id,
+          product_name: customization.product_name || item.product?.name || 'Unknown Product',
+          product_image: customization.product_image || item.product?.image_url || '',
+          quantity: item.quantity,
+          unit_price: item.unit_price,
+          total_price: customization.total_price || (item.quantity * item.unit_price),
+          special_instructions: customization.special_instructions || '',
+          pizza_size: customization.pizza_size || item.selected_size,
+          pizza_crust: customization.pizza_crust || '',
+          toppings: customization.toppings || [],
+          customization_details: customization,
+        };
+      }) || [];
+      
       // Convert database status back to app format
       const convertedOrder = {
         ...data,
-        status: this.convertStatusFromDb(data.status)
+        status: this.convertStatusFromDb(data.status),
+        items: convertedItems,
       };
       
       return convertedOrder as Order;
@@ -132,13 +174,13 @@ export class OrderService {
     payment_method: string;
     delivery_instructions?: string;
     notes?: string;
+    processing_fee?: number;
   }): Promise<Order> {
     try {
       // Calculate totals
       const subtotal = orderData.items.reduce((sum, item) => sum + item.total_price, 0);
-      const delivery_fee = 50; // Fixed delivery fee
-      const tax_amount = subtotal * 0.12; // 12% tax
-      const total_amount = subtotal + delivery_fee + tax_amount;
+      const processing_fee = orderData.processing_fee || 0; // Use processing fee from checkout
+      const total_amount = subtotal + processing_fee; // Only include processing fee in total
 
       // Create order
       const { data: order, error: orderError } = await supabase
@@ -148,13 +190,9 @@ export class OrderService {
         status: 'Pending',
         payment_status: 'Pending',
           payment_method: orderData.payment_method,
-          subtotal,
-          delivery_fee,
-          tax_amount,
           total_amount,
           delivery_address_id: orderData.delivery_address_id,
-          delivery_instructions: orderData.delivery_instructions,
-          notes: orderData.notes,
+          order_notes: orderData.notes,
         })
         .select()
         .single();
@@ -165,16 +203,19 @@ export class OrderService {
       const orderItems = orderData.items.map(item => ({
         order_id: order.id,
         product_id: item.product_id,
-        product_name: item.product_name,
-        product_image: item.product_image,
         quantity: item.quantity,
         unit_price: item.unit_price,
-        total_price: item.total_price,
-        special_instructions: item.special_instructions,
-        pizza_size: item.pizza_size,
-        pizza_crust: item.pizza_crust,
-        toppings: item.toppings,
-        customization_details: item.customization_details,
+        selected_size: item.pizza_size,
+        customization_details: {
+          product_name: item.product_name,
+          product_image: item.product_image,
+          total_price: item.total_price,
+          special_instructions: item.special_instructions,
+          pizza_size: item.pizza_size,
+          pizza_crust: item.pizza_crust,
+          toppings: item.toppings,
+          ...item.customization_details,
+        },
       }));
 
       const { error: itemsError } = await supabase
@@ -182,6 +223,42 @@ export class OrderService {
         .insert(orderItems);
 
       if (itemsError) throw itemsError;
+
+      // Send notification to customer about order placement
+      try {
+        await notificationService.sendNotification({
+          userId: orderData.user_id,
+          title: 'Order Placed Successfully!',
+          message: `Your order has been placed and is being processed. Order #${order.id.slice(-6).toUpperCase()}`,
+          type: 'order_update',
+          relatedId: order.id,
+        });
+      } catch (notificationError) {
+        console.error('Error sending order notification:', notificationError);
+        // Don't throw error for notification failure
+      }
+
+      // Send notification to admin about new order
+      try {
+        // Get all admin users
+        const { data: adminUsers } = await supabase
+          .from('profiles')
+          .select('id')
+          .in('role', ['admin', 'super_admin']);
+
+        if (adminUsers && adminUsers.length > 0) {
+          const adminUserIds = adminUsers.map((admin: any) => admin.id);
+          await notificationService.sendBulkNotification(adminUserIds, {
+            title: 'New Order Received!',
+            message: `New order #${order.id.slice(-6).toUpperCase()} has been placed and needs attention.`,
+            type: 'order_update',
+            relatedId: order.id,
+          });
+        }
+      } catch (adminNotificationError) {
+        console.error('Error sending admin notification:', adminNotificationError);
+        // Don't throw error for notification failure
+      }
 
       // Return complete order
       return await this.getOrderById(order.id) as Order;
@@ -205,24 +282,7 @@ export class OrderService {
         updated_at: new Date().toISOString(),
       };
 
-      // Set specific timestamps based on status
-      switch (status) {
-        case 'confirmed':
-          updateData.confirmed_at = new Date().toISOString();
-          break;
-        case 'preparing':
-          updateData.prepared_at = new Date().toISOString();
-          break;
-        case 'ready_for_pickup':
-          updateData.picked_up_at = new Date().toISOString();
-          break;
-        case 'delivered':
-          updateData.delivered_at = new Date().toISOString();
-          break;
-        case 'cancelled':
-          updateData.cancelled_at = new Date().toISOString();
-          break;
-      }
+      // No per-status timestamp columns exist in schema; rely on updated_at and history table
 
       const { error } = await supabase
         .from('orders')
@@ -233,6 +293,31 @@ export class OrderService {
 
       // Add tracking entry
       await this.addOrderTracking(orderId, dbStatus, updatedBy, notes);
+
+      // Send customer notification for key transitions
+      try {
+        if (dbStatus === 'Preparing' || dbStatus === 'Out for Delivery') {
+          const { data: ord } = await supabase
+            .from('orders')
+            .select('id, user_id, status, order_number')
+            .eq('id', orderId)
+            .single();
+          if (ord?.user_id) {
+            const isDelivery = dbStatus === 'Out for Delivery';
+            await notificationService.sendNotification({
+              userId: ord.user_id,
+              title: isDelivery ? 'Your order is on the way' : 'Your order is being prepared',
+              message: isDelivery
+                ? `Order ${ord.order_number || orderId.slice(-8)} is now out for delivery.`
+                : `Order ${ord.order_number || orderId.slice(-8)} is now being prepared by the kitchen.`,
+              type: isDelivery ? 'delivery' : 'order_update',
+              relatedId: orderId,
+            });
+          }
+        }
+      } catch (notifyErr) {
+        console.warn('Non-fatal: failed to send status notification', notifyErr);
+      }
     } catch (error) {
       console.error('Error updating order status:', error);
       throw error;
@@ -322,25 +407,177 @@ export class OrderService {
 
       if (error) throw error;
 
+      // Debug: Log unique status values to see what's actually in the database
+      const uniqueStatuses = [...new Set(data.map((o: any) => o.status))];
+      console.log('Unique order statuses in database:', uniqueStatuses);
+
+      // Helper function to check status with multiple possible formats
+      const getStatusCount = (statusValue: string) => {
+        return data.filter((o: any) => {
+          const status = o.status?.toLowerCase();
+          const targetStatus = statusValue.toLowerCase();
+          
+          // Check for exact match
+          if (status === targetStatus) return true;
+          
+          // Check for common variations
+          if (targetStatus === 'pending' && status === 'pending') return true;
+          if (targetStatus === 'preparing' && (status === 'preparing' || status === 'confirmed')) return true;
+          if (targetStatus === 'out_for_delivery' && (status === 'out_for_delivery' || status === 'out for delivery' || status === 'outfordelivery' || status === 'ready for pickup')) return true;
+          if (targetStatus === 'delivered' && status === 'delivered') return true;
+          if (targetStatus === 'cancelled' && (status === 'cancelled' || status === 'canceled')) return true;
+          
+          return false;
+        }).length;
+      };
+
       const stats: OrderStats = {
         total_orders: data.length,
-        pending_orders: data.filter((o: any) => o.status === 'Pending').length,
-        preparing_orders: data.filter((o: any) => o.status === 'Preparing').length,
-        out_for_delivery: data.filter((o: any) => o.status === 'Out for Delivery').length,
-        delivered_orders: data.filter((o: any) => o.status === 'Delivered').length,
-        cancelled_orders: data.filter((o: any) => o.status === 'Cancelled').length,
-        total_revenue: data.reduce((sum: number, o: any) => sum + o.total_amount, 0),
+        pending_orders: getStatusCount('pending'),
+        preparing_orders: getStatusCount('preparing'),
+        out_for_delivery: getStatusCount('out_for_delivery'),
+        delivered_orders: getStatusCount('delivered'),
+        cancelled_orders: getStatusCount('cancelled'),
+        total_income: data
+          .filter((o: any) => {
+            const status = o.status?.toLowerCase();
+            return status === 'delivered';
+          })
+          .reduce((sum: number, o: any) => sum + (o.total_amount || 0), 0),
+        cancelled_income: data
+          .filter((o: any) => {
+            const status = o.status?.toLowerCase();
+            return status === 'cancelled' || status === 'canceled';
+          })
+          .reduce((sum: number, o: any) => sum + (o.total_amount || 0), 0),
         average_order_value: 0,
         completion_rate: 0,
       };
 
-      stats.average_order_value = stats.total_orders > 0 ? stats.total_revenue / stats.total_orders : 0;
+      stats.average_order_value = stats.total_orders > 0 ? stats.total_income / stats.total_orders : 0;
       stats.completion_rate = stats.total_orders > 0 ? 
         (stats.delivered_orders / stats.total_orders) * 100 : 0;
 
+      console.log('Order stats calculated:', stats);
       return stats;
     } catch (error) {
       console.error('Error fetching order stats:', error);
+      throw error;
+    }
+  }
+
+  // Admin: Verify GCash payment and update order + payment_transactions
+  static async verifyPayment(orderId: string, verifiedBy: string): Promise<void> {
+    try {
+      const now = new Date().toISOString();
+
+      const { error: orderErr } = await supabase
+        .from('orders')
+        .update({
+          payment_status: 'Verified',
+          payment_verified: true,
+          payment_verified_at: now,
+          payment_verified_by: verifiedBy,
+          status: 'Preparing',
+          updated_at: now,
+        })
+        .eq('id', orderId);
+      if (orderErr) throw orderErr;
+
+      const { error: txnErr } = await supabase
+        .from('payment_transactions' as any)
+        .update({ status: 'Verified', verified_by: verifiedBy, verified_at: now } as any)
+        .eq('order_id', orderId);
+      if (txnErr) throw txnErr;
+
+      // Notify customer payment verified
+      try {
+        const { data: ord } = await supabase
+          .from('orders')
+          .select('id, user_id, order_number')
+          .eq('id', orderId)
+          .single();
+        if (ord?.user_id) {
+          await notificationService.sendNotification({
+            userId: ord.user_id,
+            title: 'Payment verified',
+            message: `We have verified your payment for order ${ord.order_number || orderId.slice(-8)}. We are preparing your order now.`,
+            type: 'payment',
+            relatedId: orderId,
+          });
+        }
+      } catch (notifyErr) {
+        console.warn('Non-fatal: failed to send payment notification', notifyErr);
+      }
+    } catch (error) {
+      console.error('Error verifying payment:', error);
+      throw error;
+    }
+  }
+
+  // Delivery: Verify COD payment and update order status
+  static async verifyCODPayment(orderId: string, verifiedBy: string): Promise<void> {
+    try {
+      const now = new Date().toISOString();
+
+      // First check if this is a COD order
+      const { data: orderData, error: orderCheckError } = await supabase
+        .from('orders')
+        .select('payment_method, payment_verified, status')
+        .eq('id', orderId)
+        .single();
+
+      if (orderCheckError) throw orderCheckError;
+      
+      if (orderData.payment_method !== 'COD' && orderData.payment_method !== 'cod') {
+        throw new Error('This order is not a COD payment. Only COD orders can be verified by delivery staff.');
+      }
+
+      if (orderData.payment_verified) {
+        throw new Error('Payment for this order has already been verified.');
+      }
+
+      if (orderData.status !== 'out_for_delivery') {
+        throw new Error('Order must be out for delivery before payment can be verified.');
+      }
+
+      // Update order with payment verification
+      const { error: orderErr } = await supabase
+        .from('orders')
+        .update({
+          payment_status: 'Verified',
+          payment_verified: true,
+          payment_verified_at: now,
+          payment_verified_by: verifiedBy,
+          updated_at: now,
+        })
+        .eq('id', orderId);
+      if (orderErr) throw orderErr;
+
+      // Add tracking entry for payment verification
+      await this.addOrderTracking(orderId, 'Payment Verified', verifiedBy, 'COD payment verified by delivery staff');
+
+      // Notify customer payment verified
+      try {
+        const { data: ord } = await supabase
+          .from('orders')
+          .select('id, user_id, order_number')
+          .eq('id', orderId)
+          .single();
+        if (ord?.user_id) {
+          await notificationService.sendNotification({
+            userId: ord.user_id,
+            title: 'Payment received',
+            message: `We have received your COD payment for order ${ord.order_number || orderId.slice(-8)}. Thank you!`,
+            type: 'payment',
+            relatedId: orderId,
+          });
+        }
+      } catch (notifyErr) {
+        console.warn('Non-fatal: failed to send payment notification', notifyErr);
+      }
+    } catch (error) {
+      console.error('Error verifying COD payment:', error);
       throw error;
     }
   }
@@ -356,17 +593,16 @@ export class OrderService {
           delivery_address:addresses(*),
           user:profiles!orders_user_id_fkey(full_name, phone_number)
         `)
-        .eq('status', 'ready_for_pickup')
-        .is('assigned_delivery_id', null)
+        .eq('status', 'Ready for Pickup')
         .order('created_at', { ascending: true });
 
       if (error) throw error;
 
-      // Transform to delivery orders with distance calculation
+      // Orders are available when they are unassigned in delivery_assignments
       return (data || []).map((order: any) => ({
         order,
-        distance: 0, // Calculate based on delivery person location
-        estimated_time: 30, // Calculate based on distance
+        distance: 0,
+        estimated_time: 30,
         customer_phone: order.user?.phone_number || '',
         customer_name: order.user?.full_name || '',
         priority: 'medium' as const,
@@ -383,11 +619,44 @@ export class OrderService {
     deliveryPersonId: string
   ): Promise<void> {
     try {
+      // Guard: prevent assigning GCASH unpaid orders
+      const { data: ordCheck } = await supabase
+        .from('orders')
+        .select('payment_method, payment_verified')
+        .eq('id', orderId)
+        .single();
+      if (ordCheck && (ordCheck.payment_method === 'GCASH' || ordCheck.payment_method === 'gcash') && !ordCheck.payment_verified) {
+        throw new Error('Cannot assign: GCash payment not verified yet.');
+      }
+
+      // Verify the delivery person exists and has delivery role
+      const { data: deliveryPerson, error: personError } = await supabase
+        .from('profiles')
+        .select('id, role')
+        .eq('id', deliveryPersonId)
+        .eq('role', 'delivery')
+        .single();
+
+      if (personError || !deliveryPerson) {
+        throw new Error('Invalid delivery person or user does not have delivery role.');
+      }
+
+      // Create or upsert delivery assignment row, set status Out for Delivery
+      const { error: assignErr } = await supabase
+        .from('delivery_assignments')
+        .upsert({ 
+          order_id: orderId, 
+          delivery_person_id: deliveryPersonId, 
+          status: 'Assigned',
+          assigned_at: new Date().toISOString()
+        } as any);
+      if (assignErr) throw assignErr;
+
       const { error } = await supabase
         .from('orders')
         .update({
+          status: 'Out for Delivery',
           assigned_delivery_id: deliveryPersonId,
-          status: 'out_for_delivery',
           updated_at: new Date().toISOString(),
         })
         .eq('id', orderId);
@@ -395,9 +664,67 @@ export class OrderService {
       if (error) throw error;
 
       // Add tracking entry
-      await this.addOrderTracking(orderId, 'out_for_delivery', deliveryPersonId);
+      await this.addOrderTracking(orderId, 'Out for Delivery', deliveryPersonId);
     } catch (error) {
       console.error('Error assigning order:', error);
+      throw error;
+    }
+  }
+
+  // Delivery: Mark order delivered with optional proof image
+  static async markOrderDelivered(
+    orderId: string,
+    riderId: string,
+    proofLocalUri?: string
+  ): Promise<void> {
+    try {
+      let proofUrl: string | undefined;
+      if (proofLocalUri) {
+        const res = await fetch(proofLocalUri);
+        const blob = await res.blob();
+        const path = `deliveries/${orderId}/${Date.now()}.jpg`;
+        const { error: upErr } = await supabase.storage.from('deliveries').upload(path, blob, { contentType: 'image/jpeg' });
+        if (upErr) throw upErr;
+        const { data: { publicUrl } } = supabase.storage.from('deliveries').getPublicUrl(path);
+        proofUrl = publicUrl;
+      }
+
+      // Update delivery assignment
+      const { error: assignErr } = await supabase
+        .from('delivery_assignments' as any)
+        .update({ status: 'Delivered', delivered_at: new Date().toISOString(), notes: null } as any)
+        .eq('order_id', orderId)
+        .eq('delivery_person_id', riderId);
+      if (assignErr) throw assignErr;
+
+      // Update order
+      const { error: ordErr } = await supabase
+        .from('orders')
+        .update({ status: 'Delivered', updated_at: new Date().toISOString(), actual_delivery_time: new Date().toISOString() })
+        .eq('id', orderId);
+      if (ordErr) throw ordErr;
+
+      // Notify customer
+      try {
+        const { data: ord } = await supabase
+          .from('orders')
+          .select('user_id, order_number')
+          .eq('id', orderId)
+          .single();
+        if (ord?.user_id) {
+          await notificationService.sendNotification({
+            userId: ord.user_id,
+            title: 'Order delivered',
+            message: `Your order ${ord.order_number || orderId.slice(-8)} has been delivered. Thank you!`,
+            type: 'delivery',
+            relatedId: orderId,
+          });
+        }
+      } catch (e) {
+        console.warn('Non-fatal: failed to send delivered notification', e);
+      }
+    } catch (error) {
+      console.error('Error marking order delivered:', error);
       throw error;
     }
   }
@@ -413,8 +740,6 @@ export class OrderService {
         .from('orders')
         .update({
           status: 'cancelled',
-          cancellation_reason: reason,
-          cancelled_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
         })
         .eq('id', orderId);

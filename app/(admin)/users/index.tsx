@@ -1,4 +1,5 @@
 import { MaterialIcons } from '@expo/vector-icons';
+import { useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
@@ -7,10 +8,9 @@ import {
   RefreshControl,
   StyleSheet,
   TextInput,
-  TouchableOpacity,
-  View
+  TouchableOpacity
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { AdminCard, AdminLayout, AdminSection } from '../../../components/admin';
 import Button from '../../../components/ui/Button';
 import { ResponsiveText } from '../../../components/ui/ResponsiveText';
 import { ResponsiveView } from '../../../components/ui/ResponsiveView';
@@ -19,12 +19,12 @@ import { ResponsiveBorderRadius, ResponsiveSpacing, responsiveValue } from '../.
 import { Strings } from '../../../constants/Strings';
 import { useTheme } from '../../../contexts/ThemeContext';
 import { User, UserFilters, UserService } from '../../../services/user.service';
-import global from '../../../styles/global';
 
 const roleTabs = ['All', 'Customer', 'Admin', 'Delivery Staff'];
 
 export default function AdminUsersScreen() {
   const { colors } = useTheme();
+  const router = useRouter();
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -56,11 +56,12 @@ export default function AdminUsersScreen() {
       
       if (searchQuery.trim()) {
         filters.search = searchQuery.trim();
+        console.log('Search query:', searchQuery.trim());
       }
       
       const usersData = await UserService.getUsers(filters);
       console.log('Admin users page - received users:', usersData?.length || 0);
-      console.log('Active tab:', activeTab, 'Filters:', filters);
+      console.log('Active tab:', activeTab, 'Search query:', searchQuery, 'Filters:', filters);
       console.log('Users data:', usersData.map(u => ({ id: u.id, name: u.full_name, role: u.role })));
       setUsers(usersData);
       
@@ -166,29 +167,19 @@ export default function AdminUsersScreen() {
   };
 
   const renderUserItem = ({ item }: { item: User }) => (
-    <View
-      style={[styles.userCard, { 
-        backgroundColor: colors.surface, 
-        ...Layout.shadows.sm
-      }]}
+    <AdminCard
+      title={item.full_name}
+      subtitle={item.email}
+      icon={
+        <MaterialIcons 
+          name={getRoleIcon(item.role)} 
+          size={responsiveValue(20, 22, 24, 28)} 
+          color={getRoleColor(item.role)} 
+        />
+      }
+      variant="outlined"
+      style={styles.userCard}
     >
-      <ResponsiveView style={styles.userHeader}>
-        <ResponsiveView style={styles.userInfo}>
-          <ResponsiveText size="lg" weight="semiBold" color={colors.text}>
-            {item.full_name}
-          </ResponsiveText>
-          <ResponsiveText size="sm" color={colors.textSecondary}>
-            {item.email}
-          </ResponsiveText>
-          {item.phone_number && (
-            <ResponsiveText size="sm" color={colors.textSecondary}>
-              {item.phone_number}
-            </ResponsiveText>
-          )}
-        </ResponsiveView>
-        {/* Removed chevron navigation */}
-      </ResponsiveView>
-
       <ResponsiveView style={styles.userMeta}>
         <ResponsiveView style={[styles.roleBadge, { backgroundColor: `${getRoleColor(item.role)}20` }]}>
           <MaterialIcons 
@@ -206,11 +197,13 @@ export default function AdminUsersScreen() {
             </ResponsiveText>
           </ResponsiveView>
         </ResponsiveView>
-        
-        {/* Status badge removed */}
       </ResponsiveView>
 
-      {/* Removed orders and spent stats */}
+      {item.phone_number && (
+        <ResponsiveText size="sm" color={colors.textSecondary} style={styles.phoneNumber}>
+          {item.phone_number}
+        </ResponsiveText>
+      )}
 
       <ResponsiveView style={styles.userFooter}>
         <ResponsiveView style={styles.dateInfo}>
@@ -221,8 +214,6 @@ export default function AdminUsersScreen() {
             </ResponsiveText>
           </ResponsiveView>
         </ResponsiveView>
-        
-        {/* Removed last login display */}
       </ResponsiveView>
 
       <ResponsiveView style={styles.userActions}>
@@ -239,12 +230,18 @@ export default function AdminUsersScreen() {
           size="small"
         />
       </ResponsiveView>
-    </View>
+    </AdminCard>
   );
 
   if (loading) {
     return (
-      <SafeAreaView style={[global.screen, styles.center, { backgroundColor: colors.background }]}>
+      <AdminLayout
+        title="User Management"
+        subtitle="Loading..."
+        showBackButton={true}
+        onBackPress={() => router.replace('/(admin)/dashboard')}
+        backgroundColor={colors.background}
+      >
         <ResponsiveView style={styles.center}>
           <ActivityIndicator size="large" color={colors.primary} />
           <ResponsiveView marginTop="md">
@@ -253,79 +250,96 @@ export default function AdminUsersScreen() {
             </ResponsiveText>
           </ResponsiveView>
         </ResponsiveView>
-      </SafeAreaView>
+      </AdminLayout>
     );
   }
 
   return (
-    <SafeAreaView style={[global.screen, { backgroundColor: colors.background }]} edges={['top']}>
-      <ResponsiveView padding="lg">
-        <ResponsiveView style={[styles.header, { backgroundColor: colors.surface }]}>
-          <ResponsiveText size="xl" weight="bold" color={colors.text}>
-            User Management
-          </ResponsiveText>
-          <ResponsiveText size="md" color={colors.textSecondary}>
-            Manage {userCounts.total} users in your system
-          </ResponsiveText>
+    <AdminLayout
+      title="User Management"
+      subtitle={`Manage ${userCounts.total} users in your system`}
+      showBackButton={true}
+      onBackPress={() => router.replace('/(admin)/dashboard')}
+      backgroundColor={colors.background}
+    >
+
+      {/* Search Bar */}
+      <ResponsiveView flexDirection="row" alignItems="center" paddingHorizontal="lg" marginVertical="md">
+        <ResponsiveView 
+          flex={1}
+          flexDirection="row" 
+          alignItems="center" 
+          backgroundColor={colors.surface}
+          borderRadius="md"
+          paddingHorizontal="md"
+          height={responsiveValue(40, 44, 48, 52)}
+          style={[styles.searchBarShadow, { borderColor: colors.border, borderWidth: 1 }]}
+        >
+          <MaterialIcons 
+            name="search" 
+            size={responsiveValue(20, 22, 24, 26)} 
+            color={colors.textSecondary}
+            style={{ marginRight: ResponsiveSpacing.sm }}
+          />
+          <TextInput
+            style={[
+              styles.searchInput, 
+              { 
+                color: colors.text,
+                fontSize: responsiveValue(14, 16, 18, 20)
+              }
+            ]}
+            placeholder="Search users by name or phone"
+            placeholderTextColor={colors.textSecondary}
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+            autoCapitalize="none"
+            autoCorrect={false}
+            returnKeyType="search"
+          />
+          {searchQuery.length > 0 && (
+            <MaterialIcons 
+              name="clear" 
+              size={responsiveValue(18, 20, 22, 24)} 
+              color={colors.textSecondary}
+              style={styles.clearButton}
+            />
+          )}
         </ResponsiveView>
       </ResponsiveView>
 
-      {/* Search Section */}
-      <ResponsiveView padding="lg">
-        <ResponsiveView style={styles.searchContainer}>
-          <ResponsiveText size="sm" color={colors.textSecondary} style={styles.searchLabel}>
-            Search Users
-          </ResponsiveText>
-          <View style={[styles.searchInput, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-            <MaterialIcons name="search" size={responsiveValue(18, 20, 22, 24)} color={colors.textSecondary} />
-            <TextInput
-              style={[styles.searchTextInput, { color: colors.text }]}
-              placeholder="Search by name, email, or username"
-              placeholderTextColor={colors.textSecondary}
-              value={searchQuery}
-              onChangeText={setSearchQuery}
-            />
-          </View>
-        </ResponsiveView>
-
-        {/* Role Filter */}
-        <ResponsiveView style={styles.filterContainer}>
-          <ResponsiveText size="sm" color={colors.textSecondary} style={styles.filterLabel}>
-            Filter by Role:
-          </ResponsiveText>
-        </ResponsiveView>
-
-        {/* Role Tabs */}
-        <ResponsiveView style={styles.tabsContainer}>
-          <FlatList
-            data={roleTabs}
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            renderItem={({ item }) => (
-              <TouchableOpacity
-                style={[
-                  styles.tab,
-                  activeTab === item && { 
-                    backgroundColor: colors.primary,
-                    borderColor: colors.primary,
-                  },
-                  activeTab !== item && { borderColor: colors.border },
-                ]}
-                onPress={() => setActiveTab(item)}
+      {/* Role Filter */}
+      <ResponsiveView marginBottom="sm">
+        <FlatList
+          data={roleTabs}
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={{ paddingHorizontal: ResponsiveSpacing.md }}
+          renderItem={({ item }) => (
+            <TouchableOpacity
+              style={[
+                styles.categoryItem,
+                {
+                  backgroundColor: activeTab === item ? colors.primary : 'transparent',
+                  borderColor: activeTab === item ? colors.primary : colors.border,
+                  borderWidth: 1,
+                },
+                activeTab === item && styles.categoryItemActive,
+              ]}
+              onPress={() => setActiveTab(item)}
+            >
+              <ResponsiveText
+                size="sm"
+                color={activeTab === item ? 'white' : colors.text}
+                weight={activeTab === item ? 'semiBold' : 'regular'}
+                style={{ textAlign: 'center', lineHeight: undefined }}
               >
-                <ResponsiveText 
-                  size="sm" 
-                  weight="medium"
-                  color={activeTab === item ? colors.background : colors.text}
-                >
-                  {item}
-                </ResponsiveText>
-              </TouchableOpacity>
-            )}
-            keyExtractor={(item) => item}
-            contentContainerStyle={styles.tabsList}
-          />
-        </ResponsiveView>
+                {item}
+              </ResponsiveText>
+            </TouchableOpacity>
+          )}
+          keyExtractor={(item) => item}
+        />
       </ResponsiveView>
 
       {users.length > 0 ? (
@@ -340,102 +354,75 @@ export default function AdminUsersScreen() {
           }
         />
       ) : (
-        <ResponsiveView style={[styles.emptyState, { backgroundColor: colors.surface }]}>
-          <ResponsiveView style={[styles.emptyIcon, { backgroundColor: colors.surfaceVariant }]}>
-            <MaterialIcons name="people" size={responsiveValue(48, 56, 64, 72)} color={colors.primary} />
+        <AdminSection title="No Users Found" variant="card">
+          <ResponsiveView style={[styles.emptyState, { backgroundColor: colors.surface }]}>
+            <ResponsiveView style={[styles.emptyIcon, { backgroundColor: colors.surfaceVariant }]}>
+              <MaterialIcons name="people" size={responsiveValue(48, 56, 64, 72)} color={colors.primary} />
+            </ResponsiveView>
+            <ResponsiveView marginTop="md">
+              <ResponsiveText size="lg" weight="semiBold" color={colors.text} align="center">
+                No Users Found
+              </ResponsiveText>
+            </ResponsiveView>
+            <ResponsiveView marginTop="sm">
+              <ResponsiveText size="md" color={colors.textSecondary} align="center">
+                {activeTab === 'All' 
+                  ? 'No users have been registered yet.'
+                  : `No ${activeTab.toLowerCase()} users found.`
+                }
+              </ResponsiveText>
+            </ResponsiveView>
           </ResponsiveView>
-          <ResponsiveView marginTop="md">
-            <ResponsiveText size="lg" weight="semiBold" color={colors.text} align="center">
-              No Users Found
-            </ResponsiveText>
-          </ResponsiveView>
-          <ResponsiveView marginTop="sm">
-            <ResponsiveText size="md" color={colors.textSecondary} align="center">
-              {activeTab === 'All' 
-                ? 'No users have been registered yet.'
-                : `No ${activeTab.toLowerCase()} users found.`
-              }
-            </ResponsiveText>
-          </ResponsiveView>
-          
-          {/* Removed Add First User button (routing) */}
-        </ResponsiveView>
+        </AdminSection>
       )}
-    </SafeAreaView>
+    </AdminLayout>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
   center: {
     justifyContent: 'center',
     alignItems: 'center',
   },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: ResponsiveSpacing.lg,
-    padding: ResponsiveSpacing.md,
-    borderRadius: ResponsiveBorderRadius.lg,
-    ...Layout.shadows.sm,
-  },
-  searchContainer: {
-    marginBottom: ResponsiveSpacing.lg,
-  },
-  searchLabel: {
-    marginBottom: ResponsiveSpacing.sm,
+  searchBarShadow: {
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
   },
   searchInput: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: ResponsiveSpacing.md,
-    paddingVertical: ResponsiveSpacing.sm,
-    borderRadius: ResponsiveBorderRadius.md,
-    borderWidth: 1,
-    gap: ResponsiveSpacing.sm,
-  },
-  searchTextInput: {
     flex: 1,
+    height: '100%',
     fontSize: responsiveValue(14, 16, 18, 20),
   },
-  filterContainer: {
-    marginBottom: ResponsiveSpacing.sm,
+  clearButton: {
+    padding: ResponsiveSpacing.xs,
   },
-  filterLabel: {
-    marginBottom: ResponsiveSpacing.sm,
+  categoryItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: responsiveValue(12, 14, 16, 18),
+    paddingVertical: responsiveValue(6, 8, 10, 12),
+    borderRadius: responsiveValue(16, 18, 20, 22),
+    marginRight: responsiveValue(6, 8, 10, 12),
+    minWidth: responsiveValue(72, 80, 88, 100),
+    minHeight: responsiveValue(36, 40, 44, 48),
   },
-  tabsContainer: {
-    marginBottom: ResponsiveSpacing.lg,
-  },
-  tabsList: {
-    gap: ResponsiveSpacing.sm,
-  },
-  tab: {
-    paddingHorizontal: ResponsiveSpacing.md,
-    paddingVertical: ResponsiveSpacing.sm,
-    borderRadius: ResponsiveBorderRadius.pill,
-    borderWidth: 1,
+  categoryItemActive: {
+    shadowColor: '#FFE44D',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 3,
+    elevation: 0,
   },
   usersList: {
     paddingHorizontal: ResponsiveSpacing.lg,
     paddingTop: 0,
   },
   userCard: {
-    padding: ResponsiveSpacing.md,
-    borderRadius: ResponsiveBorderRadius.lg,
     marginBottom: ResponsiveSpacing.md,
-  },
-  userHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    marginBottom: ResponsiveSpacing.sm,
-  },
-  userInfo: {
-    flex: 1,
   },
   userMeta: {
     flexDirection: 'row',
@@ -450,25 +437,8 @@ const styles = StyleSheet.create({
     paddingVertical: ResponsiveSpacing.xs,
     borderRadius: ResponsiveBorderRadius.sm,
   },
-  statusBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: ResponsiveSpacing.sm,
-    paddingVertical: ResponsiveSpacing.xs,
-    borderRadius: ResponsiveBorderRadius.sm,
-  },
-  customerStats: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+  phoneNumber: {
     marginBottom: ResponsiveSpacing.sm,
-    paddingVertical: ResponsiveSpacing.sm,
-    borderTopWidth: 1,
-    borderTopColor: 'rgba(0,0,0,0.1)',
-  },
-  statItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flex: 1,
   },
   userFooter: {
     flexDirection: 'row',
@@ -491,7 +461,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: ResponsiveSpacing.xxxl,
     paddingHorizontal: ResponsiveSpacing.lg,
-    marginHorizontal: ResponsiveSpacing.lg,
     borderRadius: ResponsiveBorderRadius.lg,
     ...Layout.shadows.sm,
   },
@@ -502,10 +471,5 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: ResponsiveSpacing.md,
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
   },
 });

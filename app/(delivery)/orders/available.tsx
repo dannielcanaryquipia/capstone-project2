@@ -2,11 +2,11 @@ import { MaterialIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import {
-  Alert,
-  FlatList,
-  RefreshControl,
-  StyleSheet,
-  View
+    Alert,
+    FlatList,
+    RefreshControl,
+    StyleSheet,
+    View
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Button from '../../../components/ui/Button';
@@ -54,8 +54,20 @@ export default function AvailableOrdersScreen() {
     setRefreshing(false);
   };
 
-  const handleAssignOrder = async (orderId: string) => {
+  const handleAssignOrder = async (orderId: string, order: any) => {
     if (!user?.id) return;
+
+    // Check if this is a GCash order that hasn't been verified
+    if (order.payment_method === 'GCASH' && !order.payment_verified) {
+      Alert.alert(
+        'Cannot Assign Order',
+        'This GCash order is waiting for payment verification. Please wait for admin to verify the payment before assigning.',
+        [
+          { text: 'OK', style: 'default' }
+        ]
+      );
+      return;
+    }
 
     Alert.alert(
       'Assign Order',
@@ -93,6 +105,7 @@ export default function AvailableOrdersScreen() {
 
   const renderOrderItem = ({ item }: { item: DeliveryOrder }) => {
     const { order } = item;
+    const isGcashUnverified = order.payment_method === 'GCASH' && !order.payment_verified;
     
     return (
       <OrderCard
@@ -101,11 +114,16 @@ export default function AvailableOrdersScreen() {
         showCustomerInfo={true}
         showDeliveryInfo={true}
         showActionButton={true}
-        actionButtonTitle="Assign to Me"
-        onActionPress={() => handleAssignOrder(order.id)}
+        actionButtonTitle={isGcashUnverified ? "Payment Pending" : "Assign to Me"}
+        onActionPress={() => handleAssignOrder(order.id, order)}
         actionButtonLoading={assigningOrder === order.id}
-        actionButtonDisabled={assigningOrder === order.id}
+        actionButtonDisabled={assigningOrder === order.id || isGcashUnverified}
         variant="detailed"
+        customBadge={isGcashUnverified ? {
+          text: "Payment Verification Required",
+          color: colors.warning,
+          icon: "payment"
+        } : undefined}
       />
     );
   };

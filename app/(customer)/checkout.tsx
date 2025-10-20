@@ -188,22 +188,26 @@ export default function CheckoutScreen() {
           const { data: { user } } = await supabase.auth.getUser();
           if (!user) throw new Error('Not authenticated');
 
-          const fileResp = await fetch(proofUri);
-          const blob = await fileResp.blob();
-          const path = `orders/${order.id}/payments/${Date.now()}.jpg`;
-          const { error: upErr } = await supabase.storage.from('payments').upload(path, blob, { contentType: 'image/jpeg' });
-          if (upErr) throw upErr;
-          const { data: { publicUrl } } = supabase.storage.from('payments').getPublicUrl(path);
+          // Use the new image upload service
+          const { ImageUploadService } = await import('../../services/image-upload.service');
+          const uploadResult = await ImageUploadService.uploadPaymentProof(
+            order.id, 
+            proofUri, 
+            user.id
+          );
 
           await supabase.from('payment_transactions' as any).insert({
             order_id: order.id,
             amount: order.total_amount,
             payment_method: 'GCASH',
             status: 'Pending',
-            proof_of_payment_url: publicUrl,
+            proof_of_payment_url: uploadResult.url,
           } as any);
 
-          await supabase.from('orders').update({ proof_of_payment_url: publicUrl }).eq('id', order.id);
+          await supabase.from('orders').update({ 
+            proof_of_payment_url: uploadResult.url,
+            payment_status: 'Pending'
+          }).eq('id', order.id);
         } catch (e) {
           console.log('Proof upload failed', e);
         }

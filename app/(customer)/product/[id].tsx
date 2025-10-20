@@ -3,6 +3,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
 import { Alert, Dimensions, Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import BuyNowButton from '../../../components/ui/BuyNowButton';
 import { CartNotification } from '../../../components/ui/CartNotification';
 import SelectablePill from '../../../components/ui/SelectablePill';
 import Layout from '../../../constants/Layout';
@@ -35,7 +36,7 @@ export default function ProductScreen() {
   const { id } = useLocalSearchParams();
   const { colors, isDark } = useTheme();
   const router = useRouter();
-  const { addItem } = useCart();
+  const { addItem, clearCart, selectAllItems } = useCart();
   const [quantity, setQuantity] = useState(1);
   const [selectedSize, setSelectedSize] = useState('');
   const [selectedCrust, setSelectedCrust] = useState('');
@@ -120,7 +121,34 @@ export default function ProductScreen() {
   };
 
   const increaseQuantity = () => setQuantity(prev => Math.min(10, prev + 1));
-  const decreaseQuantity = () => setQuantity(prev => Math.max(1, prev - 1));
+  
+  const decreaseQuantity = () => {
+    if (quantity <= 1) {
+      // Show alert when trying to decrease below 1
+      Alert.alert(
+        'Remove Item',
+        'Are you sure you want to remove this item?',
+        [
+          {
+            text: 'Cancel',
+            style: 'cancel',
+          },
+          {
+            text: 'Remove',
+            style: 'destructive',
+            onPress: () => {
+              // Navigate back or reset to 1
+              setQuantity(1);
+              // Optionally navigate back to menu
+              // router.back();
+            },
+          },
+        ]
+      );
+    } else {
+      setQuantity(prev => prev - 1);
+    }
+  };
 
   const addToCart = () => {
     if (!product || product.id === 'loading') return;
@@ -183,9 +211,72 @@ export default function ProductScreen() {
     setShowCartNotification(false);
   };
 
+  const handleBuyNow = () => {
+    if (!product || product.id === 'loading') return;
+
+    // Show confirmation alert
+    Alert.alert(
+      'Buy Now',
+      `Proceed to checkout with ${quantity} ${product.name}?`,
+      [
+        {
+          text: 'Cancel',
+          style: 'cancel',
+        },
+        {
+          text: 'Continue',
+          onPress: () => {
+            try {
+              // Convert ProductDetail to Product type for cart
+              const productForCart = {
+                ...product,
+                category_id: (product.category as any)?.id || '',
+                price: selectedSizePrice, // Use the selected size price
+                category: product.category ? {
+                  ...product.category,
+                  is_active: true,
+                  created_at: new Date().toISOString(),
+                  updated_at: new Date().toISOString(),
+                } : undefined,
+              };
+
+              // Prepare cart options for pizza items
+              const cartOptions: any = {};
+              if (isPizzaCategory) {
+                if (selectedSize) cartOptions.pizza_size = selectedSize;
+                if (selectedCrust) cartOptions.pizza_crust = selectedCrust;
+              }
+
+              // Clear existing cart for buy now flow
+              clearCart();
+
+              // Add item to cart
+              addItem(productForCart as any, quantity, cartOptions);
+
+              // Small delay to ensure state is updated before navigation
+              setTimeout(() => {
+                // Automatically select the item for checkout
+                selectAllItems();
+                // Navigate directly to checkout
+                router.push('/(customer)/checkout');
+              }, 100);
+            } catch (error: any) {
+              // Handle cart limit error
+              Alert.alert(
+                'Error',
+                error.message || 'Unable to proceed with checkout.',
+                [{ text: 'OK' }]
+              );
+            }
+          },
+        },
+      ]
+    );
+  };
+
   if (isLoading) {
     return (
-      <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
+      <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top', 'left', 'right']}>
         <View style={styles.loadingContainer}>
           <Text style={[styles.loadingText, { color: colors.text }]}>Loading product...</Text>
         </View>
@@ -195,7 +286,7 @@ export default function ProductScreen() {
 
   if (error) {
     return (
-      <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
+      <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top', 'left', 'right']}>
         <View style={styles.loadingContainer}>
           <Text style={[styles.loadingText, { color: colors.error }]}>Error loading product: {error}</Text>
         </View>
@@ -204,30 +295,30 @@ export default function ProductScreen() {
   }
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
-      {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-          <MaterialIcons name="arrow-back" size={28} color={isDark ? colors.primary : colors.white} style={styles.iconShadow} />
-        </TouchableOpacity>
-        <View style={styles.headerIcons}>
-          <TouchableOpacity 
-            style={styles.iconButton}
-            onPress={() => toggleSave(product.id)}
-          >
-            <MaterialIcons 
-              name={isSaved ? "favorite" : "favorite-border"} 
-              size={28} 
-              color={isDark ? colors.primary : colors.white} 
-              style={styles.iconShadow} 
-            />
-          </TouchableOpacity>
-        </View>
-      </View>
-
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top', 'left', 'right']}>
       <ScrollView showsVerticalScrollIndicator={false}>
-        {/* Product Image */}
-        <Image source={{ uri: product.image_url || 'https://via.placeholder.com/400x300' }} style={styles.productImage} />
+        {/* Product Image with Overlay Icons */}
+        <View style={styles.imageContainer}>
+          <Image source={{ uri: product.image_url || 'https://via.placeholder.com/400x300' }} style={styles.productImage} />
+          
+          {/* Overlay Header Icons */}
+          <View style={styles.imageOverlay}>
+            <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+              <MaterialIcons name="arrow-back" size={28} color={colors.white} style={styles.iconShadow} />
+            </TouchableOpacity>
+            <TouchableOpacity 
+              style={styles.heartButton}
+              onPress={() => toggleSave(product.id)}
+            >
+              <MaterialIcons 
+                name={isSaved ? "favorite" : "favorite-border"} 
+                size={28} 
+                color={colors.white} 
+                style={styles.iconShadow} 
+              />
+            </TouchableOpacity>
+          </View>
+        </View>
 
         {/* Product Info */}
         <View style={[styles.productInfo, { backgroundColor: colors.card }]}>
@@ -374,10 +465,22 @@ export default function ProductScreen() {
       </ScrollView>
 
       {/* Add to Cart Bar */}
-      <View style={[styles.cartBar, { backgroundColor: colors.card, borderTopColor: colors.border }]}>
+      <SafeAreaView style={{ backgroundColor: colors.card }} edges={['bottom']}>
+        <View style={[styles.cartBar, { backgroundColor: colors.card, borderTopColor: colors.border }]}>
         <View style={styles.quantitySelector}>
-          <TouchableOpacity onPress={decreaseQuantity} style={styles.quantityButton}>
-            <MaterialIcons name="remove" size={20} color={colors.primary} />
+          <TouchableOpacity 
+            onPress={decreaseQuantity} 
+            style={[
+              styles.quantityButton,
+              quantity <= 1 && { opacity: 0.5 }
+            ]}
+            disabled={quantity <= 1}
+          >
+            <MaterialIcons 
+              name="remove" 
+              size={20} 
+              color={quantity <= 1 ? colors.textSecondary : colors.primary} 
+            />
           </TouchableOpacity>
           <Text style={[styles.quantityText, { color: colors.text }]}>{quantity}</Text>
           <TouchableOpacity 
@@ -388,20 +491,28 @@ export default function ProductScreen() {
             ]}
             disabled={quantity >= 10}
           >
-            <MaterialIcons 
-              name="add" 
-              size={20} 
+            <MaterialIcons
+              name="add"
+              size={20}
               color={quantity >= 10 ? colors.textSecondary : colors.primary} 
             />
           </TouchableOpacity>
         </View>
-        <TouchableOpacity
-          style={[styles.addToCartButton, { backgroundColor: colors.primary }]}
-          onPress={addToCart}
-        >
-          <Text style={[styles.addToCartText, { color: colors.black }]}>Add to Cart - ₱{(selectedSizePrice * quantity).toFixed(2)}</Text>
-        </TouchableOpacity>
-      </View>
+        <View style={styles.buttonContainer}>
+          <TouchableOpacity
+            style={[styles.addToCartButton, { backgroundColor: colors.primary }]}
+            onPress={addToCart}
+          >
+            <MaterialIcons name="shopping-cart" size={24} color={colors.black} />
+          </TouchableOpacity>
+          <BuyNowButton
+            onPress={handleBuyNow}
+            style={styles.buyNowButton}
+            size="md"
+          />
+        </View>
+        </View>
+      </SafeAreaView>
 
       {/* Cart Notification Modal */}
       {addedItem && (
@@ -423,36 +534,35 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    padding: 15,
+  imageContainer: {
+    position: 'relative',
+  },
+  imageOverlay: {
     position: 'absolute',
     top: 0,
     left: 0,
     right: 0,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 15,
     zIndex: 1,
   },
   backButton: {
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: 'transparent',
+    backgroundColor: 'rgba(0, 0, 0, 0.3)',
     justifyContent: 'center',
     alignItems: 'center',
   },
-  headerIcons: {
-    flexDirection: 'row',
-  },
-  iconButton: {
+  heartButton: {
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: 'transparent',
+    backgroundColor: 'rgba(0, 0, 0, 0.3)',
     justifyContent: 'center',
     alignItems: 'center',
-    marginLeft: 10,
   },
   iconShadow: {
     textShadowColor: 'rgba(0,0,0,0.4)',
@@ -586,7 +696,7 @@ const styles = StyleSheet.create({
   },
   relatedSection: {
     padding: 20,
-    paddingBottom: 100, // Extra padding for the cart bar
+    paddingBottom: 20, // Reduced padding since cart bar is no longer absolute
   },
   relatedItemsContainer: {
     paddingVertical: 10,
@@ -619,10 +729,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: 15,
     borderTopWidth: 1,
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
   },
   quantitySelector: {
     flexDirection: 'row',
@@ -647,6 +753,11 @@ const styles = StyleSheet.create({
     minWidth: 20,
     textAlign: 'center',
   },
+  buttonContainer: {
+    flex: 1,
+    flexDirection: 'row',
+    gap: 10,
+  },
   addToCartButton: {
     flex: 1,
     paddingVertical: 15,
@@ -654,11 +765,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  addToCartText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: Layout.fontWeight.semiBold,
-    fontFamily: Layout.fontFamily.semiBold,
+  buyNowButton: {
+    flex: 1,
   },
   loadingContainer: {
     flex: 1,

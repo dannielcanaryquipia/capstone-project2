@@ -4,6 +4,9 @@ import React, { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  Image,
+  Linking,
+  Modal,
   ScrollView,
   StyleSheet,
   TouchableOpacity,
@@ -18,9 +21,11 @@ import { ResponsiveBorderRadius, ResponsiveSpacing, responsiveValue } from '../.
 import { Strings } from '../../../constants/Strings';
 import { useTheme } from '../../../contexts/ThemeContext';
 import { supabase } from '../../../lib/supabase';
+import { notificationService } from '../../../services/api';
 import { OrderService } from '../../../services/order.service';
 import global from '../../../styles/global';
 import { OrderStatus } from '../../../types/order.types';
+import { getDetailedCustomizationDisplay } from '../../../utils/customizationDisplay';
 
 interface OrderDetail {
   id: string;
@@ -84,6 +89,12 @@ export default function OrderDetailScreen() {
   const [order, setOrder] = useState<OrderDetail | null>(null);
   const [verifying, setVerifying] = useState(false);
   const [viewedProof, setViewedProof] = useState(false);
+  const [showImageModal, setShowImageModal] = useState(false);
+  const [proofImageUrl, setProofImageUrl] = useState<string | null>(null);
+  const [proofImageError, setProofImageError] = useState(false);
+  const [canceling, setCanceling] = useState(false);
+  const [paymentProofs, setPaymentProofs] = useState<Array<any>>([]);
+  const [deliveryProofs, setDeliveryProofs] = useState<Array<any>>([]);
 
   useEffect(() => {
     if (id) {
@@ -124,7 +135,24 @@ export default function OrderDetailScreen() {
         }));
       }
 
+      console.log('Order data loaded:', {
+        id: raw?.id,
+        payment_method: raw?.payment_method,
+        payment_status: raw?.payment_status,
+        proof_of_payment_url: raw?.proof_of_payment_url,
+        payment_transactions: raw?.payment_transactions
+      });
+      
       setOrder(raw as OrderDetail);
+
+      // Load proofs (payment and delivery)
+      try {
+        const proofs = await OrderService.getOrderProofImages(id);
+        setPaymentProofs(proofs.paymentProofs || []);
+        setDeliveryProofs(proofs.deliveryProofs || []);
+      } catch (e) {
+        console.warn('Failed to load proofs', e);
+      }
     } catch (error) {
       console.error('Error loading order:', error);
       Alert.alert('Error', 'Failed to load order details');
@@ -183,6 +211,49 @@ export default function OrderDetailScreen() {
         }
       }}
     ]);
+  };
+
+  const handleCancelOrder = async () => {
+    if (!id) return;
+    Alert.alert(
+      'Cancel Order',
+      'Are you sure you want to cancel this GCash order? This action cannot be undone and the customer will be notified.',
+      [
+        { text: 'Keep Order', style: 'cancel' },
+        { 
+          text: 'Cancel Order', 
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              setCanceling(true);
+              await OrderService.updateOrderStatus(id as string, 'cancelled', 'Admin cancelled - payment not verified');
+              
+              // Send notification to customer
+              try {
+                await notificationService.sendNotification({
+                  userId: order?.user_id || '',
+                  title: 'Order Cancelled',
+                  message: `Your order #${order?.id?.slice(-8) || 'N/A'} has been cancelled due to payment verification issues. Please contact support if you have any questions.`,
+                  type: 'order_update',
+                  relatedId: id as string,
+                });
+              } catch (notificationError) {
+                console.warn('Failed to send cancellation notification:', notificationError);
+                // Don't fail the cancellation if notification fails
+              }
+              
+              await loadOrder();
+              Alert.alert('Order Cancelled', 'The order has been cancelled and the customer has been notified.');
+            } catch (e) {
+              console.error('Error cancelling order:', e);
+              Alert.alert('Error', 'Failed to cancel order. Please try again.');
+            } finally {
+              setCanceling(false);
+            }
+          }
+        }
+      ]
+    );
   };
 
   const getStatusColor = (status: OrderStatus) => {
@@ -268,6 +339,7 @@ export default function OrderDetailScreen() {
   let nextStatus = getNextStatus(order.status);
   const paymentMethod = (order.payment_method || '').toLowerCase();
   const paymentStatus = (order.payment_status || '').toLowerCase();
+  const isPaymentVerified = paymentStatus === 'verified' || order.payment_status === 'Verified';
 
   // Admin cannot mark Delivered from details screen
   if (nextStatus === 'delivered') {
@@ -275,7 +347,7 @@ export default function OrderDetailScreen() {
   }
 
   // For GCash, require payment verification before any transitions
-  if (paymentMethod === 'gcash' && paymentStatus !== 'verified') {
+  if (paymentMethod === 'gcash' && !isPaymentVerified) {
     nextStatus = null;
   }
 
@@ -369,36 +441,31 @@ export default function OrderDetailScreen() {
             </ResponsiveText>
           </ResponsiveView>
           
-          {order.order_items.map((item) => (
-            <ResponsiveView key={item.id} style={styles.orderItem} marginBottom="md">
-              <ResponsiveView style={styles.orderItemHeader}>
-                <ResponsiveView flex={1}>
-                  <ResponsiveText size="md" weight="semiBold" color={colors.text}>
-                    {item.quantity}x {item.product.name}
+          {order.order_items.map((item) => {
+            const customizationDisplay = getDetailedCustomizationDisplay(item);
+            return (
+              <ResponsiveView key={item.id} style={styles.orderItem} marginBottom="md">
+                <ResponsiveView style={styles.orderItemHeader}>
+                  <ResponsiveView flex={1}>
+                    <ResponsiveText size="md" weight="semiBold" color={colors.text}>
+                      {item.quantity}x {item.product.name}
+                    </ResponsiveText>
+                  </ResponsiveView>
+                  <ResponsiveText size="md" weight="semiBold" color={colors.primary}>
+                    ₱{(item.quantity * item.unit_price).toFixed(2)}
                   </ResponsiveText>
                 </ResponsiveView>
-                <ResponsiveText size="md" weight="semiBold" color={colors.primary}>
-                  ₱{(item.quantity * item.unit_price).toFixed(2)}
-                </ResponsiveText>
+                
+                {customizationDisplay && customizationDisplay.map((detail: any, index: number) => (
+                  <ResponsiveView key={index} marginTop="xs">
+                    <ResponsiveText size="sm" color={colors.textSecondary}>
+                      {detail.label}: {detail.value}
+                    </ResponsiveText>
+                  </ResponsiveView>
+                ))}
               </ResponsiveView>
-              
-              {item.customization_details && (
-                <ResponsiveView marginTop="xs">
-                  <ResponsiveText size="sm" color={colors.textSecondary}>
-                    Customization: {JSON.stringify(item.customization_details)}
-                  </ResponsiveText>
-                </ResponsiveView>
-              )}
-              
-              {item.selected_size && (
-                <ResponsiveView marginTop="xs">
-                  <ResponsiveText size="sm" color={colors.textSecondary}>
-                    Size: {item.selected_size}
-                  </ResponsiveText>
-                </ResponsiveView>
-              )}
-            </ResponsiveView>
-          ))}
+            );
+          })}
         </ResponsiveView>
 
         {/* Total Amount */}
@@ -432,6 +499,13 @@ export default function OrderDetailScreen() {
               <ResponsiveText size="md" color={colors.text}>
                 Payment Method: {order.payment_method || 'COD'}
               </ResponsiveText>
+              {order.payment_method === 'gcash' && (
+                <ResponsiveView marginTop="xs">
+                  <ResponsiveText size="sm" color={colors.textSecondary}>
+                    Status: {isPaymentVerified ? 'Verified' : 'Pending Verification'}
+                  </ResponsiveText>
+                </ResponsiveView>
+              )}
             </ResponsiveView>
           </ResponsiveView>
 
@@ -443,36 +517,161 @@ export default function OrderDetailScreen() {
               </ResponsiveText>
             </ResponsiveView>
           </ResponsiveView>
-          {order.proof_of_payment_url && (
-            <ResponsiveView marginTop="sm">
-              <Button title="View Proof of Payment" onPress={() => {
-                // open URL in browser
-                // @ts-ignore
-                if (window && window.open) {
-                  window.open(order.proof_of_payment_url as any, '_blank');
-                }
-                setViewedProof(true);
-              }} variant="secondary" />
+          {/* Proof of Payment - show gallery under payment info */}
+          {(paymentProofs.length > 0 || order.proof_of_payment_url) && (
+            <ResponsiveView marginTop="md">
+              <ResponsiveText size="md" weight="semiBold" color={colors.text}>
+                Proof of Payment
+              </ResponsiveText>
+              <ResponsiveView marginTop="sm" style={styles.proofGrid}>
+                {/* New proofs from image_metadata */}
+                {paymentProofs.map((img) => (
+                  <TouchableOpacity
+                    key={img.id}
+                    onPress={() => {
+                      setProofImageUrl(img.url);
+                      setShowImageModal(true);
+                      setViewedProof(true);
+                    setProofImageError(false);
+                    }}
+                    style={styles.proofThumbWrap}
+                  >
+                    <Image
+                      source={{ uri: img.thumbnail_url || img.url }}
+                      style={styles.proofThumb}
+                      resizeMode="cover"
+                    />
+                    <ResponsiveView style={styles.proofOverlay}>
+                      <MaterialIcons name="zoom-in" size={20} color="white" />
+                    </ResponsiveView>
+                  </TouchableOpacity>
+                ))}
+                {/* Legacy single URL */}
+                {order.proof_of_payment_url && (
+                  <TouchableOpacity
+                    onPress={() => {
+                      setProofImageUrl(order.proof_of_payment_url as string);
+                      setShowImageModal(true);
+                      setViewedProof(true);
+                    setProofImageError(false);
+                    }}
+                    style={styles.proofThumbWrap}
+                  >
+                    <Image
+                      source={{ uri: order.proof_of_payment_url as string }}
+                      style={styles.proofThumb}
+                      resizeMode="cover"
+                    />
+                    <ResponsiveView style={styles.proofOverlay}>
+                      <MaterialIcons name="zoom-in" size={20} color="white" />
+                    </ResponsiveView>
+                  </TouchableOpacity>
+                )}
+              </ResponsiveView>
             </ResponsiveView>
           )}
-          {order.payment_status === 'pending' && order.payment_method === 'gcash' && (
-            <ResponsiveView marginTop="md">
-              <Button 
-                title={verifying ? 'Verifying...' : 'Verify Payment'} 
-                onPress={handleVerifyPayment} 
-                variant="primary" 
-                disabled={verifying || !order.proof_of_payment_url || !viewedProof}
-              />
-              {(!order.proof_of_payment_url || !viewedProof) && (
-                <ResponsiveView marginTop="xs">
-                  <ResponsiveText size="sm" color={colors.textSecondary}>
-                    Please view the proof of payment image before verifying.
+          {order.payment_status === 'Pending' && order.payment_method === 'gcash' && (
+            <ResponsiveView marginTop="md" style={[styles.verificationSection, { backgroundColor: colors.warning + '10', borderColor: colors.warning + '30' }]}>
+              <ResponsiveView style={styles.verificationHeader}>
+                <MaterialIcons name="payment" size={24} color={colors.warning} />
+                <ResponsiveView marginLeft="sm">
+                  <ResponsiveText size="md" weight="semiBold" color={colors.warning}>
+                    GCash Payment Verification Required
                   </ResponsiveText>
                 </ResponsiveView>
+              </ResponsiveView>
+              
+              <ResponsiveView marginTop="sm">
+                <Button 
+                  title={verifying ? 'Verifying Payment...' : '✅ Verify Payment & Start Preparing'} 
+                  onPress={handleVerifyPayment} 
+                  variant="primary" 
+                  disabled={verifying || !order.proof_of_payment_url || !viewedProof}
+                  style={styles.verifyButton}
+                />
+              </ResponsiveView>
+              
+              <ResponsiveView marginTop="sm">
+                <Button 
+                  title={
+                    canceling 
+                      ? 'Cancelling Order...' 
+                      : order.status === 'cancelled' 
+                        ? '❌ Order Cancelled' 
+                        : '❌ Cancel Order'
+                  } 
+                  onPress={order.status === 'cancelled' ? () => {} : handleCancelOrder} 
+                  variant="secondary" 
+                  disabled={canceling || verifying || order.status === 'cancelled'}
+                  style={[
+                    styles.cancelButton,
+                    order.status === 'cancelled' && { opacity: 0.6 }
+                  ]}
+                />
+              </ResponsiveView>
+              
+              {!order.proof_of_payment_url && (
+                <ResponsiveView marginTop="sm" style={styles.warningBox}>
+                  <MaterialIcons name="warning" size={20} color={colors.warning} />
+                  <ResponsiveView marginLeft="xs" flex={1}>
+                    <ResponsiveText size="sm" color={colors.warning}>
+                      No proof of payment uploaded by customer
+                    </ResponsiveText>
+                  </ResponsiveView>
+                </ResponsiveView>
               )}
+              {order.proof_of_payment_url && !viewedProof && (
+                <ResponsiveView marginTop="sm" style={styles.infoBox}>
+                  <MaterialIcons name="info" size={20} color={colors.info} />
+                  <ResponsiveView marginLeft="xs" flex={1}>
+                    <ResponsiveText size="sm" color={colors.info}>
+                      Please view the proof of payment image above before verifying
+                    </ResponsiveText>
+                  </ResponsiveView>
+                </ResponsiveView>
+              )}
+              {order.proof_of_payment_url && viewedProof && (
+                <ResponsiveView marginTop="sm" style={styles.successBox}>
+                  <MaterialIcons name="check-circle" size={20} color={colors.success} />
+                  <ResponsiveView marginLeft="xs" flex={1}>
+                    <ResponsiveText size="sm" color={colors.success}>
+                      Proof of payment viewed - you can now verify the payment
+                    </ResponsiveText>
+                  </ResponsiveView>
+                </ResponsiveView>
+              )}
+              <ResponsiveView marginTop="sm">
+                <ResponsiveText size="xs" color={colors.textSecondary} style={{ textAlign: 'center', fontStyle: 'italic' }}>
+                  After verification, the order will automatically move to "Preparing" status and the customer will be notified.
+                </ResponsiveText>
+              </ResponsiveView>
             </ResponsiveView>
           )}
-          {order.payment_status === 'pending' && order.payment_method === 'cod' && (
+          {order.payment_status === 'Verified' && order.payment_method === 'gcash' && (
+            <ResponsiveView marginTop="md" style={[styles.verificationSection, { backgroundColor: colors.success + '10', borderColor: colors.success + '30' }]}>
+              <ResponsiveView style={styles.verificationHeader}>
+                <MaterialIcons name="check-circle" size={24} color={colors.success} />
+                <ResponsiveView marginLeft="sm">
+                  <ResponsiveText size="md" weight="semiBold" color={colors.success}>
+                    Payment Verified Successfully
+                  </ResponsiveText>
+                </ResponsiveView>
+              </ResponsiveView>
+              <ResponsiveView marginTop="sm">
+                <ResponsiveText size="sm" color={colors.textSecondary}>
+                  ✅ Payment verified by admin • Order is now in "Preparing" status
+                </ResponsiveText>
+                {order.payment_verified_at && (
+                  <ResponsiveView marginTop="xs">
+                    <ResponsiveText size="xs" color={colors.textSecondary}>
+                      Verified on: {new Date(order.payment_verified_at).toLocaleString()}
+                    </ResponsiveText>
+                  </ResponsiveView>
+                )}
+              </ResponsiveView>
+            </ResponsiveView>
+          )}
+          {order.payment_status === 'Pending' && order.payment_method === 'cod' && (
             <ResponsiveView marginTop="md">
               <ResponsiveText size="sm" color={colors.textSecondary} style={{ textAlign: 'center', fontStyle: 'italic' }}>
                 COD payment verification will be handled by delivery staff upon delivery.
@@ -512,6 +711,37 @@ export default function OrderDetailScreen() {
               </ResponsiveText>
             </ResponsiveView>
           </ResponsiveView>
+
+          {/* Proof of Delivery - show under timeline */}
+          {deliveryProofs.length > 0 && (
+            <ResponsiveView marginTop="md">
+              <ResponsiveText size="md" weight="semiBold" color={colors.text}>
+                Proof of Delivery
+              </ResponsiveText>
+              <ResponsiveView marginTop="sm" style={styles.proofGrid}>
+                {deliveryProofs.map((img) => (
+                  <TouchableOpacity
+                    key={img.id}
+                    onPress={() => {
+                      setProofImageUrl(img.url);
+                      setShowImageModal(true);
+                      setProofImageError(false);
+                    }}
+                    style={styles.proofThumbWrap}
+                  >
+                    <Image
+                      source={{ uri: img.thumbnail_url || img.url }}
+                      style={styles.proofThumb}
+                      resizeMode="cover"
+                    />
+                    <ResponsiveView style={styles.proofOverlay}>
+                      <MaterialIcons name="zoom-in" size={20} color="white" />
+                    </ResponsiveView>
+                  </TouchableOpacity>
+                ))}
+              </ResponsiveView>
+            </ResponsiveView>
+          )}
         </ResponsiveView>
       </ScrollView>
 
@@ -527,6 +757,64 @@ export default function OrderDetailScreen() {
           />
         </ResponsiveView>
       )}
+
+      {/* Image Preview Modal */}
+      <Modal
+        visible={showImageModal}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setShowImageModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContent, { backgroundColor: colors.surface }]}>
+            <ResponsiveView style={styles.modalHeader}>
+              <ResponsiveText size="lg" weight="semiBold" color={colors.text}>Proof</ResponsiveText>
+              <TouchableOpacity
+                onPress={() => setShowImageModal(false)}
+                style={styles.closeButton}
+              >
+                <MaterialIcons name="close" size={responsiveValue(24, 28, 32, 36)} color={colors.text} />
+              </TouchableOpacity>
+            </ResponsiveView>
+            
+            <ResponsiveView style={styles.imageContainer}>
+              <Image
+                source={{ uri: proofImageUrl || order?.proof_of_payment_url || undefined }}
+                style={styles.proofImage}
+                resizeMode="contain"
+                onError={() => setProofImageError(true)}
+              />
+            </ResponsiveView>
+            {proofImageError && (
+              <ResponsiveView marginTop="sm">
+                <ResponsiveText size="sm" color={colors.error}>
+                  Unable to display this image. It may be an unsupported format.
+                </ResponsiveText>
+                {!!(proofImageUrl || order?.proof_of_payment_url) && (
+                  <ResponsiveView marginTop="xs">
+                    <Button
+                      title="Open in Browser"
+                      onPress={() => {
+                        const url = proofImageUrl || (order?.proof_of_payment_url as string);
+                        if (url) Linking.openURL(url);
+                      }}
+                      variant="secondary"
+                    />
+                  </ResponsiveView>
+                )}
+              </ResponsiveView>
+            )}
+            
+            <ResponsiveView marginTop="md">
+              <Button
+                title="Close"
+                onPress={() => setShowImageModal(false)}
+                variant="secondary"
+              />
+            </ResponsiveView>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -596,5 +884,125 @@ const styles = StyleSheet.create({
   actionContainer: {
     padding: ResponsiveSpacing.lg,
     ...Layout.shadows.sm,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.8)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: ResponsiveSpacing.lg,
+  },
+  modalContent: {
+    width: '100%',
+    maxWidth: responsiveValue(400, 450, 500, 550),
+    maxHeight: '90%',
+    borderRadius: ResponsiveBorderRadius.lg,
+    padding: ResponsiveSpacing.lg,
+    ...Layout.shadows.lg,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: ResponsiveSpacing.md,
+  },
+  closeButton: {
+    padding: ResponsiveSpacing.sm,
+  },
+  imageContainer: {
+    width: '100%',
+    height: responsiveValue(300, 350, 400, 450),
+    borderRadius: ResponsiveBorderRadius.md,
+    overflow: 'hidden',
+    backgroundColor: 'rgba(0, 0, 0, 0.05)',
+  },
+  proofImage: {
+    width: '100%',
+    height: '100%',
+  },
+  proofImageContainer: {
+    position: 'relative',
+    marginBottom: ResponsiveSpacing.sm,
+  },
+  proofThumbnail: {
+    width: '100%',
+    height: 120,
+    borderRadius: ResponsiveBorderRadius.md,
+  },
+  proofOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0,0,0,0.3)',
+    borderRadius: ResponsiveBorderRadius.md,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  viewProofButton: {
+    marginTop: ResponsiveSpacing.sm,
+  },
+  verificationSection: {
+    padding: ResponsiveSpacing.md,
+    borderRadius: ResponsiveBorderRadius.md,
+    borderWidth: 1,
+    marginVertical: ResponsiveSpacing.sm,
+  },
+  verificationHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: ResponsiveSpacing.sm,
+  },
+  verifyButton: {
+    backgroundColor: '#10B981',
+  },
+  cancelButton: {
+    backgroundColor: '#EF4444',
+  },
+  warningBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: ResponsiveSpacing.sm,
+    backgroundColor: 'rgba(245, 158, 11, 0.1)',
+    borderRadius: ResponsiveBorderRadius.sm,
+    borderLeftWidth: 3,
+    borderLeftColor: '#F59E0B',
+  },
+  infoBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: ResponsiveSpacing.sm,
+    backgroundColor: 'rgba(59, 130, 246, 0.1)',
+    borderRadius: ResponsiveBorderRadius.sm,
+    borderLeftWidth: 3,
+    borderLeftColor: '#3B82F6',
+  },
+  successBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: ResponsiveSpacing.sm,
+    backgroundColor: 'rgba(16, 185, 129, 0.1)',
+    borderRadius: ResponsiveBorderRadius.sm,
+    borderLeftWidth: 3,
+    borderLeftColor: '#10B981',
+  },
+  // Proof galleries
+  proofGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    marginHorizontal: -ResponsiveSpacing.xs,
+  },
+  proofThumbWrap: {
+    width: '31%',
+    marginHorizontal: ResponsiveSpacing.xs,
+    marginBottom: ResponsiveSpacing.sm,
+    borderRadius: ResponsiveBorderRadius.md,
+    overflow: 'hidden',
+  },
+  proofThumb: {
+    width: '100%',
+    height: 100,
+    borderRadius: ResponsiveBorderRadius.md,
   },
 });

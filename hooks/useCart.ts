@@ -416,12 +416,26 @@ export const useCartPersistence = () => {
   const [isHydrated, setIsHydrated] = useState(false);
 
   useEffect(() => {
+    // Check if the store is already hydrated
+    if (useCartStore.persist.hasHydrated()) {
+      setIsHydrated(true);
+      return;
+    }
+
     // Wait for cart to be hydrated from storage
     const unsubscribe = useCartStore.persist.onFinishHydration(() => {
       setIsHydrated(true);
     });
 
-    return unsubscribe;
+    // Fallback: set hydrated after a short delay to prevent infinite loading
+    const fallbackTimeout = setTimeout(() => {
+      setIsHydrated(true);
+    }, 1000);
+
+    return () => {
+      unsubscribe();
+      clearTimeout(fallbackTimeout);
+    };
   }, []);
 
   return { isHydrated };

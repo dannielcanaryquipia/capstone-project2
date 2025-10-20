@@ -139,6 +139,17 @@ export default function AdminOrdersScreen() {
     const isGCash = paymentMethod === 'gcash';
     const isPaymentVerified = paymentStatus === 'verified';
 
+    // Debug logging for GCash orders
+    if (isGCash) {
+      console.log('GCash order in admin list:', {
+        id: item.id,
+        payment_method: item.payment_method,
+        payment_status: item.payment_status,
+        proof_of_payment_url: (item as any).proof_of_payment_url,
+        status: item.status
+      });
+    }
+
     let nextStatus = getNextStatus(item.status);
 
     // Block admin from transitioning to Delivered

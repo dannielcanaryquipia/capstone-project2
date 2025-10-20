@@ -12,6 +12,7 @@ import {
 } from 'react-native';
 import { AdminCard, AdminLayout, AdminSection } from '../../../components/admin';
 import Button from '../../../components/ui/Button';
+import { DropdownMenuItem } from '../../../components/ui/DropdownMenu';
 import { ResponsiveText } from '../../../components/ui/ResponsiveText';
 import { ResponsiveView } from '../../../components/ui/ResponsiveView';
 import Layout from '../../../constants/Layout';
@@ -166,72 +167,86 @@ export default function AdminUsersScreen() {
     });
   };
 
-  const renderUserItem = ({ item }: { item: User }) => (
-    <AdminCard
-      title={item.full_name}
-      subtitle={item.email}
-      icon={
-        <MaterialIcons 
-          name={getRoleIcon(item.role)} 
-          size={responsiveValue(20, 22, 24, 28)} 
-          color={getRoleColor(item.role)} 
-        />
-      }
-      variant="outlined"
-      style={styles.userCard}
-    >
-      <ResponsiveView style={styles.userMeta}>
-        <ResponsiveView style={[styles.roleBadge, { backgroundColor: `${getRoleColor(item.role)}20` }]}>
+  const renderUserItem = ({ item }: { item: User }) => {
+    const actionMenuItems: DropdownMenuItem[] = [
+      {
+        id: 'change-role',
+        title: 'Change Role',
+        icon: 'swap-horiz',
+        onPress: () => handleChangeRole(item.id, item.role, item.full_name),
+      },
+      {
+        id: 'delete-user',
+        title: 'Delete User',
+        icon: 'delete',
+        destructive: true,
+        onPress: () => handleDeleteUser(item.id, item.full_name),
+      },
+    ];
+
+    return (
+      <AdminCard
+        title={item.full_name}
+        subtitle={item.email}
+        icon={
           <MaterialIcons 
             name={getRoleIcon(item.role)} 
-            size={responsiveValue(12, 14, 16, 18)} 
+            size={responsiveValue(20, 22, 24, 28)} 
             color={getRoleColor(item.role)} 
           />
-          <ResponsiveView marginLeft="xs">
-            <ResponsiveText 
-              size="xs" 
-              color={getRoleColor(item.role)}
-              weight="semiBold"
-            >
-              {item.role.replace('_', ' ').toUpperCase()}
-            </ResponsiveText>
+        }
+        variant="outlined"
+        style={styles.userCard}
+        showActionMenu={true}
+        actionMenuItems={actionMenuItems}
+      >
+        <ResponsiveView style={styles.userMeta}>
+          <ResponsiveView style={[styles.roleBadge, { backgroundColor: `${getRoleColor(item.role)}20` }]}>
+            <MaterialIcons 
+              name={getRoleIcon(item.role)} 
+              size={responsiveValue(12, 14, 16, 18)} 
+              color={getRoleColor(item.role)} 
+            />
+            <ResponsiveView marginLeft="xs">
+              <ResponsiveText 
+                size="xs" 
+                color={getRoleColor(item.role)}
+                weight="semiBold"
+              >
+                {item.role.replace('_', ' ').toUpperCase()}
+              </ResponsiveText>
+            </ResponsiveView>
           </ResponsiveView>
         </ResponsiveView>
-      </ResponsiveView>
 
-      {item.phone_number && (
-        <ResponsiveText size="sm" color={colors.textSecondary} style={styles.phoneNumber}>
-          {item.phone_number}
-        </ResponsiveText>
-      )}
+        {item.phone_number && (
+          <ResponsiveText size="sm" color={colors.textSecondary} style={styles.phoneNumber}>
+            {item.phone_number}
+          </ResponsiveText>
+        )}
 
-      <ResponsiveView style={styles.userFooter}>
-        <ResponsiveView style={styles.dateInfo}>
-          <MaterialIcons name="calendar-today" size={responsiveValue(12, 14, 16, 18)} color={colors.textSecondary} />
-          <ResponsiveView marginLeft="xs">
-            <ResponsiveText size="xs" color={colors.textSecondary}>
-              Joined: {formatDate(item.created_at)}
-            </ResponsiveText>
+        <ResponsiveView style={styles.userFooter}>
+          <ResponsiveView style={styles.dateInfo}>
+            <MaterialIcons name="calendar-today" size={responsiveValue(12, 14, 16, 18)} color={colors.textSecondary} />
+            <ResponsiveView marginLeft="xs">
+              <ResponsiveText size="xs" color={colors.textSecondary}>
+                Joined: {formatDate(item.created_at)}
+              </ResponsiveText>
+            </ResponsiveView>
           </ResponsiveView>
         </ResponsiveView>
-      </ResponsiveView>
 
-      <ResponsiveView style={styles.userActions}>
-        <Button
-          title="Change Role"
-          onPress={() => handleChangeRole(item.id, item.role, item.full_name)}
-          variant="primary"
-          size="small"
-        />
-        <Button
-          title="Delete"
-          onPress={() => handleDeleteUser(item.id, item.full_name)}
-          variant="danger"
-          size="small"
-        />
-      </ResponsiveView>
-    </AdminCard>
-  );
+        <ResponsiveView style={styles.userActions}>
+          <Button
+            title="Change Role"
+            onPress={() => handleChangeRole(item.id, item.role, item.full_name)}
+            variant="primary"
+            size="small"
+          />
+        </ResponsiveView>
+      </AdminCard>
+    );
+  };
 
   if (loading) {
     return (

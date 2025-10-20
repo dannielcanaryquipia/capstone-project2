@@ -1,5 +1,6 @@
-import React from 'react';
-import { Image, StyleSheet, TouchableOpacity } from 'react-native';
+import { MaterialIcons } from '@expo/vector-icons';
+import React, { useState } from 'react';
+import { ActivityIndicator, Image, StyleSheet, TouchableOpacity, View } from 'react-native';
 import Responsive from '../../constants/Responsive';
 import { useTheme } from '../../contexts/ThemeContext';
 import { ResponsiveText } from './ResponsiveText';
@@ -40,6 +41,8 @@ export const ProductCard: React.FC<ProductCardProps> = ({
 }) => {
   const { colors } = useTheme();
   const isHorizontal = variant === 'horizontal';
+  const [imageLoading, setImageLoading] = useState(true);
+  const [imageError, setImageError] = useState(false);
   
   
   const cardStyle = [
@@ -66,7 +69,36 @@ export const ProductCard: React.FC<ProductCardProps> = ({
         <Image 
           source={{ uri: image }} 
           style={imageStyle}
+          onLoadStart={() => {
+            console.log('Image loading started for:', image);
+            setImageLoading(true);
+            setImageError(false);
+          }}
+          onLoad={() => {
+            console.log('Image loaded successfully:', image);
+            setImageLoading(false);
+          }}
+          onError={(error) => {
+            console.log('Image load error for:', image, error);
+            setImageLoading(false);
+            setImageError(true);
+          }}
+          resizeMode="cover"
         />
+        
+        {/* Loading indicator */}
+        {imageLoading && (
+          <View style={[styles.loadingContainer, { backgroundColor: colors.surface }]}>
+            <ActivityIndicator size="small" color={colors.primary} />
+          </View>
+        )}
+        
+        {/* Error state */}
+        {imageError && (
+          <View style={[styles.errorContainer, { backgroundColor: colors.surface }]}>
+            <MaterialIcons name="broken-image" size={24} color={colors.textSecondary} />
+          </View>
+        )}
       </ResponsiveView>
       
       <ResponsiveView 
@@ -152,6 +184,24 @@ const styles = StyleSheet.create({
   content: {
     flex: 1,
     justifyContent: 'space-between',
+  },
+  loadingContainer: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  errorContainer: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
 });
 

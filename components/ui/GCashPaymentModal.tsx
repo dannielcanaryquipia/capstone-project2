@@ -1,10 +1,8 @@
 import { MaterialIcons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
-// Use dynamic require for these modules to avoid TypeScript issues
-import React, { useRef, useState } from 'react';
+import React, { useState } from 'react';
 import {
   Alert,
-  Animated,
   Image,
   Modal,
   ScrollView,
@@ -12,17 +10,17 @@ import {
   TouchableOpacity,
   View
 } from 'react-native';
-import { PanGestureHandler, PinchGestureHandler, State } from 'react-native-gesture-handler';
+import { responsiveValue } from '../../constants/Responsive';
 import { useTheme } from '../../contexts/ThemeContext';
 import Button from './Button';
 import { ResponsiveText } from './ResponsiveText';
 
 interface GCashPaymentModalProps {
-  visible: boolean;
   onClose: () => void;
   onConfirm: (proofUri: string) => void;
   totalAmount: number;
   qrImageSource: any;
+  visible: boolean;
 }
 
 export function GCashPaymentModal({
@@ -36,14 +34,6 @@ export function GCashPaymentModal({
   const [proofUri, setProofUri] = useState<string | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [showZoomModal, setShowZoomModal] = useState(false);
-  
-  // Zoom functionality
-  const scale = useRef(new Animated.Value(1)).current;
-  const translateX = useRef(new Animated.Value(0)).current;
-  const translateY = useRef(new Animated.Value(0)).current;
-  const lastScale = useRef(1);
-  const lastTranslateX = useRef(0);
-  const lastTranslateY = useRef(0);
 
   const handleDownloadQR = () => {
     setShowZoomModal(true);
@@ -51,39 +41,6 @@ export function GCashPaymentModal({
 
   const handleZoomModalClose = () => {
     setShowZoomModal(false);
-    // Reset zoom values
-    scale.setValue(1);
-    translateX.setValue(0);
-    translateY.setValue(0);
-    lastScale.current = 1;
-    lastTranslateX.current = 0;
-    lastTranslateY.current = 0;
-  };
-
-  const handlePinch = Animated.event(
-    [{ nativeEvent: { scale: scale } }],
-    { useNativeDriver: true }
-  );
-
-  const handlePan = Animated.event(
-    [{ nativeEvent: { translationX: translateX, translationY: translateY } }],
-    { useNativeDriver: true }
-  );
-
-  const onPinchStateChange = (event: any) => {
-    if (event.nativeEvent.oldState === State.ACTIVE) {
-      lastScale.current *= event.nativeEvent.scale;
-      scale.setValue(1);
-    }
-  };
-
-  const onPanStateChange = (event: any) => {
-    if (event.nativeEvent.oldState === State.ACTIVE) {
-      lastTranslateX.current += event.nativeEvent.translationX;
-      lastTranslateY.current += event.nativeEvent.translationY;
-      translateX.setValue(0);
-      translateY.setValue(0);
-    }
   };
 
   const handleUploadReceipt = async () => {
@@ -333,45 +290,26 @@ export function GCashPaymentModal({
           {/* Instructions */}
           <View style={styles.zoomInstructions}>
             <ResponsiveText size="sm" color="white" weight="semiBold" style={styles.zoomInstructionText}>
-              Pinch to zoom • Drag to move • Take a screenshot
+            Take a screenshot
             </ResponsiveText>
           </View>
 
-          {/* Zoomable QR Code */}
-          <View style={styles.zoomImageContainer}>
-            <PanGestureHandler
-              onGestureEvent={handlePan}
-              onHandlerStateChange={onPanStateChange}
-              minPointers={1}
-              maxPointers={1}
-            >
-              <Animated.View>
-                <PinchGestureHandler
-                  onGestureEvent={handlePinch}
-                  onHandlerStateChange={onPinchStateChange}
-                >
-                  <Animated.View
-                    style={[
-                      styles.zoomImageWrapper,
-                      {
-                        transform: [
-                          { scale: Animated.multiply(scale, lastScale.current) },
-                          { translateX: Animated.add(translateX, lastTranslateX.current) },
-                          { translateY: Animated.add(translateY, lastTranslateY.current) },
-                        ],
-                      },
-                    ]}
-                  >
-                    <Image
-                      source={qrImageSource}
-                      style={styles.zoomImage}
-                      resizeMode="contain"
-                    />
-                  </Animated.View>
-                </PinchGestureHandler>
-              </Animated.View>
-            </PanGestureHandler>
-          </View>
+          {/* QR Code at Medium Size */}
+          <ScrollView 
+            style={styles.zoomImageContainer}
+            contentContainerStyle={styles.zoomScrollContent}
+            showsVerticalScrollIndicator={true}
+            showsHorizontalScrollIndicator={true}
+            maximumZoomScale={3.0}
+            minimumZoomScale={0.5}
+            bouncesZoom={true}
+          >
+            <Image
+              source={qrImageSource}
+              style={styles.zoomImage}
+              resizeMode="contain"
+            />
+          </ScrollView>
 
           {/* Screenshot Instructions */}
           <View style={styles.screenshotInstructions}>
@@ -391,46 +329,46 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingVertical: 40,
+    paddingHorizontal: responsiveValue(16, 20, 24, 28),
+    paddingVertical: responsiveValue(20, 40, 60, 80),
   },
   modalContainer: {
     width: '100%',
-    maxWidth: 420,
+    maxWidth: responsiveValue(350, 420, 480, 540),
     maxHeight: '90%',
-    borderRadius: 16,
+    borderRadius: responsiveValue(12, 16, 20, 24),
     shadowColor: '#000',
     shadowOffset: {
       width: 0,
-      height: 4,
+      height: responsiveValue(2, 4, 6, 8),
     },
     shadowOpacity: 0.25,
-    shadowRadius: 8,
-    elevation: 8,
+    shadowRadius: responsiveValue(4, 8, 12, 16),
+    elevation: responsiveValue(4, 8, 12, 16),
     overflow: 'hidden',
   },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: 24,
-    paddingVertical: 20,
+    paddingHorizontal: responsiveValue(16, 24, 32, 40),
+    paddingVertical: responsiveValue(16, 20, 24, 28),
     borderBottomWidth: 1,
   },
   closeButton: {
-    padding: 4,
+    padding: responsiveValue(4, 6, 8, 10),
   },
   scrollContent: {
-    paddingHorizontal: 24,
-    paddingVertical: 20,
+    paddingHorizontal: responsiveValue(16, 24, 32, 40),
+    paddingVertical: responsiveValue(16, 20, 24, 28),
   },
   amountContainer: {
     alignItems: 'center',
-    marginBottom: 24,
-    paddingVertical: 16,
-    paddingHorizontal: 20,
+    marginBottom: responsiveValue(16, 24, 32, 40),
+    paddingVertical: responsiveValue(12, 16, 20, 24),
+    paddingHorizontal: responsiveValue(16, 20, 24, 28),
     backgroundColor: 'rgba(0,0,0,0.02)',
-    borderRadius: 12,
+    borderRadius: responsiveValue(8, 12, 16, 20),
   },
   instructionsContainer: {
     marginBottom: 24,
@@ -468,8 +406,8 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   qrImage: {
-    width: 200,
-    height: 200,
+    width: responsiveValue(200, 250, 300, 350),
+    height: responsiveValue(200, 250, 300, 350),
   },
   downloadOverlay: {
     position: 'absolute',
@@ -518,10 +456,10 @@ const styles = StyleSheet.create({
   },
   actions: {
     flexDirection: 'row',
-    paddingHorizontal: 24,
-    paddingVertical: 20,
+    paddingHorizontal: responsiveValue(16, 24, 32, 40),
+    paddingVertical: responsiveValue(16, 20, 24, 28),
     borderTopWidth: 1,
-    gap: 12,
+    gap: responsiveValue(8, 12, 16, 20),
   },
   cancelButton: {
     flex: 1,
@@ -545,51 +483,56 @@ const styles = StyleSheet.create({
   },
   zoomCloseButton: {
     position: 'absolute',
-    top: 50,
-    right: 20,
+    top: responsiveValue(40, 50, 60, 70),
+    right: responsiveValue(16, 20, 24, 28),
     zIndex: 10,
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    borderRadius: 20,
-    padding: 8,
+    borderRadius: responsiveValue(16, 20, 24, 28),
+    padding: responsiveValue(6, 8, 10, 12),
   },
   zoomInstructions: {
     position: 'absolute',
-    top: 50,
-    left: 20,
-    right: 80,
+    top: responsiveValue(40, 50, 60, 70),
+    left: responsiveValue(16, 20, 24, 28),
+    right: responsiveValue(60, 80, 100, 120),
     zIndex: 10,
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
+    borderRadius: responsiveValue(6, 8, 10, 12),
+    paddingHorizontal: responsiveValue(8, 12, 16, 20),
+    paddingVertical: responsiveValue(6, 8, 10, 12),
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   zoomInstructionText: {
     textAlign: 'center',
+    alignSelf: 'center',
   },
   zoomImageContainer: {
+    flex: 1,
     width: '100%',
-    height: '70%',
+  },
+  zoomScrollContent: {
     justifyContent: 'center',
     alignItems: 'center',
-  },
-  zoomImageWrapper: {
-    width: 300,
-    height: 300,
+    minHeight: '100%',
+    paddingVertical: 20,
   },
   zoomImage: {
-    width: '100%',
-    height: '100%',
+    width: responsiveValue(600, 700, 800, 900),
+    height: responsiveValue(600,700, 800, 900),
+    maxWidth: '90%',
+    maxHeight: '70%',
   },
   screenshotInstructions: {
     position: 'absolute',
-    bottom: 50,
-    left: 20,
-    right: 20,
+    bottom: responsiveValue(40, 50, 60, 70),
+    left: responsiveValue(16, 20, 24, 28),
+    right: responsiveValue(16, 20, 24, 28),
     zIndex: 10,
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
+    borderRadius: responsiveValue(6, 8, 10, 12),
+    paddingHorizontal: responsiveValue(8, 12, 16, 20),
+    paddingVertical: responsiveValue(6, 8, 10, 12),
   },
   screenshotText: {
     textAlign: 'center',

@@ -5,8 +5,7 @@ import {
   ActivityIndicator,
   Alert,
   ScrollView,
-  StyleSheet,
-  TouchableOpacity
+  StyleSheet
 } from 'react-native';
 import { AdminCard, AdminLayout, AdminSection } from '../../../components/admin';
 import Button from '../../../components/ui/Button';
@@ -69,10 +68,6 @@ export default function AdminProfile() {
     );
   };
 
-  const handleEditProfile = () => {
-    Alert.alert('Coming Soon', 'Profile editing feature will be available soon.');
-  };
-
   const handleChangePassword = () => {
     Alert.alert('Coming Soon', 'Password change feature will be available soon.');
   };
@@ -92,11 +87,6 @@ export default function AdminProfile() {
         subtitle="Manage your account settings"
         showBackButton={true}
         onBackPress={() => router.back()}
-        headerActions={
-          <TouchableOpacity onPress={handleEditProfile} style={styles.editButton}>
-            <MaterialIcons name="edit" size={responsiveValue(20, 24, 28, 32)} color={colors.primary} />
-          </TouchableOpacity>
-        }
       >
         <ResponsiveView style={styles.center}>
           <ActivityIndicator size="large" color={colors.primary} />
@@ -117,11 +107,6 @@ export default function AdminProfile() {
         subtitle="Manage your account settings"
         showBackButton={true}
         onBackPress={() => router.back()}
-        headerActions={
-          <TouchableOpacity onPress={handleEditProfile} style={styles.editButton}>
-            <MaterialIcons name="edit" size={responsiveValue(20, 24, 28, 32)} color={colors.primary} />
-          </TouchableOpacity>
-        }
       >
         <ResponsiveView style={styles.center}>
           <MaterialIcons name="error" size={responsiveValue(48, 56, 64, 72)} color={colors.error} />
@@ -153,11 +138,6 @@ export default function AdminProfile() {
       subtitle="Manage your account settings"
       showBackButton={true}
       onBackPress={() => router.back()}
-      headerActions={
-        <TouchableOpacity onPress={handleEditProfile} style={styles.editButton}>
-          <MaterialIcons name="edit" size={responsiveValue(20, 24, 28, 32)} color={colors.primary} />
-        </TouchableOpacity>
-      }
     >
 
       <ScrollView 
@@ -246,30 +226,6 @@ export default function AdminProfile() {
           subtitle="Manage your account security settings"
           variant="card"
         >
-          {/* Account Status */}
-          <AdminCard
-            title="Account Status"
-            subtitle={profile.is_active ? 'Your account is active' : 'Your account is inactive'}
-            icon={<MaterialIcons 
-              name="verified" 
-              size={20} 
-              color={profile.is_active ? colors.success : colors.warning} 
-            />}
-            variant="outlined"
-            style={styles.infoCard}
-          >
-            <ResponsiveView style={[styles.statusBadge, { 
-              backgroundColor: profile.is_active ? `${colors.success}20` : `${colors.warning}20` 
-            }]}>
-              <ResponsiveText 
-                size="xs" 
-                color={profile.is_active ? colors.success : colors.warning}
-                weight="semiBold"
-              >
-                {profile.is_active ? 'ACTIVE' : 'INACTIVE'}
-              </ResponsiveText>
-            </ResponsiveView>
-          </AdminCard>
 
           {/* Password */}
           <AdminCard
@@ -312,26 +268,17 @@ export default function AdminProfile() {
         </AdminSection>
       </ScrollView>
 
-      {/* Action Buttons */}
-      <AdminSection
-        title="Actions"
-        subtitle="Manage your profile"
-        variant="card"
-        padding="lg"
-      >
-        <Button
-          title="Edit Profile"
-          onPress={handleEditProfile}
-          variant="primary"
-        />
-        <ResponsiveView marginTop="sm">
+      {/* Sign Out Button */}
+      <ResponsiveView style={styles.signOutSection}>
           <Button
             title="Sign Out"
             onPress={handleSignOut}
-            variant="outline"
+          variant="danger"
+          size="large"
+          fullWidth
+          icon={<MaterialIcons name="logout" size={20} color={colors.textInverse} />}
           />
-        </ResponsiveView>
-      </AdminSection>
+      </ResponsiveView>
     </AdminLayout>
   );
 }
@@ -340,9 +287,6 @@ const styles = StyleSheet.create({
   center: {
     justifyContent: 'center',
     alignItems: 'center',
-  },
-  editButton: {
-    padding: ResponsiveSpacing.sm,
   },
   scrollView: {
     flex: 1,
@@ -369,10 +313,9 @@ const styles = StyleSheet.create({
   infoCard: {
     marginBottom: ResponsiveSpacing.sm,
   },
-  statusBadge: {
-    paddingHorizontal: ResponsiveSpacing.sm,
-    paddingVertical: ResponsiveSpacing.xs,
-    borderRadius: ResponsiveBorderRadius.sm,
-    alignSelf: 'flex-end',
+  signOutSection: {
+    marginTop: ResponsiveSpacing.sm,
+    marginBottom: ResponsiveSpacing.lg,
+    paddingHorizontal: ResponsiveSpacing.lg,
   },
 });

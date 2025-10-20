@@ -1,202 +1,128 @@
 import { useCallback, useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
-import { OrderService } from '../services/order.service';
-import { DeliveryOrder, Order } from '../types/order.types';
+import { Order } from '../types/order.types';
 import { useAuth } from './useAuth';
 
-export const useAvailableOrders = () => {
-  const [orders, setOrders] = useState<DeliveryOrder[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  const fetchAvailableOrders = useCallback(async () => {
-    try {
-      setIsLoading(true);
-      setError(null);
-      const data = await OrderService.getAvailableOrders();
-      setOrders(data);
-    } catch (err: any) {
-      console.error('Error fetching available orders:', err);
-      setError(err.message || 'Failed to load available orders');
-    } finally {
-      setIsLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    fetchAvailableOrders();
-  }, [fetchAvailableOrders]);
-
-  // Real-time subscription for available orders updates
-  useEffect(() => {
-    const channel = supabase
-      .channel('available-orders-changes')
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'orders', filter: 'status=eq.Ready for Pickup' },
-        () => fetchAvailableOrders()
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [fetchAvailableOrders]);
-
-  const refresh = useCallback(() => {
-    fetchAvailableOrders();
-  }, [fetchAvailableOrders]);
-
-  return {
-    orders,
-    isLoading,
-    error,
-    refresh,
-  };
-};
-
-export const useMyDeliveryOrders = () => {
-  const [orders, setOrders] = useState<Order[]>([]);
+export const useDeliveryOrders = () => {
+  const [activeOrders, setActiveOrders] = useState<Order[]>([]);
+  const [deliveredOrders, setDeliveredOrders] = useState<Order[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const { user } = useAuth();
 
-  const fetchMyOrders = useCallback(async () => {
+  const fetchOrders = useCallback(async () => {
     if (!user?.id) return;
     
     try {
       setIsLoading(true);
       setError(null);
       
-      // Join orders through delivery_assignments for the current rider
-      const { data, error } = await supabase
-        .from('delivery_assignments')
+      // Fetch active orders (ready_for_pickup and out_for_delivery)
+      const { data: activeOrdersData, error: activeOrdersError } = await supabase
+        .from('orders')
         .select(`
-          order:orders(
-            *, 
-            items:order_items(*), 
-            delivery_address:addresses(*), 
-            user:profiles!orders_user_id_fkey(full_name, phone_number)
+          id,
+          order_number,
+          status,
+          total_amount,
+          created_at,
+          actual_delivery_time,
+          delivery_address,
+          customer_notes,
+          payment_method,
+          payment_status,
+          user:profiles!orders_user_id_fkey(
+            full_name,
+            phone_number
           )
         `)
-        .eq('delivery_person_id', user.id)
-        .order('assigned_at', { ascending: false });
+        .in('status', ['ready_for_pickup', 'out_for_delivery'])
+        .order('created_at', { ascending: false });
 
-      if (error) throw error;
-      const mapped = (data || [])
-        .map((row: any) => row.order)
-        .filter(Boolean) as Order[];
-      setOrders(mapped);
+      if (activeOrdersError) {
+        console.error('Error loading active orders:', activeOrdersError);
+        setActiveOrders([]);
+      } else {
+        setActiveOrders(activeOrdersData || []);
+      }
+
+      // Fetch delivered orders
+      const { data: deliveredOrdersData, error: deliveredOrdersError } = await supabase
+        .from('orders')
+        .select(`
+          id,
+          order_number,
+          status,
+          total_amount,
+          created_at,
+          actual_delivery_time,
+          delivery_address,
+          customer_notes,
+          payment_method,
+          payment_status,
+          proof_of_delivery_url,
+          user:profiles!orders_user_id_fkey(
+            full_name,
+            phone_number
+          )
+        `)
+        .eq('status', 'delivered')
+        .order('actual_delivery_time', { ascending: false })
+        .limit(20);
+
+      if (deliveredOrdersError) {
+        console.error('Error loading delivered orders:', deliveredOrdersError);
+        setDeliveredOrders([]);
+      } else {
+        setDeliveredOrders(deliveredOrdersData || []);
+      }
     } catch (err: any) {
-      console.error('Error fetching my delivery orders:', err);
-      setError(err.message || 'Failed to load my delivery orders');
+      console.error('Error fetching delivery orders:', err);
+      setError(err.message || 'Failed to load delivery orders');
     } finally {
       setIsLoading(false);
     }
   }, [user?.id]);
 
-  useEffect(() => {
-    fetchMyOrders();
-  }, [fetchMyOrders]);
+  const refresh = useCallback(() => {
+    fetchOrders();
+  }, [fetchOrders]);
 
-  // Real-time subscription for my delivery orders updates
+  useEffect(() => {
+    fetchOrders();
+  }, [fetchOrders]);
+
+  // Real-time subscription for order updates
   useEffect(() => {
     if (!user?.id) return;
 
     const channel = supabase
-      .channel('my-delivery-orders-changes')
+      .channel('delivery-orders-changes')
       .on(
         'postgres_changes',
-        { event: '*', schema: 'public', table: 'delivery_assignments', filter: `delivery_person_id=eq.${user.id}` },
-        () => fetchMyOrders()
-      )
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'orders' },
-        () => fetchMyOrders()
+        {
+          event: '*',
+          schema: 'public',
+          table: 'orders',
+        },
+        (payload) => {
+          console.log('Order change detected:', payload);
+          fetchOrders();
+        }
       )
       .subscribe();
 
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [user?.id, fetchMyOrders]);
-
-  const refresh = useCallback(() => {
-    fetchMyOrders();
-  }, [fetchMyOrders]);
+  }, [user?.id, fetchOrders]);
 
   return {
-    orders,
+    activeOrders,
+    deliveredOrders,
     isLoading,
     error,
     refresh,
-  };
-};
-
-export const useAssignOrder = () => {
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const { user } = useAuth();
-
-  const assignOrder = useCallback(async (orderId: string) => {
-    if (!user?.id) {
-      throw new Error('User not authenticated');
-    }
-
-    try {
-      setIsLoading(true);
-      setError(null);
-      
-      await OrderService.assignOrderToDelivery(orderId, user.id);
-    } catch (err: any) {
-      console.error('Error assigning order:', err);
-      setError(err.message || 'Failed to assign order');
-      throw err;
-    } finally {
-      setIsLoading(false);
-    }
-  }, [user?.id]);
-
-  return {
-    assignOrder,
-    isLoading,
-    error,
-  };
-};
-
-export const useUpdateDeliveryStatus = () => {
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const { user } = useAuth();
-
-  const updateStatus = useCallback(async (
-    orderId: string,
-    status: 'out_for_delivery' | 'delivered',
-    notes?: string
-  ) => {
-    if (!user?.id) {
-      throw new Error('User not authenticated');
-    }
-
-    try {
-      setIsLoading(true);
-      setError(null);
-      
-      await OrderService.updateOrderStatus(orderId, status, user.id, notes);
-    } catch (err: any) {
-      console.error('Error updating delivery status:', err);
-      setError(err.message || 'Failed to update delivery status');
-      throw err;
-    } finally {
-      setIsLoading(false);
-    }
-  }, [user?.id]);
-
-  return {
-    updateStatus,
-    isLoading,
-    error,
   };
 };
 
@@ -220,51 +146,50 @@ export const useDeliveryEarnings = () => {
       setIsLoading(true);
       setError(null);
       
+      // Get delivered orders
+      const { data: orders, error: ordersError } = await supabase
+        .from('orders')
+        .select('id, actual_delivery_time, created_at')
+        .eq('status', 'delivered')
+        .order('actual_delivery_time', { ascending: false });
+
+      if (ordersError) {
+        throw ordersError;
+      }
+
+      const completedDeliveries = orders?.length || 0;
+      const deliveryFee = 50;
+      const total = completedDeliveries * deliveryFee;
+
+      // Calculate time-based earnings
       const now = new Date();
       const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
       const thisWeek = new Date(today);
       thisWeek.setDate(today.getDate() - today.getDay());
       const thisMonth = new Date(now.getFullYear(), now.getMonth(), 1);
 
-      // Fetch completed deliveries through delivery_assignments join
-      const { data: rows, error } = await supabase
-        .from('delivery_assignments')
-        .select('delivered_at, order:orders(total_amount)')
-        .eq('delivery_person_id', user.id)
-        .eq('status', 'Delivered');
+      const todayDelivered = orders?.filter((order: any) => {
+        const deliveredAt = order.actual_delivery_time ? new Date(order.actual_delivery_time) : null;
+        return deliveredAt && deliveredAt >= today;
+      }).length || 0;
 
-      if (error) throw error;
+      const thisWeekDelivered = orders?.filter((order: any) => {
+        const deliveredAt = order.actual_delivery_time ? new Date(order.actual_delivery_time) : null;
+        return deliveredAt && deliveredAt >= thisWeek;
+      }).length || 0;
 
-      // Calculate earnings (use a flat per-delivery fee or compute from order if you have it)
-      const perDelivery = 0; // placeholder; set from configuration if available
-      const completedOrders = (rows || []).map((r: any) => ({ delivered_at: r.delivered_at, delivery_fee: perDelivery }));
-      
-      const todayEarnings = completedOrders
-        .filter((o: any) => o.delivered_at && new Date(o.delivered_at) >= today)
-        .reduce((sum: number, o: any) => sum + (o.delivery_fee || 0), 0);
-
-      const thisWeekEarnings = completedOrders
-        .filter((o: any) => o.delivered_at && new Date(o.delivered_at) >= thisWeek)
-        .reduce((sum: number, o: any) => sum + (o.delivery_fee || 0), 0);
-
-      const thisMonthEarnings = completedOrders
-        .filter((o: any) => o.delivered_at && new Date(o.delivered_at) >= thisMonth)
-        .reduce((sum: number, o: any) => sum + (o.delivery_fee || 0), 0);
-
-      const totalEarnings = completedOrders
-        .reduce((sum: number, o: any) => sum + (o.delivery_fee || 0), 0);
-
-      const completedDeliveries = completedOrders.length;
-      const averageEarningPerDelivery = completedDeliveries > 0 ? 
-        totalEarnings / completedDeliveries : 0;
+      const thisMonthDelivered = orders?.filter((order: any) => {
+        const deliveredAt = order.actual_delivery_time ? new Date(order.actual_delivery_time) : null;
+        return deliveredAt && deliveredAt >= thisMonth;
+      }).length || 0;
 
       setEarnings({
-        today: todayEarnings,
-        thisWeek: thisWeekEarnings,
-        thisMonth: thisMonthEarnings,
-        total: totalEarnings,
+        today: todayDelivered * deliveryFee,
+        thisWeek: thisWeekDelivered * deliveryFee,
+        thisMonth: thisMonthDelivered * deliveryFee,
+        total,
         completedDeliveries,
-        averageEarningPerDelivery,
+        averageEarningPerDelivery: completedDeliveries > 0 ? total / completedDeliveries : 0,
       });
     } catch (err: any) {
       console.error('Error fetching delivery earnings:', err);
@@ -278,177 +203,10 @@ export const useDeliveryEarnings = () => {
     fetchEarnings();
   }, [fetchEarnings]);
 
-  // Real-time subscription for earnings updates
-  useEffect(() => {
-    if (!user?.id) return;
-
-    const channel = supabase
-      .channel('delivery-earnings-changes')
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'orders',
-          filter: `assigned_delivery_id=eq.${user.id}`,
-        },
-        (payload) => {
-          console.log('Delivery earnings change received:', payload);
-          fetchEarnings();
-        }
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [user?.id, fetchEarnings]);
-
-  const refresh = useCallback(() => {
-    fetchEarnings();
-  }, [fetchEarnings]);
-
   return {
     earnings,
     isLoading,
     error,
-    refresh,
-  };
-};
-
-export const useDeliveryStats = () => {
-  const [stats, setStats] = useState({
-    totalDeliveries: 0,
-    completedDeliveries: 0,
-    pendingDeliveries: 0,
-    averageDeliveryTime: 0,
-    customerRating: 0,
-    onTimeDeliveries: 0,
-    lateDeliveries: 0,
-  });
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const { user } = useAuth();
-
-  const fetchStats = useCallback(async () => {
-    if (!user?.id) return;
-    
-    try {
-      setIsLoading(true);
-      setError(null);
-      
-      // Fetch all orders assigned to this delivery person
-      const { data: orders, error } = await supabase
-        .from('orders')
-        .select('status, created_at, delivered_at, prepared_at')
-        .eq('assigned_delivery_id', user.id);
-
-      if (error) throw error;
-
-      const totalDeliveries = orders.length;
-      const completedDeliveries = orders.filter((order: any) => order.status === 'delivered').length;
-      const pendingDeliveries = orders.filter((order: any) => 
-        ['out_for_delivery'].includes(order.status)
-      ).length;
-
-      // Calculate average delivery time
-      const completedOrders = orders.filter((order: any) => 
-        order.status === 'delivered' && order.prepared_at && order.delivered_at
-      );
-      
-      const averageDeliveryTime = completedOrders.length > 0 ? 
-        completedOrders.reduce((sum: number, order: any) => {
-          const preparedAt = new Date(order.prepared_at);
-          const deliveredAt = new Date(order.delivered_at);
-          return sum + (deliveredAt.getTime() - preparedAt.getTime());
-        }, 0) / completedOrders.length / (1000 * 60) : 0; // in minutes
-
-      // For now, we'll use placeholder values for rating and on-time delivery
-      // In a real app, these would come from a ratings/reviews table
-      const customerRating = 4.5; // Placeholder
-      const onTimeDeliveries = Math.floor(completedDeliveries * 0.85); // Placeholder
-      const lateDeliveries = completedDeliveries - onTimeDeliveries;
-
-      setStats({
-        totalDeliveries,
-        completedDeliveries,
-        pendingDeliveries,
-        averageDeliveryTime,
-        customerRating,
-        onTimeDeliveries,
-        lateDeliveries,
-      });
-    } catch (err: any) {
-      console.error('Error fetching delivery stats:', err);
-      setError(err.message || 'Failed to load delivery statistics');
-    } finally {
-      setIsLoading(false);
-    }
-  }, [user?.id]);
-
-  useEffect(() => {
-    fetchStats();
-  }, [fetchStats]);
-
-  const refresh = useCallback(() => {
-    fetchStats();
-  }, [fetchStats]);
-
-  return {
-    stats,
-    isLoading,
-    error,
-    refresh,
-  };
-};
-
-export const useDeliveryLocation = () => {
-  const [location, setLocation] = useState<{
-    latitude: number;
-    longitude: number;
-    accuracy: number;
-  } | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  const getCurrentLocation = useCallback(async () => {
-    try {
-      setIsLoading(true);
-      setError(null);
-      
-      // This would use a location service like expo-location
-      // For now, we'll use a placeholder
-      const mockLocation = {
-        latitude: 14.5995, // Manila coordinates
-        longitude: 120.9842,
-        accuracy: 10,
-      };
-      
-      setLocation(mockLocation);
-    } catch (err: any) {
-      console.error('Error getting current location:', err);
-      setError(err.message || 'Failed to get current location');
-    } finally {
-      setIsLoading(false);
-    }
-  }, []);
-
-  const updateLocation = useCallback(async (newLocation: {
-    latitude: number;
-    longitude: number;
-    accuracy: number;
-  }) => {
-    setLocation(newLocation);
-    
-    // In a real app, you would update the delivery person's location in the database
-    // and notify the system about their current position
-  }, []);
-
-  return {
-    location,
-    isLoading,
-    error,
-    getCurrentLocation,
-    updateLocation,
+    refresh: fetchEarnings,
   };
 };

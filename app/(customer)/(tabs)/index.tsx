@@ -5,6 +5,7 @@ import React, { useCallback, useState } from 'react';
 import { Image, ScrollView, StyleSheet, TextInput, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import ProductCard from '../../../components/ui/ProductCard';
+import RecommendedProductsFallback from '../../../components/ui/RecommendedProductsFallback';
 import { ResponsiveText } from '../../../components/ui/ResponsiveText';
 import { ResponsiveView } from '../../../components/ui/ResponsiveView';
 import Layout from '../../../constants/Layout';
@@ -155,7 +156,16 @@ export default function HomeScreen() {
                   color={unreadCount > 0 ? colors.primary : colors.text} 
                 />
                 {unreadCount > 0 && (
-                  <View style={styles.notificationBadge} />
+                  <View style={[styles.notificationBadge, { backgroundColor: colors.error }]}>
+                    <ResponsiveText 
+                      size="xs" 
+                      weight="bold" 
+                      color={colors.textInverse}
+                      style={styles.badgeText}
+                    >
+                      {unreadCount > 99 ? '99+' : unreadCount}
+                    </ResponsiveText>
+                  </View>
                 )}
               </ResponsiveView>
             </TouchableOpacity>
@@ -368,7 +378,7 @@ export default function HomeScreen() {
               <ResponsiveView padding="lg">
                 <ResponsiveText color={colors.textSecondary}>Loading recommendations...</ResponsiveText>
               </ResponsiveView>
-            ) : (
+            ) : personalizedProducts.length > 0 ? (
               personalizedProducts.map((product) => (
                 <ProductCard
                   key={product.id}
@@ -386,6 +396,39 @@ export default function HomeScreen() {
                   } as any)}
                 />
               ))
+            ) : (
+              // Show shuffled recommended products when no personalized products
+              products && products.length > 0 ? (
+                // Fisher-Yates shuffle algorithm
+                (() => {
+                  const shuffled = [...products];
+                  for (let i = shuffled.length - 1; i > 0; i--) {
+                    const j = Math.floor(Math.random() * (i + 1));
+                    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+                  }
+                  return shuffled.slice(0, 4);
+                })().map((product) => (
+                  <ProductCard
+                    key={product.id}
+                    id={product.id}
+                    name={product.name}
+                    description={product.description}
+                    price={product.base_price || product.price || 0}
+                    image={product.image_url || 'https://via.placeholder.com/200x150'}
+                    tags={['Recommended']}
+                    variant="horizontal"
+                    width={Responsive.responsiveValue(160, 170, 180, 200)}
+                    onPress={() => router.push({
+                      pathname: '/(customer)/product/[id]',
+                      params: { id: product.id }
+                    } as any)}
+                  />
+                ))
+              ) : (
+                <ResponsiveView padding="lg">
+                  <ResponsiveText color={colors.textSecondary}>No products available</ResponsiveText>
+                </ResponsiveView>
+              )
             )}
           </ScrollView>
         </ResponsiveView>
@@ -575,18 +618,24 @@ const styles = StyleSheet.create({
   },
   notificationBadge: {
     position: 'absolute',
-    right: Responsive.responsiveValue(6, 8, 10, 12),
-    top: Responsive.responsiveValue(6, 8, 10, 12),
-    width: Responsive.responsiveValue(10, 12, 14, 16),
-    height: Responsive.responsiveValue(10, 12, 14, 16),
-    borderRadius: Responsive.responsiveValue(5, 6, 7, 8),
-    backgroundColor: '#FF6B6B', // Keep red for visibility
+    right: Responsive.responsiveValue(4, 6, 8, 10),
+    top: Responsive.responsiveValue(4, 6, 8, 10),
+    minWidth: Responsive.responsiveValue(16, 18, 20, 22),
+    height: Responsive.responsiveValue(16, 18, 20, 22),
+    borderRadius: Responsive.responsiveValue(8, 9, 10, 11),
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: Responsive.responsiveValue(4, 5, 6, 7),
     zIndex: 11,
     shadowColor: '#FF6B6B',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.3,
     shadowRadius: 4,
     elevation: 4,
+  },
+  badgeText: {
+    fontSize: Responsive.responsiveValue(8, 9, 10, 11),
+    lineHeight: Responsive.responsiveValue(10, 11, 12, 13),
   },
   searchInput: {
     flex: 1,

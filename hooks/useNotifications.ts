@@ -24,10 +24,16 @@ export const useNotifications = (filters?: NotificationFilters) => {
       setIsLoading(true);
       setError(null);
       const data = await notificationService.getNotifications(user.id, filters?.limit || 20);
-      setNotifications(data);
+      
+      // Ensure notifications are sorted by created_at in descending order (newest first - LIFO)
+      const sortedNotifications = [...data].sort((a, b) => 
+        new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+      );
+      
+      setNotifications(sortedNotifications);
       
       // Calculate unread count
-      const unread = data.filter(n => !n.is_read).length;
+      const unread = sortedNotifications.filter(n => !n.is_read).length;
       setUnreadCount(unread);
     } catch (err: any) {
       console.error('Error fetching notifications:', err);
@@ -59,18 +65,29 @@ export const useNotifications = (filters?: NotificationFilters) => {
           console.log('Notification change received:', payload);
           
           if (payload.eventType === 'INSERT') {
-            // Add new notification to the top of the list
-            setNotifications(prev => [payload.new as Notification, ...prev]);
+            // Add new notification to the top of the list (LIFO - newest first)
+            setNotifications(prev => {
+              const newNotification = payload.new as Notification;
+              const updatedList = [newNotification, ...prev];
+              // Ensure the list remains sorted by created_at in descending order
+              return updatedList.sort((a, b) => 
+                new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+              );
+            });
             setUnreadCount(prev => prev + 1);
           } else if (payload.eventType === 'UPDATE') {
-            // Update existing notification
-            setNotifications(prev => 
-              prev.map(notification => 
+            // Update existing notification and maintain order
+            setNotifications(prev => {
+              const updatedList = prev.map(notification => 
                 notification.id === payload.new.id 
                   ? payload.new as Notification 
                   : notification
-              )
-            );
+              );
+              // Re-sort to ensure proper order after update
+              return updatedList.sort((a, b) => 
+                new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+              );
+            });
             
             // Update unread count if read status changed
             if (payload.old.is_read !== payload.new.is_read) {

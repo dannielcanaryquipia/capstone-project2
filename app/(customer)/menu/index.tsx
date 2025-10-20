@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { FlatList, StyleSheet, TextInput, TouchableOpacity } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import ProductCard from '../../../components/ui/ProductCard';
+import RecommendedProductsFallback from '../../../components/ui/RecommendedProductsFallback';
 import ResponsiveText from '../../../components/ui/ResponsiveText';
 import ResponsiveView from '../../../components/ui/ResponsiveView';
 import Responsive from '../../../constants/Responsive';
@@ -30,7 +31,14 @@ export default function MenuScreen() {
   const { products, isLoading: productsLoading, error: productsError } = useProducts();
   const { categories: dbCategories, isLoading: categoriesLoading } = useProductCategories();
   
-  // Debug logging removed
+  // Debug logging
+  console.log('Menu - Products loaded:', products?.length || 0);
+  console.log('Menu - First product sample:', products?.[0] ? {
+    id: products[0].id,
+    name: products[0].name,
+    image_url: products[0].image_url,
+    hasImage: !!products[0].image_url
+  } : 'No products');
 
   // Combine default categories with database categories
   const allCategories = [
@@ -40,6 +48,7 @@ export default function MenuScreen() {
       name: (cat.name || '').trim(),
     }))
   ];
+
 
   // Memoized category lookup for better performance
   const categoryLookup = useMemo(() => {
@@ -89,13 +98,14 @@ export default function MenuScreen() {
     const normSelected = normalizeCategoryName(categoryName);
     const searchLower = searchQuery.trim().toLowerCase();
     
-    // Debug removed
     
     return products.filter((product: Product) => {
       // If no search query, show all products in category
       if (!searchLower) {
         if (selectedCategory === 'all') return true;
-        return normalizeCategoryName(product.category?.name) === normSelected;
+        const productCategoryName = normalizeCategoryName(product.category?.name);
+        const matches = productCategoryName === normSelected;
+        return matches;
       }
       
       // Search in product name, description, and category (case-insensitive)
@@ -104,13 +114,14 @@ export default function MenuScreen() {
       const categoryMatchSearch = product.category?.name?.toLowerCase().includes(searchLower) || false;
       const matchesSearch = nameMatch || descMatch || categoryMatchSearch;
       
-      // Debug removed
-      
       // Handle "All" category with search
       if (selectedCategory === 'all') return matchesSearch;
       
       // For database categories, filter by both category and search
-      return normalizeCategoryName(product.category?.name) === normSelected && matchesSearch;
+      const productCategoryName = normalizeCategoryName(product.category?.name);
+      const categoryMatch = productCategoryName === normSelected;
+      const finalMatch = categoryMatch && matchesSearch;
+      return finalMatch;
     });
   }, [products, selectedCategory, searchQuery, categoryLookup, normalizeCategoryName]);
 
@@ -144,24 +155,32 @@ export default function MenuScreen() {
   }, []);
 
   // Memoized product card renderer for better performance
-  const renderProductCard = useCallback(({ item }: { item: Product }) => (
-    <ProductCard
-      id={item.id}
-      name={item.name}
-      description={item.description}
-      price={item.base_price}
-      image={item.image_url || 'https://via.placeholder.com/200x150'}
-      tags={item.is_recommended ? ['Recommended'] : []}
-      variant="vertical"
-      backgroundColor={colors.card}
-      textColor={colors.text}
-      priceColor={colors.themedPrice}
-      onPress={() => router.push({
-        pathname: '/(customer)/product/[id]',
-        params: { id: item.id }
-      } as any)}
-    />
-  ), [colors, router]);
+  const renderProductCard = useCallback(({ item }: { item: Product }) => {
+    console.log('Menu Product:', {
+      id: item.id,
+      name: item.name,
+      image_url: item.image_url,
+      hasImage: !!item.image_url
+    });
+    return (
+      <ProductCard
+        id={item.id}
+        name={item.name}
+        description={item.description}
+        price={item.base_price}
+        image={item.image_url || 'https://via.placeholder.com/200x150'}
+        tags={item.is_recommended ? ['Recommended'] : []}
+        variant="vertical"
+        backgroundColor={colors.card}
+        textColor={colors.text}
+        priceColor={colors.themedPrice}
+        onPress={() => router.push({
+          pathname: '/(customer)/product/[id]',
+          params: { id: item.id }
+        } as any)}
+      />
+    );
+  }, [colors, router]);
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
@@ -264,31 +283,11 @@ export default function MenuScreen() {
           <ResponsiveText color={colors.error}>Error loading products: {productsError}</ResponsiveText>
         </ResponsiveView>
       ) : filteredItems.length === 0 ? (
-        <ResponsiveView padding="xl" alignItems="center">
-          <MaterialIcons 
-            name={searchQuery ? "search-off" : "restaurant-menu"} 
-            size={Responsive.responsiveValue(48, 56, 64, 72)} 
-            color={colors.textSecondary} 
-          />
-          <ResponsiveView marginTop="md" alignItems="center">
-            <ResponsiveText size="lg" weight="semiBold" color={colors.text}>
-              {searchQuery ? `No results for "${searchQuery}"` : 'No products found'}
-            </ResponsiveText>
-            <ResponsiveText size="md" color={colors.textSecondary} style={{ textAlign: 'center', marginTop: Responsive.responsiveValue(4, 6, 8, 10) }}>
-              {searchQuery ? 'Try a different search term or clear the search' : 'No products in this category'}
-            </ResponsiveText>
-            {searchQuery && (
-              <TouchableOpacity 
-                onPress={handleClearSearch}
-                style={[styles.clearSearchButton, { backgroundColor: colors.primary }]}
-              >
-                <ResponsiveText size="sm" weight="semiBold" color="white">
-                  Clear Search
-                </ResponsiveText>
-              </TouchableOpacity>
-            )}
-          </ResponsiveView>
-        </ResponsiveView>
+        <RecommendedProductsFallback
+          products={products}
+          searchQuery={searchQuery}
+          maxItems={4}
+        />
       ) : (
         <>
            {/* Search Results Counter */}

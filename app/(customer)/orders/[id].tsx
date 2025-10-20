@@ -2,6 +2,7 @@ import { MaterialIcons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
+  Alert,
   Image,
   RefreshControl,
   ScrollView,
@@ -18,48 +19,11 @@ import { ResponsiveView } from '../../../components/ui/ResponsiveView';
 import Layout from '../../../constants/Layout';
 import { useTheme } from '../../../contexts/ThemeContext';
 import { useResponsive } from '../../../hooks/useResponsive';
+import { supabase } from '../../../lib/supabase';
 import { OrderService } from '../../../services/order.service';
 import { Order, OrderStatus } from '../../../types/order.types';
+import { getDetailedCustomizationDisplay } from '../../../utils/customizationDisplay';
 
-// Helper function to extract pizza details from customization_details
-const getPizzaDetails = (orderItem: any): string | null => {
-  if (!orderItem.customization_details) return null;
-  
-  try {
-    const details = typeof orderItem.customization_details === 'string' 
-      ? JSON.parse(orderItem.customization_details) 
-      : orderItem.customization_details;
-    
-    const parts = [];
-    if (details.size) parts.push(details.size);
-    if (details.crust) parts.push(details.crust);
-    
-    return parts.length > 0 ? parts.join(' • ') : null;
-  } catch (error) {
-    console.warn('Error parsing customization_details:', error);
-    return null;
-  }
-};
-
-// Helper function to extract pizza toppings from customization_details
-const getPizzaToppings = (orderItem: any): string | null => {
-  if (!orderItem.customization_details) return null;
-  
-  try {
-    const details = typeof orderItem.customization_details === 'string' 
-      ? JSON.parse(orderItem.customization_details) 
-      : orderItem.customization_details;
-    
-    if (details.toppings && Array.isArray(details.toppings) && details.toppings.length > 0) {
-      return details.toppings.join(', ');
-    }
-    
-    return null;
-  } catch (error) {
-    console.warn('Error parsing customization_details for toppings:', error);
-    return null;
-  }
-};
 
 // Reusable components for better organization
 const OrderStatusBadge: React.FC<{ status: OrderStatus; colors: any }> = ({ status, colors }) => {
@@ -121,33 +85,21 @@ const OrderItemCard: React.FC<{
           {item.product?.name || item.product_name || 'Product'}
         </ResponsiveText>
         
-        {/* Pizza Size and Crust - Right below product name */}
-        {getPizzaDetails(item) && (
-          <ResponsiveView marginTop="xs">
-            <ResponsiveText size="sm" color={colors.textSecondary}>
-              {getPizzaDetails(item)}
-            </ResponsiveText>
-          </ResponsiveView>
-        )}
-        
-        
-        {/* Toppings */}
-        {getPizzaToppings(item) && (
-          <ResponsiveView marginTop="xs">
-            <ResponsiveText size="sm" color={colors.textSecondary}>
-              Toppings: {getPizzaToppings(item)}
-            </ResponsiveText>
-          </ResponsiveView>
-        )}
-        
-        {/* Special Instructions */}
-        {item.special_instructions && (
-          <ResponsiveView marginTop="xs">
-            <ResponsiveText size="sm" color={colors.textSecondary} style={{ fontStyle: 'italic' }}>
-              Note: {item.special_instructions}
-            </ResponsiveText>
-          </ResponsiveView>
-        )}
+        {/* Refined Customization Display */}
+        {(() => {
+          const customizationDisplay = getDetailedCustomizationDisplay(item);
+          return customizationDisplay && customizationDisplay.map((detail: any, index: number) => (
+            <ResponsiveView key={index} marginTop="xs">
+              <ResponsiveText 
+                size="sm" 
+                color={colors.textSecondary}
+                style={detail.type === 'instructions' ? { fontStyle: 'italic' } : {}}
+              >
+                {detail.label}: {detail.value}
+              </ResponsiveText>
+            </ResponsiveView>
+          ));
+        })()}
       </ResponsiveView>
       
       <ResponsiveView style={styles.itemRight}>
@@ -298,6 +250,58 @@ export default function OrderDetailScreen() {
     }
   }, [order?.items, router]);
 
+  const handleCancelOrder = useCallback(() => {
+    Alert.alert(
+      'Cancel Order',
+      'Are you sure you want to cancel this order? This action cannot be undone.',
+      [
+        {
+          text: 'Keep Order',
+          style: 'cancel',
+        },
+        {
+          text: 'Cancel Order',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              if (!order?.id) {
+                Alert.alert('Error', 'Order ID not found.');
+                return;
+              }
+
+              // Get current user for cancelledBy parameter
+              const { data: { user } } = await supabase.auth.getUser();
+              if (!user) {
+                Alert.alert('Error', 'User not authenticated.');
+                return;
+              }
+
+              console.log('Starting order cancellation process...');
+              
+              // Call the actual cancel order service
+              await OrderService.cancelOrder(
+                order.id,
+                'Cancelled by customer',
+                user.id
+              );
+
+              console.log('Order cancellation completed, refreshing order data...');
+
+              // Refresh the order data to reflect the cancellation
+              await loadOrder();
+
+              console.log('Order data refreshed, showing success message');
+              Alert.alert('Order Cancelled', 'Your order has been cancelled successfully.');
+            } catch (error) {
+              console.error('Error cancelling order:', error);
+              Alert.alert('Error', 'Failed to cancel order. Please try again.');
+            }
+          },
+        },
+      ]
+    );
+  }, [order?.id, loadOrder]);
+
 
   useEffect(() => {
     if (id) {
@@ -391,6 +395,13 @@ export default function OrderDetailScreen() {
             <ResponsiveView marginTop="sm">
               <OrderStatusBadge status={order.status} colors={colors} />
             </ResponsiveView>
+          {order.status === 'delivered' && (order as any).actual_delivery_time && (
+            <ResponsiveView marginTop="xs">
+              <ResponsiveText size="sm" color={colors.textSecondary}>
+                Delivered at: {formatOrderDate((order as any).actual_delivery_time as any)}
+              </ResponsiveText>
+            </ResponsiveView>
+          )}
           </ResponsiveView>
         </ResponsiveView>
 
@@ -502,6 +513,24 @@ export default function OrderDetailScreen() {
               variant="outline"
               style={[styles.actionButton, isTablet && styles.actionButtonTablet]}
               icon={<MaterialIcons name="refresh" size={20} color={colors.primary} />}
+            />
+            <Button
+              title={order?.status === 'cancelled' ? "Order Cancelled" : "Cancel Order"}
+              onPress={order?.status === 'cancelled' ? () => {} : handleCancelOrder}
+              variant="danger"
+              disabled={order?.status === 'cancelled'}
+              style={[
+                styles.actionButton, 
+                isTablet && styles.actionButtonTablet,
+                order?.status === 'cancelled' && { opacity: 0.6 }
+              ]}
+              icon={
+                <MaterialIcons 
+                  name="cancel" 
+                  size={20} 
+                  color={order?.status === 'cancelled' ? colors.textTertiary : colors.textInverse} 
+                />
+              }
             />
           </ResponsiveView>
         </ResponsiveView>

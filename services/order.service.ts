@@ -1,6 +1,5 @@
 import { supabase } from '../lib/supabase';
 import {
-  DeliveryOrder,
   Order,
   OrderFilters,
   OrderItem,
@@ -14,15 +13,15 @@ import { notificationService } from './api';
 export class OrderService {
   // Helper function to convert app status to database status
   private static convertStatusToDb(status: string): string {
-    // Database expects capitalized values
+    // Database now uses lowercase values
     const statusMap: { [key: string]: string } = {
-      'pending': 'Pending',
-      'confirmed': 'Preparing', // Note: 'confirmed' maps to 'Preparing' in your DB
-      'preparing': 'Preparing',
-      'ready_for_pickup': 'Ready for Pickup',
-      'out_for_delivery': 'Out for Delivery',
-      'delivered': 'Delivered',
-      'cancelled': 'Cancelled'
+      'pending': 'pending',
+      'confirmed': 'preparing', // Note: 'confirmed' maps to 'preparing' in your DB
+      'preparing': 'preparing',
+      'ready_for_pickup': 'ready_for_pickup',
+      'out_for_delivery': 'out_for_delivery',
+      'delivered': 'delivered',
+      'cancelled': 'cancelled'
     };
     
     return statusMap[status] || status;
@@ -30,14 +29,14 @@ export class OrderService {
 
   // Helper function to convert database status to app status
   private static convertStatusFromDb(status: string): string {
-    // Convert database capitalized values back to app lowercase values
+    // Database now uses lowercase values, so just return as is
     const statusMap: { [key: string]: string } = {
-      'Pending': 'pending',
-      'Preparing': 'preparing', // Both 'confirmed' and 'preparing' map to 'Preparing' in DB
-      'Ready for Pickup': 'ready_for_pickup',
-      'Out for Delivery': 'out_for_delivery',
-      'Delivered': 'delivered',
-      'Cancelled': 'cancelled'
+      'pending': 'pending',
+      'preparing': 'preparing',
+      'ready_for_pickup': 'ready_for_pickup',
+      'out_for_delivery': 'out_for_delivery',
+      'delivered': 'delivered',
+      'cancelled': 'cancelled'
     };
     
     return statusMap[status] || status.toLowerCase();
@@ -126,7 +125,11 @@ export class OrderService {
             product:products(name, image_url)
           ),
           delivery_address:addresses(*),
-          customer:profiles!orders_user_id_fkey(full_name, phone_number, username)
+          customer:profiles!orders_user_id_fkey(full_name, phone_number, username),
+          payment_transactions(
+            *,
+            proof_of_payment_url
+          )
         `)
         .eq('id', orderId)
         .single();
@@ -152,17 +155,58 @@ export class OrderService {
         };
       }) || [];
       
+      // Extract proof of payment URL from payment transactions
+      const proofOfPaymentUrl = data.payment_transactions?.[0]?.proof_of_payment_url || data.proof_of_payment_url;
+      
       // Convert database status back to app format
       const convertedOrder = {
         ...data,
         status: this.convertStatusFromDb(data.status),
         items: convertedItems,
+        proof_of_payment_url: proofOfPaymentUrl,
+        proof_of_delivery_url: (data as any).proof_of_delivery_url,
       };
       
       return convertedOrder as Order;
     } catch (error) {
       console.error('Error fetching order:', error);
       throw error;
+    }
+  }
+
+  // Fetch image proofs (payment and delivery) for an order
+  static async getOrderProofImages(orderId: string): Promise<{
+    paymentProofs: Array<{
+      id: string;
+      url: string;
+      thumbnail_url?: string;
+      uploaded_at?: string;
+      verified?: boolean;
+    }>;
+    deliveryProofs: Array<{
+      id: string;
+      url: string;
+      thumbnail_url?: string;
+      uploaded_at?: string;
+      verified?: boolean;
+    }>;
+  }> {
+    try {
+      const { data, error } = await supabase
+        .from('image_metadata' as any)
+        .select('*')
+        .eq('order_id', orderId)
+        .order('uploaded_at', { ascending: false });
+
+      if (error) throw error;
+
+      const paymentProofs = (data || []).filter((it: any) => it.type === 'payment_proof');
+      const deliveryProofs = (data || []).filter((it: any) => it.type === 'delivery_proof');
+
+      return { paymentProofs, deliveryProofs };
+    } catch (e) {
+      console.warn('getOrderProofImages failed', e);
+      return { paymentProofs: [], deliveryProofs: [] };
     }
   }
 
@@ -368,7 +412,11 @@ export class OrderService {
           *,
           items:order_items(*),
           delivery_address:addresses(*),
-          user:profiles!orders_user_id_fkey(full_name, phone_number)
+          user:profiles!orders_user_id_fkey(full_name, phone_number),
+          payment_transactions(
+            *,
+            proof_of_payment_url
+          )
         `)
         .order('created_at', { ascending: false });
 
@@ -386,14 +434,125 @@ export class OrderService {
       if (error) throw error;
       
       // Convert database status back to app format
-      const convertedData = (data || []).map((order: any) => ({
-        ...order,
-        status: this.convertStatusFromDb(order.status)
-      }));
+      const convertedData = (data || []).map((order: any) => {
+        // Extract proof of payment URL from payment transactions
+        const proofOfPaymentUrl = order.payment_transactions?.[0]?.proof_of_payment_url || order.proof_of_payment_url;
+        
+        return {
+          ...order,
+          status: this.convertStatusFromDb(order.status),
+          proof_of_payment_url: proofOfPaymentUrl,
+        };
+      });
       
       return convertedData;
     } catch (error) {
       console.error('Error fetching admin orders:', error);
+      throw error;
+    }
+  }
+
+  // Rider: Get rider-specific order statistics
+  static async getRiderStats(riderId: string): Promise<OrderStats> {
+    try {
+      // Get orders assigned to this rider through delivery_assignments
+      const { data: assignments, error: assignmentsError } = await supabase
+        .from('delivery_assignments')
+        .select(`
+          id,
+          delivered_at,
+          order:orders(
+            id,
+            status,
+            total_amount,
+            created_at,
+            actual_delivery_time,
+            payment_verified_by,
+            payment_verified_at
+          )
+        `)
+        .eq('rider_id', riderId);
+
+      if (assignmentsError) throw assignmentsError;
+
+      const orders = (assignments || []).map((assignment: any) => assignment.order).filter(Boolean);
+      
+      // Debug: Log unique status values for this rider
+      const uniqueStatuses = [...new Set(orders.map((o: any) => o.status))];
+      console.log('Rider order statuses:', uniqueStatuses);
+      console.log('Total orders for rider:', orders.length);
+      console.log('Orders with actual_delivery_time:', orders.filter((o: any) => o.actual_delivery_time).length);
+      console.log('Orders with payment_verified_by:', orders.filter((o: any) => o.payment_verified_by).length);
+      console.log('Delivery assignments with delivered_at:', (assignments || []).filter((a: any) => a.delivered_at).length);
+
+      // Helper function to check status with multiple possible formats
+      const getStatusCount = (statusValue: string) => {
+        return orders.filter((o: any) => {
+          const status = o.status?.toLowerCase();
+          const targetStatus = statusValue.toLowerCase();
+          
+          // Check for exact match
+          if (status === targetStatus) return true;
+          
+          // Check for common variations
+          if (targetStatus === 'pending' && status === 'pending') return true;
+          if (targetStatus === 'preparing' && (status === 'preparing' || status === 'confirmed')) return true;
+          if (targetStatus === 'out_for_delivery' && (status === 'out_for_delivery' || status === 'out for delivery' || status === 'outfordelivery' || status === 'ready for pickup')) return true;
+          if (targetStatus === 'delivered' && status === 'delivered') return true;
+          if (targetStatus === 'cancelled' && (status === 'cancelled' || status === 'canceled')) return true;
+          
+          return false;
+        }).length;
+      };
+
+      // Calculate today's date for today's earnings
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      
+      // Filter orders delivered today using both delivered_at from delivery_assignments and actual_delivery_time from orders
+      const todayOrders = (assignments || []).filter((assignment: any) => {
+        const order = assignment.order;
+        if (!order) return false;
+        
+        // Check both delivered_at from delivery_assignments and actual_delivery_time from orders
+        const deliveredAt = assignment.delivered_at ? new Date(assignment.delivered_at) : 
+                           (order.actual_delivery_time ? new Date(order.actual_delivery_time) : null);
+        
+        return deliveredAt && deliveredAt >= today;
+      });
+
+      // Calculate delivery fee (₱50 per delivery)
+      const deliveryFee = 50;
+      
+      // Count delivered orders using delivered_at field instead of status
+      const deliveredOrdersCount = (assignments || []).filter((assignment: any) => 
+        assignment.delivered_at !== null
+      ).length;
+
+      const stats: OrderStats = {
+        total_orders: orders.length,
+        pending_orders: getStatusCount('pending'),
+        preparing_orders: getStatusCount('preparing'),
+        out_for_delivery: getStatusCount('out_for_delivery'),
+        delivered_orders: deliveredOrdersCount,
+        cancelled_orders: getStatusCount('cancelled'),
+        total_income: deliveredOrdersCount * deliveryFee, // Rider earnings based on deliveries
+        cancelled_income: 0, // Riders don't get paid for cancelled orders
+        average_order_value: 0,
+        completion_rate: 0,
+      };
+
+      // Add today's earnings as a custom field
+      (stats as any).today_earnings = todayOrders.length * deliveryFee;
+
+      stats.average_order_value = stats.total_orders > 0 ? stats.total_income / stats.total_orders : 0;
+      stats.completion_rate = stats.total_orders > 0 ? 
+        (stats.delivered_orders / stats.total_orders) * 100 : 0;
+
+      console.log('Rider stats calculated:', stats);
+      return stats;
+    } catch (error) {
+      console.error('Error fetching rider stats:', error);
       throw error;
     }
   }
@@ -474,11 +633,11 @@ export class OrderService {
       const { error: orderErr } = await supabase
         .from('orders')
         .update({
-          payment_status: 'Verified',
+          payment_status: 'verified',
           payment_verified: true,
           payment_verified_at: now,
           payment_verified_by: verifiedBy,
-          status: 'Preparing',
+          status: 'preparing',
           updated_at: now,
         })
         .eq('id', orderId);
@@ -486,7 +645,7 @@ export class OrderService {
 
       const { error: txnErr } = await supabase
         .from('payment_transactions' as any)
-        .update({ status: 'Verified', verified_by: verifiedBy, verified_at: now } as any)
+        .update({ status: 'verified', verified_by: verifiedBy, verified_at: now } as any)
         .eq('order_id', orderId);
       if (txnErr) throw txnErr;
 
@@ -537,7 +696,7 @@ export class OrderService {
         throw new Error('Payment for this order has already been verified.');
       }
 
-      if (orderData.status !== 'out_for_delivery') {
+      if (orderData.status !== 'out_for_delivery' && orderData.status !== 'Out for Delivery') {
         throw new Error('Order must be out for delivery before payment can be verified.');
       }
 
@@ -545,7 +704,7 @@ export class OrderService {
       const { error: orderErr } = await supabase
         .from('orders')
         .update({
-          payment_status: 'Verified',
+          payment_status: 'verified',
           payment_verified: true,
           payment_verified_at: now,
           payment_verified_by: verifiedBy,
@@ -582,8 +741,8 @@ export class OrderService {
     }
   }
 
-  // Delivery: Get available orders
-  static async getAvailableOrders(): Promise<DeliveryOrder[]> {
+  // Delivery: Get recent orders for delivery management
+  static async getRecentOrdersForDelivery(): Promise<Order[]> {
     try {
       const { data, error } = await supabase
         .from('orders')
@@ -593,116 +752,208 @@ export class OrderService {
           delivery_address:addresses(*),
           user:profiles!orders_user_id_fkey(full_name, phone_number)
         `)
-        .eq('status', 'Ready for Pickup')
-        .order('created_at', { ascending: true });
+        .in('status', ['Ready for Pickup', 'Out for Delivery'])
+        .order('created_at', { ascending: false });
 
       if (error) throw error;
 
-      // Orders are available when they are unassigned in delivery_assignments
-      return (data || []).map((order: any) => ({
-        order,
-        distance: 0,
-        estimated_time: 30,
-        customer_phone: order.user?.phone_number || '',
-        customer_name: order.user?.full_name || '',
-        priority: 'medium' as const,
-      }));
+      return (data || []) as Order[];
     } catch (error) {
-      console.error('Error fetching available orders:', error);
+      console.error('Error fetching recent orders for delivery:', error);
       throw error;
     }
   }
 
-  // Delivery: Assign order to delivery person
-  static async assignOrderToDelivery(
-    orderId: string, 
-    deliveryPersonId: string
-  ): Promise<void> {
+  // Delivery: Get recent delivered orders by rider
+  static async getRecentDeliveredOrders(riderId: string): Promise<Order[]> {
     try {
-      // Guard: prevent assigning GCASH unpaid orders
-      const { data: ordCheck } = await supabase
-        .from('orders')
-        .select('payment_method, payment_verified')
-        .eq('id', orderId)
-        .single();
-      if (ordCheck && (ordCheck.payment_method === 'GCASH' || ordCheck.payment_method === 'gcash') && !ordCheck.payment_verified) {
-        throw new Error('Cannot assign: GCash payment not verified yet.');
-      }
-
-      // Verify the delivery person exists and has delivery role
-      const { data: deliveryPerson, error: personError } = await supabase
-        .from('profiles')
-        .select('id, role')
-        .eq('id', deliveryPersonId)
-        .eq('role', 'delivery')
-        .single();
-
-      if (personError || !deliveryPerson) {
-        throw new Error('Invalid delivery person or user does not have delivery role.');
-      }
-
-      // Create or upsert delivery assignment row, set status Out for Delivery
-      const { error: assignErr } = await supabase
+      console.log('Fetching delivered orders for rider ID:', riderId);
+      
+      const { data, error } = await supabase
         .from('delivery_assignments')
-        .upsert({ 
-          order_id: orderId, 
-          delivery_person_id: deliveryPersonId, 
-          status: 'Assigned',
-          assigned_at: new Date().toISOString()
-        } as any);
-      if (assignErr) throw assignErr;
+        .select(`
+          id,
+          delivered_at,
+          order:orders(
+            *,
+            items:order_items(*),
+            delivery_address:addresses(*),
+            user:profiles!orders_user_id_fkey(full_name, phone_number),
+            payment_verified_by,
+            payment_verified_at,
+            actual_delivery_time
+          )
+        `)
+        .eq('rider_id', riderId)
+        .not('delivered_at', 'is', null)
+        .order('delivered_at', { ascending: false })
+        .limit(5);
 
-      const { error } = await supabase
-        .from('orders')
-        .update({
-          status: 'Out for Delivery',
-          assigned_delivery_id: deliveryPersonId,
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', orderId);
+      if (error) {
+        console.error('Supabase error fetching delivered orders:', error);
+        throw error;
+      }
 
-      if (error) throw error;
-
-      // Add tracking entry
-      await this.addOrderTracking(orderId, 'Out for Delivery', deliveryPersonId);
+      console.log('Raw delivery assignments data:', data?.length || 0);
+      
+      const orders = (data || []).map((assignment: any) => {
+        if (!assignment.order) {
+          console.warn('Assignment without order:', assignment.id);
+          return null;
+        }
+        return {
+          ...assignment.order,
+          delivery_assignment_delivered_at: assignment.delivered_at
+        };
+      }).filter(Boolean);
+      
+      console.log('Processed delivered orders:', orders.length);
+      return orders as Order[];
     } catch (error) {
-      console.error('Error assigning order:', error);
+      console.error('Error fetching recent delivered orders:', error);
       throw error;
     }
   }
+
+  // Assignment-based APIs removed; rider flow now relies on admin-assigned orders only
 
   // Delivery: Mark order delivered with optional proof image
   static async markOrderDelivered(
     orderId: string,
-    riderId: string,
+    userId: string,
     proofLocalUri?: string
-  ): Promise<void> {
+  ): Promise<{ success: boolean; proofUploaded: boolean; message: string }> {
     try {
+      // First get the rider ID for this user, create if needed
+      let { data: rider, error: riderError } = await supabase
+        .from('riders')
+        .select('id')
+        .eq('user_id', userId)
+        .single();
+
+      if (riderError || !rider) {
+        // Check if user has delivery role in profiles
+        const { data: profile, error: profileError } = await supabase
+          .from('profiles')
+          .select('id, role')
+          .eq('id', userId)
+          .single();
+
+        if (profileError || !profile) {
+          throw new Error('User profile not found.');
+        }
+
+        // Check for various possible delivery role values
+        const deliveryRoles = ['delivery_staff', 'delivery', 'rider', 'driver'];
+        if (!deliveryRoles.includes(profile.role)) {
+          throw new Error(`User does not have delivery role. Current role: ${profile.role}. Expected one of: ${deliveryRoles.join(', ')}`);
+        }
+
+        // Create rider record for this user
+        const { data: newRider, error: createError } = await supabase
+          .from('riders')
+          .insert({
+            user_id: userId,
+            is_available: true
+          } as any)
+          .select('id')
+          .single();
+
+        if (createError || !newRider) {
+          throw new Error('Failed to create rider record.');
+        }
+
+        rider = newRider;
+      }
+
+      // Upload delivery proof image using the new service
       let proofUrl: string | undefined;
+      let proofUploaded = false;
       if (proofLocalUri) {
-        const res = await fetch(proofLocalUri);
-        const blob = await res.blob();
-        const path = `deliveries/${orderId}/${Date.now()}.jpg`;
-        const { error: upErr } = await supabase.storage.from('deliveries').upload(path, blob, { contentType: 'image/jpeg' });
-        if (upErr) throw upErr;
-        const { data: { publicUrl } } = supabase.storage.from('deliveries').getPublicUrl(path);
-        proofUrl = publicUrl;
+        try {
+          console.log('🔄 Starting delivery proof upload...', { 
+            orderId, 
+            userId, 
+            proofLocalUri: proofLocalUri.substring(0, 50) + '...' 
+          });
+          
+          const { ImageUploadService } = await import('./image-upload.service');
+          console.log('📦 ImageUploadService imported successfully');
+          
+          const uploadResult = await ImageUploadService.uploadDeliveryProof(orderId, proofLocalUri, userId);
+          console.log('📸 Upload result received:', { 
+            hasUrl: !!uploadResult.url, 
+            hasThumbnail: !!uploadResult.thumbnailUrl,
+            metadata: uploadResult.metadata 
+          });
+          
+          proofUrl = uploadResult.url;
+          proofUploaded = true;
+          console.log('✅ Delivery proof uploaded successfully:', proofUrl);
+        } catch (uploadError) {
+          console.error('❌ Error uploading delivery proof:', uploadError);
+          console.error('❌ Upload error details:', {
+            message: (uploadError as any).message,
+            stack: (uploadError as any).stack,
+            name: (uploadError as any).name
+          });
+          // Continue without photo rather than failing the delivery
+        }
+      } else {
+        console.log('ℹ️ No proof photo provided for delivery');
       }
 
       // Update delivery assignment
+      console.log('🔄 Updating delivery assignment status to delivered...', { orderId, riderId: (rider as any).id });
       const { error: assignErr } = await supabase
         .from('delivery_assignments' as any)
-        .update({ status: 'Delivered', delivered_at: new Date().toISOString(), notes: null } as any)
+        .update({ delivered_at: new Date().toISOString(), notes: null } as any)
         .eq('order_id', orderId)
-        .eq('delivery_person_id', riderId);
-      if (assignErr) throw assignErr;
+        .eq('rider_id', (rider as any).id);
+      if (assignErr) {
+        console.error('❌ Error updating delivery assignment:', assignErr);
+        throw assignErr;
+      }
+      console.log('✅ Delivery assignment updated successfully');
 
-      // Update order
+      // Update order status
+      const deliveryTime = new Date().toISOString();
+      console.log('🔄 Updating order status to delivered...', { 
+        orderId, 
+        deliveryTime,
+        currentTime: new Date().toLocaleString()
+      });
       const { error: ordErr } = await supabase
         .from('orders')
-        .update({ status: 'Delivered', updated_at: new Date().toISOString(), actual_delivery_time: new Date().toISOString() })
+        .update({ 
+          status: 'delivered', 
+          updated_at: deliveryTime, 
+          actual_delivery_time: deliveryTime 
+        })
         .eq('id', orderId);
-      if (ordErr) throw ordErr;
+      if (ordErr) {
+        console.error('❌ Error updating order status:', ordErr);
+        throw ordErr;
+      }
+      console.log('✅ Order status updated successfully to delivered');
+
+      // Verify the order was updated correctly
+      const { data: updatedOrder, error: verifyErr } = await supabase
+        .from('orders')
+        .select('id, status, actual_delivery_time, updated_at')
+        .eq('id', orderId)
+        .single();
+      
+      if (verifyErr) {
+        console.warn('⚠️ Could not verify order update:', verifyErr);
+      } else {
+        console.log('✅ Order verification successful:', {
+          id: updatedOrder.id,
+          status: updatedOrder.status,
+          actual_delivery_time: updatedOrder.actual_delivery_time,
+          updated_at: updatedOrder.updated_at
+        });
+      }
 
       // Notify customer
       try {
@@ -723,9 +974,37 @@ export class OrderService {
       } catch (e) {
         console.warn('Non-fatal: failed to send delivered notification', e);
       }
+
+      // Trigger real-time update for admin dashboard
+      try {
+        console.log('📡 Broadcasting order delivered update...', { orderId, riderId: (rider as any).id });
+        await supabase
+          .channel('admin-stats-update')
+          .send({
+            type: 'broadcast',
+            event: 'order_delivered',
+            payload: { orderId, riderId: (rider as any).id }
+          });
+        console.log('✅ Broadcast sent successfully');
+      } catch (broadcastError) {
+        console.warn('⚠️ Failed to broadcast order delivered update:', broadcastError);
+      }
+
+      // Return success response with proof upload status
+      return {
+        success: true,
+        proofUploaded,
+        message: proofUploaded 
+          ? 'Order marked as delivered with proof photo! Customer has been notified.'
+          : 'Order marked as delivered! Customer has been notified.'
+      };
     } catch (error) {
       console.error('Error marking order delivered:', error);
-      throw error;
+      return {
+        success: false,
+        proofUploaded: false,
+        message: error instanceof Error ? error.message : 'Failed to mark order as delivered'
+      };
     }
   }
 
@@ -736,10 +1015,11 @@ export class OrderService {
     cancelledBy: string
   ): Promise<void> {
     try {
+      const dbStatus = this.convertStatusToDb('cancelled');
       const { error } = await supabase
         .from('orders')
         .update({
-          status: 'cancelled',
+          status: dbStatus,
           updated_at: new Date().toISOString(),
         })
         .eq('id', orderId);
@@ -747,7 +1027,7 @@ export class OrderService {
       if (error) throw error;
 
       // Add tracking entry
-      await this.addOrderTracking(orderId, 'cancelled', cancelledBy, reason);
+      await this.addOrderTracking(orderId, dbStatus, cancelledBy, reason);
     } catch (error) {
       console.error('Error cancelling order:', error);
       throw error;

@@ -45,7 +45,13 @@ export const useOrders = (filters?: OrderFilters) => {
           filter: `user_id=eq.${user.id}`,
         },
         (payload) => {
-          console.log('Order change received:', payload);
+          console.log('🔄 Customer order change received:', payload);
+          console.log('📊 Order change details:', {
+            event: payload.eventType,
+            table: payload.table,
+            new: payload.new,
+            old: payload.old
+          });
           // Refetch orders when any order changes
           fetchOrders();
         }
@@ -316,7 +322,13 @@ export const useAdminOrders = (filters?: OrderFilters) => {
           table: 'orders',
         },
         (payload) => {
-          console.log('Admin order change received:', payload);
+          console.log('🔄 Admin order change received:', payload);
+          console.log('📊 Admin order change details:', {
+            event: payload.eventType,
+            table: payload.table,
+            new: payload.new,
+            old: payload.old
+          });
           // Refetch orders when any order changes
           fetchOrders();
         }

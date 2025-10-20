@@ -450,6 +450,8 @@ export const notificationService = {
       .limit(limit);
     
     if (error) throw error;
+    
+    
     return data || [];
   },
 
@@ -560,4 +562,5 @@ export const notificationService = {
     
     if (error) throw error;
   },
+
 };

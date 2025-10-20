@@ -13,133 +13,67 @@ import Button from '../../../components/ui/Button';
 import { ResponsiveText } from '../../../components/ui/ResponsiveText';
 import { ResponsiveView } from '../../../components/ui/ResponsiveView';
 import Layout from '../../../constants/Layout';
-import { ResponsiveBorderRadius, ResponsiveSpacing, responsiveValue } from '../../../constants/Responsive';
-import { Strings } from '../../../constants/Strings';
+import { ResponsiveBorderRadius, ResponsiveSpacing } from '../../../constants/Responsive';
 import { useTheme } from '../../../contexts/ThemeContext';
-import { useDeliveryEarnings, useDeliveryStats, useMyDeliveryOrders } from '../../../hooks';
 import { useAuth } from '../../../hooks/useAuth';
+import { useDeliveryEarnings, useDeliveryOrders } from '../../../hooks/useDeliveryOrders';
+import { useRiderProfile } from '../../../hooks/useRiderProfile';
 import global from '../../../styles/global';
 
-interface DeliveryStats {
-  total_orders: number;
-  completed_orders: number;
-  pending_orders: number;
-  total_earnings: number;
-  today_earnings: number;
-}
-
-interface RecentOrder {
-  id: string;
-  order_number: string;
-  customer_name: string;
-  total_amount: number;
-  status: string;
-  created_at: string;
-  delivery_address: string;
-}
-
-export default function DeliveryDashboard() {
+export default function RiderDashboard() {
   const { colors } = useTheme();
   const { user } = useAuth();
   const router = useRouter();
   const [refreshing, setRefreshing] = useState(false);
   
-  // Use real data from hooks
-  const { orders: myOrders, isLoading: ordersLoading, refresh: refreshOrders } = useMyDeliveryOrders();
-  const { stats, isLoading: statsLoading, refresh: refreshStats } = useDeliveryStats();
-  const { earnings, isLoading: earningsLoading, refresh: refreshEarnings } = useDeliveryEarnings();
-
-  const loading = ordersLoading || statsLoading || earningsLoading;
-
-  const loadData = async () => {
-    try {
-      await Promise.all([
-        refreshOrders(),
-        refreshStats(),
-        refreshEarnings()
-      ]);
-    } catch (error) {
-      console.error('Error loading delivery data:', error);
-    }
-  };
+  // Use hooks for data fetching
+  const { activeOrders, deliveredOrders, isLoading: ordersLoading, error: ordersError, refresh: refreshOrders } = useDeliveryOrders();
+  const { earnings, isLoading: earningsLoading, error: earningsError } = useDeliveryEarnings();
+  const { profile, stats, isLoading: profileLoading, error: profileError } = useRiderProfile();
+  
+  const loading = ordersLoading || earningsLoading || profileLoading;
+  const error = ordersError || earningsError || profileError;
 
   const handleRefresh = async () => {
     setRefreshing(true);
-    await loadData();
+    await Promise.all([refreshOrders()]);
     setRefreshing(false);
   };
-
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'ready_for_pickup':
-        return colors.warning;
-      case 'out_for_delivery':
-        return colors.info;
-      case 'delivered':
-        return colors.success;
-      default:
-        return colors.textSecondary;
-    }
-  };
-
-  const getStatusIcon = (status: string) => {
-    switch (status) {
-      case 'ready_for_pickup':
-        return 'restaurant';
-      case 'out_for_delivery':
-        return 'local-shipping';
-      case 'delivered':
-        return 'check-circle';
-      default:
-        return 'help';
-    }
-  };
-
-  const quickActions = [
-    {
-      id: 'available-orders',
-      title: 'Available Orders',
-      description: 'View orders ready for pickup',
-      icon: 'restaurant',
-      color: colors.primary,
-      onPress: () => router.push('/(delivery)/orders/available' as any)
-    },
-    {
-      id: 'my-orders',
-      title: 'My Orders',
-      description: 'Track your assigned orders',
-      icon: 'local-shipping',
-      color: colors.info,
-      onPress: () => router.push('/(delivery)/orders/my-orders' as any)
-    },
-    {
-      id: 'earnings',
-      title: 'Earnings',
-      description: 'View your delivery earnings',
-      icon: 'attach-money',
-      color: colors.success,
-      onPress: () => router.push('/(delivery)/orders/earnings' as any)
-    },
-    {
-      id: 'profile',
-      title: 'Profile',
-      description: 'Update your delivery profile',
-      icon: 'person',
-      color: colors.secondary,
-      onPress: () => router.push('/(delivery)/profile' as any)
-    }
-  ];
 
   if (loading) {
     return (
       <SafeAreaView style={[global.screen, styles.center, { backgroundColor: colors.background }]}>
-        <ResponsiveView style={styles.center}>
-          <ActivityIndicator size="large" color={colors.primary} />
-          <ResponsiveView marginTop="md">
-            <ResponsiveText size="md" color={colors.textSecondary}>
-              {Strings.loading}
-            </ResponsiveText>
-          </ResponsiveView>
+        <ActivityIndicator size="large" color={colors.primary} />
+        <ResponsiveView marginTop="md">
+          <ResponsiveText size="md" color={colors.textSecondary}>
+            Loading dashboard...
+          </ResponsiveText>
+        </ResponsiveView>
+      </SafeAreaView>
+    );
+  }
+
+  if (error) {
+    return (
+      <SafeAreaView style={[global.screen, styles.center, { backgroundColor: colors.background }]}>
+        <MaterialIcons name="error-outline" size={48} color={colors.error} />
+        <ResponsiveView marginTop="md">
+          <ResponsiveText size="lg" color={colors.error} align="center">
+            Error loading dashboard
+          </ResponsiveText>
+        </ResponsiveView>
+        <ResponsiveView marginTop="sm">
+          <ResponsiveText size="md" color={colors.textSecondary} align="center">
+            {error}
+          </ResponsiveText>
+        </ResponsiveView>
+        <ResponsiveView marginTop="lg">
+          <Button
+            title="Retry"
+            onPress={handleRefresh}
+            variant="primary"
+            size="medium"
+          />
         </ResponsiveView>
       </SafeAreaView>
     );
@@ -148,187 +82,188 @@ export default function DeliveryDashboard() {
   return (
     <SafeAreaView style={[global.screen, { backgroundColor: colors.background }]} edges={['top']}>
       <ScrollView
-        style={{ flex: 1 }}
-        refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={colors.primary} />
-        }
         showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl 
+            refreshing={refreshing} 
+            onRefresh={handleRefresh}
+            tintColor={colors.primary}
+          />
+        }
       >
         <ResponsiveView padding="lg">
-          {/* Welcome Header */}
-          <ResponsiveView style={[styles.welcomeHeader, { backgroundColor: colors.surface }]}>
-            <ResponsiveView style={styles.welcomeText}>
-              <ResponsiveText size="md" color={colors.textSecondary}>
+          {/* Header */}
+          <ResponsiveView style={styles.header}>
+            <ResponsiveView>
+              <ResponsiveText size="lg" color={colors.textSecondary}>
                 Welcome back,
               </ResponsiveText>
               <ResponsiveText size="xl" weight="bold" color={colors.text}>
-                {user?.user_metadata?.full_name || 'Delivery Partner'}
+                {profile?.profile?.full_name || 'Rider'}
               </ResponsiveText>
             </ResponsiveView>
-            <Button
-              title=""
+            <TouchableOpacity
+              style={[styles.profileButton, { backgroundColor: colors.surface }]}
               onPress={() => router.push('/(delivery)/profile' as any)}
-              variant="text"
-              icon={<MaterialIcons name="person" size={24} color={colors.primary} />}
-              style={styles.profileButton}
-            />
+            >
+              <MaterialIcons name="person" size={24} color={colors.primary} />
+            </TouchableOpacity>
           </ResponsiveView>
 
-          {/* Key Metrics Cards */}
-          <ResponsiveView style={styles.metricsContainer}>
-            <ResponsiveView style={[styles.metricCard, { 
-              backgroundColor: colors.surface,
-              ...Layout.shadows.sm
-            }]}>
-              <ResponsiveView style={styles.metricHeader}>
-                <ResponsiveView style={[styles.metricIcon, { backgroundColor: colors.primary + '20' }]}>
-                  <MaterialIcons name="local-shipping" size={responsiveValue(20, 22, 24, 28)} color={colors.primary} />
-                </ResponsiveView>
+          {/* Stats Cards */}
+          <ResponsiveView style={styles.statsContainer}>
+            <ResponsiveView style={[styles.statCard, { backgroundColor: colors.surface }]}>
+              <ResponsiveView style={styles.statHeader}>
+                <MaterialIcons name="local-shipping" size={24} color={colors.primary} />
                 <ResponsiveText size="sm" color={colors.textSecondary} weight="medium">
-                  Total Orders
+                  Delivered Orders
                 </ResponsiveText>
               </ResponsiveView>
               <ResponsiveText size="xxl" weight="bold" color={colors.text}>
-                {stats?.totalDeliveries || 0}
+                {stats.completedDeliveries}
               </ResponsiveText>
               <ResponsiveText size="xs" color={colors.textSecondary}>
-                {stats?.completedDeliveries || 0} completed
+                {stats.totalDeliveries} total assigned
               </ResponsiveText>
             </ResponsiveView>
 
-            <ResponsiveView style={[styles.metricCard, { 
-              backgroundColor: colors.surface,
-              ...Layout.shadows.sm
-            }]}>
-              <ResponsiveView style={styles.metricHeader}>
-                <ResponsiveView style={[styles.metricIcon, { backgroundColor: colors.success + '20' }]}>
-                  <MaterialIcons name="attach-money" size={responsiveValue(20, 22, 24, 28)} color={colors.success} />
-                </ResponsiveView>
+            <ResponsiveView style={[styles.statCard, { backgroundColor: colors.surface }]}>
+              <ResponsiveView style={styles.statHeader}>
+                <MaterialIcons name="pending-actions" size={24} color={colors.warning} />
                 <ResponsiveText size="sm" color={colors.textSecondary} weight="medium">
-                  Today's Earnings
+                  Pending Orders
                 </ResponsiveText>
               </ResponsiveView>
               <ResponsiveText size="xxl" weight="bold" color={colors.text}>
-                ₱{(earnings?.today || 0).toFixed(2)}
+                {stats.pendingDeliveries}
               </ResponsiveText>
               <ResponsiveText size="xs" color={colors.textSecondary}>
-                ₱{(earnings?.total || 0).toFixed(2)} total
+                Ready for pickup
               </ResponsiveText>
             </ResponsiveView>
           </ResponsiveView>
 
-          {/* Quick Actions Grid */}
-          <ResponsiveView style={styles.actionsGrid}>
-            {quickActions.map((action) => (
-              <TouchableOpacity
-                key={action.id}
-                style={[styles.actionCard, { 
-                  backgroundColor: colors.surface,
-                  ...Layout.shadows.sm
-                }]}
-                onPress={action.onPress}
-                activeOpacity={0.7}
-              >
-                <ResponsiveView style={[styles.actionIcon, { backgroundColor: action.color + '20' }]}>
-                  <MaterialIcons 
-                    name={action.icon as any} 
-                    size={responsiveValue(24, 26, 28, 32)} 
-                    color={action.color} 
-                  />
-                </ResponsiveView>
-                <ResponsiveView marginTop="sm">
-                  <ResponsiveText size="md" weight="semiBold" color={colors.text}>
-                    {action.title}
-                  </ResponsiveText>
-                  <ResponsiveText size="sm" color={colors.textSecondary}>
-                    {action.description}
-                  </ResponsiveText>
-                </ResponsiveView>
-              </TouchableOpacity>
-            ))}
+          {/* Quick Actions */}
+          <ResponsiveView style={styles.actionsContainer}>
+            <TouchableOpacity
+              style={[styles.actionCard, { backgroundColor: colors.surface }]}
+              onPress={() => router.push('/(delivery)/orders' as any)}
+            >
+              <MaterialIcons name="assignment" size={24} color={colors.primary} />
+              <ResponsiveView style={styles.actionText}>
+                <ResponsiveText size="md" weight="semiBold" color={colors.text}>
+                  Manage Orders
+                </ResponsiveText>
+                <ResponsiveText size="sm" color={colors.textSecondary}>
+                  View and manage delivery orders
+                </ResponsiveText>
+              </ResponsiveView>
+              <MaterialIcons name="chevron-right" size={24} color={colors.textSecondary} />
+            </TouchableOpacity>
           </ResponsiveView>
 
           {/* Recent Orders */}
-          <ResponsiveView style={styles.recentOrdersSection}>
+          <ResponsiveView style={styles.section}>
             <ResponsiveView style={styles.sectionHeader}>
               <ResponsiveText size="lg" weight="semiBold" color={colors.text}>
                 Recent Orders
               </ResponsiveText>
               <Button
                 title="View All"
-                onPress={() => router.push('/(delivery)/orders/my-orders' as any)}
+                onPress={() => router.push('/(delivery)/orders' as any)}
                 variant="text"
                 size="small"
               />
             </ResponsiveView>
 
-            {myOrders.length > 0 ? (
+            {activeOrders.length > 0 ? (
               <ResponsiveView style={styles.ordersList}>
-                {myOrders.slice(0, 3).map((order: any) => (
+                {activeOrders.slice(0, 3).map((order) => (
                   <TouchableOpacity
                     key={order.id}
-                    style={[styles.orderCard, { 
-                      backgroundColor: colors.surface,
-                      ...Layout.shadows.sm
-                    }]}
-                    onPress={() => router.push(`/(delivery)/orders/${order.id}` as any)}
-                    activeOpacity={0.7}
+                    style={[styles.orderCard, { backgroundColor: colors.surface }]}
+                    onPress={() => router.push(`/(delivery)/order/${order.id}` as any)}
                   >
                     <ResponsiveView style={styles.orderHeader}>
                       <ResponsiveText size="md" weight="semiBold" color={colors.text}>
                         {order.order_number || `#${order.id.slice(-6).toUpperCase()}`}
                       </ResponsiveText>
-                      <ResponsiveView style={[styles.orderStatus, { 
-                        backgroundColor: getStatusColor(order.status) + '20' 
-                      }]}>
-                        <MaterialIcons 
-                          name={getStatusIcon(order.status) as any} 
-                          size={16} 
-                          color={getStatusColor(order.status)} 
-                        />
-                        <ResponsiveText 
-                          size="xs" 
-                          color={getStatusColor(order.status)}
-                          weight="semiBold"
-                        >
-                          {order.status.replace('_', ' ').toUpperCase()}
+                      <ResponsiveView style={[styles.statusBadge, { backgroundColor: colors.primary + '20' }]}>
+                        <ResponsiveText size="xs" color={colors.primary} weight="medium">
+                          {order.status?.toUpperCase()}
                         </ResponsiveText>
                       </ResponsiveView>
                     </ResponsiveView>
-                    
-                    <ResponsiveView style={styles.orderDetails}>
-                      <ResponsiveText size="sm" color={colors.textSecondary}>
-                        Customer: {order.customer?.full_name || 'Unknown'}
-                      </ResponsiveText>
-                      <ResponsiveText size="sm" color={colors.textSecondary}>
-                        Address: {order.delivery_address?.address || 'Address not available'}
-                      </ResponsiveText>
-                    </ResponsiveView>
-                    
-                    <ResponsiveView style={styles.orderFooter}>
-                      <ResponsiveText size="sm" color={colors.textSecondary}>
-                        {new Date(order.created_at).toLocaleDateString()}
-                      </ResponsiveText>
-                      <ResponsiveText size="md" weight="semiBold" color={colors.primary}>
-                        ₱{order.total_amount.toFixed(2)}
-                      </ResponsiveText>
-                    </ResponsiveView>
+                    <ResponsiveText size="sm" color={colors.textSecondary}>
+                      {order.user?.full_name || 'Customer'}
+                    </ResponsiveText>
+                    <ResponsiveText size="sm" color={colors.textSecondary}>
+                      ₱{order.total_amount?.toFixed(2) || '0.00'}
+                    </ResponsiveText>
                   </TouchableOpacity>
                 ))}
               </ResponsiveView>
             ) : (
               <ResponsiveView style={[styles.emptyState, { backgroundColor: colors.surface }]}>
-                <ResponsiveView style={[styles.emptyIcon, { backgroundColor: colors.surfaceVariant }]}>
-                  <MaterialIcons name="local-shipping" size={responsiveValue(48, 56, 64, 72)} color={colors.primary} />
-                </ResponsiveView>
+                <MaterialIcons name="assignment" size={48} color={colors.textSecondary} />
                 <ResponsiveView marginTop="md">
-                  <ResponsiveText size="lg" weight="semiBold" color={colors.text} align="center">
-                    No Recent Orders
+                  <ResponsiveText size="md" color={colors.textSecondary} align="center">
+                    No active orders
+                  </ResponsiveText>
+                </ResponsiveView>
+              </ResponsiveView>
+            )}
+          </ResponsiveView>
+
+          {/* Recent Delivered */}
+          <ResponsiveView style={styles.section}>
+            <ResponsiveView style={styles.sectionHeader}>
+              <ResponsiveText size="lg" weight="semiBold" color={colors.text}>
+                Recent Delivered
+              </ResponsiveText>
+            </ResponsiveView>
+
+            {deliveredOrders.length > 0 ? (
+              <ResponsiveView style={styles.ordersList}>
+                {deliveredOrders.slice(0, 3).map((order) => (
+                  <TouchableOpacity
+                    key={order.id}
+                    style={[styles.orderCard, { backgroundColor: colors.surface }]}
+                    onPress={() => router.push(`/(delivery)/order/${order.id}` as any)}
+                  >
+                    <ResponsiveView style={styles.orderHeader}>
+                      <ResponsiveText size="md" weight="semiBold" color={colors.text}>
+                        {order.order_number || `#${order.id.slice(-6).toUpperCase()}`}
+                      </ResponsiveText>
+                      <ResponsiveView style={[styles.statusBadge, { backgroundColor: colors.success + '20' }]}>
+                        <MaterialIcons name="check-circle" size={16} color={colors.success} />
+                        <ResponsiveView marginLeft="xs">
+                          <ResponsiveText size="xs" color={colors.success} weight="medium">
+                            DELIVERED
+                          </ResponsiveText>
+                        </ResponsiveView>
+                      </ResponsiveView>
+                    </ResponsiveView>
+                    <ResponsiveText size="sm" color={colors.textSecondary}>
+                      {order.user?.full_name || 'Customer'}
+                    </ResponsiveText>
+                    <ResponsiveText size="sm" color={colors.textSecondary}>
+                      ₱{order.total_amount?.toFixed(2) || '0.00'}
+                    </ResponsiveText>
+                  </TouchableOpacity>
+                ))}
+              </ResponsiveView>
+            ) : (
+              <ResponsiveView style={[styles.emptyState, { backgroundColor: colors.surface }]}>
+                <MaterialIcons name="local-shipping" size={48} color={colors.textSecondary} />
+                <ResponsiveView marginTop="md">
+                  <ResponsiveText size="md" color={colors.textSecondary} align="center">
+                    No delivered orders yet
                   </ResponsiveText>
                 </ResponsiveView>
                 <ResponsiveView marginTop="sm">
-                  <ResponsiveText size="md" color={colors.textSecondary} align="center">
-                    Orders will appear here once you start delivering
+                  <ResponsiveText size="sm" color={colors.textSecondary} align="center">
+                    Your delivered orders will appear here
                   </ResponsiveText>
                 </ResponsiveView>
               </ResponsiveView>
@@ -345,67 +280,51 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  welcomeHeader: {
+  header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: ResponsiveSpacing.lg,
+    marginBottom: ResponsiveSpacing.xl,
+  },
+  profileButton: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    justifyContent: 'center',
+    alignItems: 'center',
+    ...Layout.shadows.sm,
+  },
+  statsContainer: {
+    flexDirection: 'row',
+    gap: ResponsiveSpacing.md,
+    marginBottom: ResponsiveSpacing.xl,
+  },
+  statCard: {
+    flex: 1,
     padding: ResponsiveSpacing.md,
     borderRadius: ResponsiveBorderRadius.lg,
     ...Layout.shadows.sm,
   },
-  welcomeText: {
-    flex: 1,
-  },
-  profileButton: {
-    padding: ResponsiveSpacing.sm,
-  },
-  metricsContainer: {
-    flexDirection: 'row',
-    gap: ResponsiveSpacing.md,
-    marginBottom: ResponsiveSpacing.lg,
-  },
-  metricCard: {
-    flex: 1,
-    padding: ResponsiveSpacing.lg,
-    borderRadius: ResponsiveBorderRadius.lg,
-  },
-  metricHeader: {
+  statHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     marginBottom: ResponsiveSpacing.sm,
-    gap: ResponsiveSpacing.sm,
   },
-  metricIcon: {
-    width: responsiveValue(40, 44, 48, 56),
-    height: responsiveValue(40, 44, 48, 56),
-    borderRadius: responsiveValue(20, 22, 24, 28),
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  actionsGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'space-between',
+  actionsContainer: {
     marginBottom: ResponsiveSpacing.xl,
   },
   actionCard: {
-    width: '48%',
-    padding: ResponsiveSpacing.lg,
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: ResponsiveSpacing.md,
     borderRadius: ResponsiveBorderRadius.lg,
-    alignItems: 'center',
-    marginBottom: ResponsiveSpacing.md,
-    minHeight: responsiveValue(120, 130, 140, 150),
+    ...Layout.shadows.sm,
   },
-  actionIcon: {
-    width: responsiveValue(48, 52, 56, 64),
-    height: responsiveValue(48, 52, 56, 64),
-    borderRadius: responsiveValue(24, 26, 28, 32),
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: ResponsiveSpacing.sm,
+  actionText: {
+    flex: 1,
+    marginLeft: ResponsiveSpacing.md,
   },
-  recentOrdersSection: {
+  section: {
     marginBottom: ResponsiveSpacing.xl,
   },
   sectionHeader: {
@@ -419,43 +338,26 @@ const styles = StyleSheet.create({
   },
   orderCard: {
     padding: ResponsiveSpacing.md,
-    borderRadius: ResponsiveBorderRadius.md,
+    borderRadius: ResponsiveBorderRadius.lg,
+    ...Layout.shadows.sm,
   },
   orderHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: ResponsiveSpacing.sm,
+    marginBottom: ResponsiveSpacing.xs,
   },
-  orderStatus: {
+  statusBadge: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: ResponsiveSpacing.sm,
     paddingVertical: ResponsiveSpacing.xs,
     borderRadius: ResponsiveBorderRadius.sm,
-    gap: ResponsiveSpacing.xs,
-  },
-  orderDetails: {
-    marginBottom: ResponsiveSpacing.sm,
-  },
-  orderFooter: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
   },
   emptyState: {
-    alignItems: 'center',
-    paddingVertical: ResponsiveSpacing.xxxl,
-    paddingHorizontal: ResponsiveSpacing.lg,
+    padding: ResponsiveSpacing.xl,
     borderRadius: ResponsiveBorderRadius.lg,
-    ...Layout.shadows.sm,
-  },
-  emptyIcon: {
-    width: responsiveValue(80, 90, 100, 120),
-    height: responsiveValue(80, 90, 100, 120),
-    borderRadius: responsiveValue(40, 45, 50, 60),
-    justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: ResponsiveSpacing.md,
+    ...Layout.shadows.sm,
   },
 });

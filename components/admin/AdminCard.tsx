@@ -3,6 +3,7 @@ import { StyleSheet, TouchableOpacity, TouchableOpacityProps } from 'react-nativ
 import Layout from '../../constants/Layout';
 import { ResponsiveBorderRadius, ResponsiveSpacing, responsiveValue } from '../../constants/Responsive';
 import { useTheme } from '../../contexts/ThemeContext';
+import DropdownMenu, { DropdownMenuItem } from '../ui/DropdownMenu';
 import { ResponsiveText } from '../ui/ResponsiveText';
 import { ResponsiveView } from '../ui/ResponsiveView';
 
@@ -16,6 +17,8 @@ interface AdminCardProps extends TouchableOpacityProps {
   margin?: keyof typeof ResponsiveSpacing;
   onPress?: () => void;
   disabled?: boolean;
+  actionMenuItems?: DropdownMenuItem[];
+  showActionMenu?: boolean;
 }
 
 export const AdminCard: React.FC<AdminCardProps> = ({
@@ -28,6 +31,8 @@ export const AdminCard: React.FC<AdminCardProps> = ({
   margin = 'sm',
   onPress,
   disabled = false,
+  actionMenuItems = [],
+  showActionMenu = false,
   style,
   ...props
 }) => {
@@ -91,6 +96,18 @@ export const AdminCard: React.FC<AdminCardProps> = ({
               </ResponsiveText>
             )}
           </ResponsiveView>
+
+          {showActionMenu && actionMenuItems.length > 0 && (
+            <ResponsiveView style={styles.actionMenuContainer}>
+              <DropdownMenu
+                items={actionMenuItems}
+                triggerIcon="more-vert"
+                position="top-right"
+                disabled={disabled}
+                testID="admin-card-action-menu"
+              />
+            </ResponsiveView>
+          )}
         </ResponsiveView>
       )}
       
@@ -117,6 +134,9 @@ const styles = StyleSheet.create({
   },
   headerText: {
     flex: 1,
+  },
+  actionMenuContainer: {
+    marginLeft: ResponsiveSpacing.sm,
   },
   content: {
     flex: 1,

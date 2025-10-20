@@ -37,9 +37,8 @@ export {
 } from './useAdminStats';
 
 // Delivery hooks
-export {
-    useAssignOrder, useAvailableOrders, useDeliveryEarnings, useDeliveryLocation, useDeliveryStats, useMyDeliveryOrders, useUpdateDeliveryStatus
-} from './useDeliveryOrders';
+export { useDeliveryEarnings, useDeliveryOrders } from './useDeliveryOrders';
+export { useRiderProfile } from './useRiderProfile';
 
 // Responsive hook
 export { useResponsive } from './useResponsive';

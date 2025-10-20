@@ -3,6 +3,7 @@ import React from 'react';
 import { Image, StyleSheet, TouchableOpacity, View } from 'react-native';
 import Layout from '../../constants/Layout';
 import { useTheme } from '../../contexts/ThemeContext';
+import { getDetailedCustomizationDisplay } from '../../utils/customizationDisplay';
 import { ResponsiveText } from './ResponsiveText';
 import { ResponsiveView } from './ResponsiveView';
 
@@ -72,29 +73,21 @@ export const OrderSummaryCard: React.FC<OrderSummaryCardProps> = ({
           {item.quantity}x {item.product_name}
         </ResponsiveText>
         
-        {item.special_instructions && (
-          <ResponsiveText size="xs" color={colors.textSecondary} style={styles.itemNote}>
-            Note: {item.special_instructions}
-          </ResponsiveText>
-        )}
-        
-        {item.pizza_size && (
-          <ResponsiveText size="xs" color={colors.textSecondary}>
-            Size: {item.pizza_size}
-          </ResponsiveText>
-        )}
-        
-        {item.pizza_crust && (
-          <ResponsiveText size="xs" color={colors.textSecondary}>
-            Crust: {item.pizza_crust}
-          </ResponsiveText>
-        )}
-        
-        {item.toppings && item.toppings.length > 0 && (
-          <ResponsiveText size="xs" color={colors.textSecondary} numberOfLines={1}>
-            Toppings: {item.toppings.join(', ')}
-          </ResponsiveText>
-        )}
+        {/* Refined Customization Display */}
+        {(() => {
+          const customizationDisplay = getDetailedCustomizationDisplay(item);
+          return customizationDisplay && customizationDisplay.map((detail: any, index: number) => (
+            <ResponsiveText 
+              key={index}
+              size="xs" 
+              color={colors.textSecondary} 
+              style={detail.type === 'instructions' ? styles.itemNote : {}}
+              numberOfLines={detail.type === 'toppings' ? 1 : undefined}
+            >
+              {detail.label}: {detail.value}
+            </ResponsiveText>
+          ));
+        })()}
       </ResponsiveView>
       
       <ResponsiveText 

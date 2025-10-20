@@ -1,90 +1,28 @@
 import { MaterialIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import React, { useState } from 'react';
+import React from 'react';
 import {
   ActivityIndicator,
   Alert,
-  RefreshControl,
   ScrollView,
-  StyleSheet,
-  View
+  StyleSheet
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Button from '../../../components/ui/Button';
 import { ResponsiveText } from '../../../components/ui/ResponsiveText';
 import { ResponsiveView } from '../../../components/ui/ResponsiveView';
-import { Strings } from '../../../constants/Strings';
+import Layout from '../../../constants/Layout';
+import { ResponsiveBorderRadius, ResponsiveSpacing } from '../../../constants/Responsive';
 import { useTheme } from '../../../contexts/ThemeContext';
-import { useDeliveryEarnings, useDeliveryStats, useProfile } from '../../../hooks';
 import { useAuth } from '../../../hooks/useAuth';
+import { useRiderProfile } from '../../../hooks/useRiderProfile';
+import global from '../../../styles/global';
 
-interface DeliveryProfile {
-  id: string;
-  full_name: string;
-  email: string;
-  phone_number: string;
-  vehicle_type: string;
-  license_plate?: string;
-  is_available: boolean;
-  rating: number;
-  total_deliveries: number;
-  completed_deliveries: number;
-  total_earnings: number;
-  join_date: string;
-  last_active: string;
-}
-
-export default function DeliveryProfileScreen() {
+export default function RiderProfileScreen() {
   const { colors } = useTheme();
   const { user, signOut } = useAuth();
   const router = useRouter();
-  const [refreshing, setRefreshing] = useState(false);
-  
-  // Use real data from hooks
-  const { profile: userProfile, isLoading: profileLoading, refresh: refreshProfile } = useProfile(user?.id || '');
-  const { stats, isLoading: statsLoading, refresh: refreshStats } = useDeliveryStats();
-  const { earnings, isLoading: earningsLoading, refresh: refreshEarnings } = useDeliveryEarnings();
-
-  const loading = profileLoading || statsLoading || earningsLoading;
-
-  const handleRefresh = async () => {
-    setRefreshing(true);
-    try {
-      await Promise.all([
-        refreshProfile(),
-        refreshStats(),
-        refreshEarnings()
-      ]);
-    } catch (error) {
-      console.error('Error refreshing profile:', error);
-    } finally {
-      setRefreshing(false);
-    }
-  };
-
-  const handleToggleAvailability = async () => {
-    if (!userProfile) return;
-
-    Alert.alert(
-      'Toggle Availability',
-      `Are you sure you want to ${userProfile.is_active ? 'go offline' : 'go online'}?`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        { 
-          text: userProfile.is_active ? 'Go Offline' : 'Go Online', 
-          onPress: async () => {
-            try {
-              // TODO: Implement availability toggle in backend
-              Alert.alert('Success', `You are now ${!userProfile.is_active ? 'online' : 'offline'}!`);
-            } catch (error) {
-              console.error('Error updating availability:', error);
-              Alert.alert('Error', 'Failed to update availability. Please try again.');
-            }
-          }
-        }
-      ]
-    );
-  };
+  const { profile, stats, isLoading, error, toggleAvailability } = useRiderProfile();
 
   const handleSignOut = () => {
     Alert.alert(
@@ -92,295 +30,215 @@ export default function DeliveryProfileScreen() {
       'Are you sure you want to sign out?',
       [
         { text: 'Cancel', style: 'cancel' },
-        { 
-          text: 'Sign Out', 
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              await signOut();
-            } catch (error) {
-              console.error('Error signing out:', error);
-              Alert.alert('Error', 'Failed to sign out. Please try again.');
-            }
-          }
-        }
+        { text: 'Sign Out', style: 'destructive', onPress: signOut }
       ]
     );
   };
 
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric',
-    });
+  const handleToggleAvailability = async () => {
+    try {
+      await toggleAvailability();
+    } catch (error: any) {
+      Alert.alert('Error', error.message || 'Failed to update availability');
+    }
   };
 
-  if (loading) {
+  if (isLoading) {
     return (
-      <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={colors.primary} />
-          <ResponsiveView marginTop="md">
-            <ResponsiveText size="md" color={colors.textSecondary}>
-              {Strings.loading}
-            </ResponsiveText>
-          </ResponsiveView>
-        </View>
+      <SafeAreaView style={[global.screen, styles.center, { backgroundColor: colors.background }]}>
+        <ActivityIndicator size="large" color={colors.primary} />
+        <ResponsiveView marginTop="md">
+          <ResponsiveText size="md" color={colors.textSecondary}>
+            Loading profile...
+          </ResponsiveText>
+        </ResponsiveView>
+      </SafeAreaView>
+    );
+  }
+
+  if (error) {
+    return (
+      <SafeAreaView style={[global.screen, styles.center, { backgroundColor: colors.background }]}>
+        <MaterialIcons name="error-outline" size={48} color={colors.error} />
+        <ResponsiveView marginTop="md">
+          <ResponsiveText size="lg" color={colors.error} align="center">
+            Error loading profile
+          </ResponsiveText>
+        </ResponsiveView>
+        <ResponsiveView marginTop="sm">
+          <ResponsiveText size="md" color={colors.textSecondary} align="center">
+            {error}
+          </ResponsiveText>
+        </ResponsiveView>
+        <ResponsiveView marginTop="lg">
+          <Button
+            title="Retry"
+            onPress={() => window.location.reload()}
+            variant="primary"
+            size="medium"
+          />
+        </ResponsiveView>
       </SafeAreaView>
     );
   }
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
-      <ScrollView
-        style={styles.scrollView}
-        refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />
-        }
-      >
-        {/* Profile Header */}
-        <ResponsiveView style={[styles.profileHeader, { backgroundColor: colors.primary }]}>
-          <ResponsiveView style={styles.avatarContainer}>
-            <View style={[styles.avatar, { backgroundColor: colors.background }]}>
-              <MaterialIcons name="delivery-dining" size={40} color={colors.primary} />
-            </View>
-            <ResponsiveView 
-              style={[
-                styles.availabilityBadge, 
-                { backgroundColor: userProfile?.is_active ? colors.success : colors.error }
-              ]}
-            >
-              <MaterialIcons 
-                name={userProfile?.is_active ? 'check-circle' : 'cancel'} 
-                size={12} 
-                color={colors.background} 
-              />
-            </ResponsiveView>
-          </ResponsiveView>
-          
-          <ResponsiveText size="xl" weight="bold" color={colors.background}>
-            {userProfile?.full_name || 'Delivery Staff'}
-          </ResponsiveText>
-          <ResponsiveText size="md" color={colors.background} style={{ opacity: 0.9 }}>
-            {userProfile?.email || user?.email || 'No email'}
-          </ResponsiveText>
-          <ResponsiveText size="sm" color={colors.background} style={{ opacity: 0.8 }}>
-            Delivery Staff
-          </ResponsiveText>
-        </ResponsiveView>
-
-        <ResponsiveView style={styles.content}>
-          {/* Availability Status */}
-          <ResponsiveView style={[styles.statusCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-            <ResponsiveView style={styles.statusHeader}>
-              <MaterialIcons 
-                name={userProfile?.is_active ? 'online-prediction' : 'offline-bolt'} 
-                size={24} 
-                color={userProfile?.is_active ? colors.success : colors.error} 
-              />
-              <ResponsiveText size="lg" weight="semiBold" color={colors.text}>
-                {userProfile?.is_active ? 'Online' : 'Offline'}
-              </ResponsiveText>
-            </ResponsiveView>
-            <ResponsiveView marginBottom="md">
-              <ResponsiveText size="sm" color={colors.textSecondary}>
-                {userProfile?.is_active 
-                  ? 'You are currently available for deliveries'
-                  : 'You are currently offline and not receiving new orders'
-                }
-              </ResponsiveText>
-            </ResponsiveView>
+    <SafeAreaView style={[global.screen, { backgroundColor: colors.background }]} edges={['top']}>
+      <ScrollView showsVerticalScrollIndicator={false}>
+        <ResponsiveView padding="lg">
+          {/* Header */}
+          <ResponsiveView style={[styles.header, { backgroundColor: colors.surface }]}>
             <Button
-              title={userProfile?.is_active ? 'Go Offline' : 'Go Online'}
-              onPress={handleToggleAvailability}
-              variant={userProfile?.is_active ? 'outline' : 'primary'}
-              size="small"
+              title=""
+              onPress={() => router.back()}
+              variant="text"
+              icon={<MaterialIcons name="arrow-back" size={24} color={colors.primary} />}
             />
-          </ResponsiveView>
-
-          {/* Performance Stats */}
-          <ResponsiveView style={[styles.statsCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-            <ResponsiveView marginBottom="md">
-              <ResponsiveText size="lg" weight="semiBold" color={colors.text}>
-                Performance Stats
-              </ResponsiveText>
-            </ResponsiveView>
-            
-            <ResponsiveView style={styles.statsGrid}>
-              <ResponsiveView style={styles.statItem}>
-                <MaterialIcons name="star" size={20} color={colors.warning} />
-                <ResponsiveView marginLeft="sm">
-                  <ResponsiveText size="sm" color={colors.textSecondary}>
-                    Rating
-                  </ResponsiveText>
-                  <ResponsiveText size="md" weight="semiBold" color={colors.text}>
-                    {stats?.customerRating || 0}/5.0
-                  </ResponsiveText>
-                </ResponsiveView>
-              </ResponsiveView>
-
-              <ResponsiveView style={styles.statItem}>
-                <MaterialIcons name="delivery-dining" size={20} color={colors.primary} />
-                <ResponsiveView marginLeft="sm">
-                  <ResponsiveText size="sm" color={colors.textSecondary}>
-                    Total Deliveries
-                  </ResponsiveText>
-                  <ResponsiveText size="md" weight="semiBold" color={colors.text}>
-                    {stats?.totalDeliveries || 0}
-                  </ResponsiveText>
-                </ResponsiveView>
-              </ResponsiveView>
-
-              <ResponsiveView style={styles.statItem}>
-                <MaterialIcons name="check-circle" size={20} color={colors.success} />
-                <ResponsiveView marginLeft="sm">
-                  <ResponsiveText size="sm" color={colors.textSecondary}>
-                    Completed
-                  </ResponsiveText>
-                  <ResponsiveText size="md" weight="semiBold" color={colors.text}>
-                    {stats?.completedDeliveries || 0}
-                  </ResponsiveText>
-                </ResponsiveView>
-              </ResponsiveView>
-
-              <ResponsiveView style={styles.statItem}>
-                <MaterialIcons name="attach-money" size={20} color={colors.info} />
-                <ResponsiveView marginLeft="sm">
-                  <ResponsiveText size="sm" color={colors.textSecondary}>
-                    Total Earnings
-                  </ResponsiveText>
-                  <ResponsiveText size="md" weight="semiBold" color={colors.text}>
-                    ₱{(earnings?.total || 0).toFixed(2)}
-                  </ResponsiveText>
-                </ResponsiveView>
-              </ResponsiveView>
-            </ResponsiveView>
-          </ResponsiveView>
-
-          {/* Performance Summary */}
-          <ResponsiveView style={[styles.infoCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-            <ResponsiveView marginBottom="md">
-              <ResponsiveText size="lg" weight="semiBold" color={colors.text}>
-                Performance Summary
-              </ResponsiveText>
-            </ResponsiveView>
-            
-            <ResponsiveView style={styles.infoItem}>
-              <MaterialIcons name="schedule" size={20} color={colors.textSecondary} />
-              <ResponsiveView marginLeft="sm">
-                <ResponsiveText size="sm" color={colors.textSecondary}>
-                  Average Delivery Time
-                </ResponsiveText>
-                <ResponsiveText size="md" weight="medium" color={colors.text}>
-                  {stats?.averageDeliveryTime ? `${Math.round(stats.averageDeliveryTime)} min` : 'N/A'}
-                </ResponsiveText>
-              </ResponsiveView>
-            </ResponsiveView>
-
-            <ResponsiveView style={styles.infoItem}>
-              <MaterialIcons name="timer" size={20} color={colors.textSecondary} />
-              <ResponsiveView marginLeft="sm">
-                <ResponsiveText size="sm" color={colors.textSecondary}>
-                  On-Time Deliveries
-                </ResponsiveText>
-                <ResponsiveText size="md" weight="medium" color={colors.text}>
-                  {stats?.onTimeDeliveries || 0}
-                </ResponsiveText>
-              </ResponsiveView>
-            </ResponsiveView>
-          </ResponsiveView>
-
-          {/* Account Information */}
-          <ResponsiveView style={[styles.infoCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-            <ResponsiveView marginBottom="md">
-              <ResponsiveText size="lg" weight="semiBold" color={colors.text}>
-                Account Information
-              </ResponsiveText>
-            </ResponsiveView>
-            
-            <ResponsiveView style={styles.infoItem}>
-              <MaterialIcons name="person" size={20} color={colors.textSecondary} />
-              <ResponsiveView marginLeft="sm">
-                <ResponsiveText size="sm" color={colors.textSecondary}>
-                  Full Name
-                </ResponsiveText>
-                <ResponsiveText size="md" weight="medium" color={colors.text}>
-                  {userProfile?.full_name || 'N/A'}
-                </ResponsiveText>
-              </ResponsiveView>
-            </ResponsiveView>
-
-            <ResponsiveView style={styles.infoItem}>
-              <MaterialIcons name="email" size={20} color={colors.textSecondary} />
-              <ResponsiveView marginLeft="sm">
-                <ResponsiveText size="sm" color={colors.textSecondary}>
-                  Email
-                </ResponsiveText>
-                <ResponsiveText size="md" weight="medium" color={colors.text}>
-                  {userProfile?.email || user?.email || 'N/A'}
-                </ResponsiveText>
-              </ResponsiveView>
-            </ResponsiveView>
-
-            <ResponsiveView style={styles.infoItem}>
-              <MaterialIcons name="phone" size={20} color={colors.textSecondary} />
-              <ResponsiveView marginLeft="sm">
-                <ResponsiveText size="sm" color={colors.textSecondary}>
-                  Phone Number
-                </ResponsiveText>
-                <ResponsiveText size="md" weight="medium" color={colors.text}>
-                  {userProfile?.phone_number || 'N/A'}
-                </ResponsiveText>
-              </ResponsiveView>
-            </ResponsiveView>
-
-            <ResponsiveView style={styles.infoItem}>
-              <MaterialIcons name="calendar-today" size={20} color={colors.textSecondary} />
-              <ResponsiveView marginLeft="sm">
-                <ResponsiveText size="sm" color={colors.textSecondary}>
-                  Joined
-                </ResponsiveText>
-                <ResponsiveText size="md" weight="medium" color={colors.text}>
-                  {userProfile?.created_at ? formatDate(userProfile.created_at) : 'N/A'}
-                </ResponsiveText>
-              </ResponsiveView>
-            </ResponsiveView>
-          </ResponsiveView>
-
-          {/* Action Buttons */}
-          <ResponsiveView style={styles.actionsContainer}>
+            <ResponsiveText size="xl" weight="bold" color={colors.text}>
+              Profile
+            </ResponsiveText>
             <Button
-              title="Edit Profile"
-              onPress={() => router.push('/(delivery)/profile/edit' as any)}
-              variant="outline"
-              size="small"
-              icon={<MaterialIcons name="edit" size={16} color={colors.primary} />}
-            />
-            <Button
-              title="Settings"
-              onPress={() => router.push('/(delivery)/profile/settings' as any)}
-              variant="outline"
-              size="small"
-              icon={<MaterialIcons name="settings" size={16} color={colors.primary} />}
-            />
-            <Button
-              title="Help & Support"
-              onPress={() => router.push('/(delivery)/profile/help' as any)}
-              variant="outline"
-              size="small"
-              icon={<MaterialIcons name="help" size={16} color={colors.primary} />}
-            />
-          </ResponsiveView>
-
-          {/* Sign Out Button */}
-          <ResponsiveView style={styles.signOutContainer}>
-            <Button
-              title={Strings.signOut}
+              title="Sign Out"
               onPress={handleSignOut}
-              variant="danger"
-              icon={<MaterialIcons name="logout" size={16} color={colors.background} />}
+              variant="text"
+              size="small"
+              icon={<MaterialIcons name="logout" size={16} color={colors.error} />}
             />
+          </ResponsiveView>
+
+          {/* Profile Info */}
+          <ResponsiveView style={[styles.profileCard, { backgroundColor: colors.surface }]}>
+            <ResponsiveView style={styles.profileHeader}>
+              <ResponsiveView style={[styles.avatar, { backgroundColor: colors.primary + '20' }]}>
+                <MaterialIcons name="person" size={48} color={colors.primary} />
+              </ResponsiveView>
+              <ResponsiveView style={styles.profileInfo}>
+                <ResponsiveText size="lg" weight="bold" color={colors.text}>
+                  {profile?.profile?.full_name || 'Rider'}
+                </ResponsiveText>
+                <ResponsiveText size="md" color={colors.textSecondary}>
+                  {profile?.profile?.phone_number || 'No phone number'}
+                </ResponsiveText>
+                <ResponsiveView style={styles.availabilityContainer}>
+                  <ResponsiveView style={[
+                    styles.availabilityBadge, 
+                    { backgroundColor: profile?.is_available ? colors.success + '20' : colors.error + '20' }
+                  ]}>
+                    <MaterialIcons 
+                      name={profile?.is_available ? 'check-circle' : 'pause-circle'} 
+                      size={16} 
+                      color={profile?.is_available ? colors.success : colors.error} 
+                    />
+                    <ResponsiveView marginLeft="xs">
+                      <ResponsiveText 
+                        size="sm" 
+                        color={profile?.is_available ? colors.success : colors.error} 
+                        weight="medium"
+                      >
+                        {profile?.is_available ? 'Available' : 'Unavailable'}
+                      </ResponsiveText>
+                    </ResponsiveView>
+                  </ResponsiveView>
+                </ResponsiveView>
+              </ResponsiveView>
+            </ResponsiveView>
+            
+            <Button
+              title={profile?.is_available ? 'Set Unavailable' : 'Set Available'}
+              onPress={handleToggleAvailability}
+              variant="outline"
+              size="medium"
+              icon={<MaterialIcons name={profile?.is_available ? 'pause' : 'play-arrow'} size={16} color={colors.primary} />}
+            />
+          </ResponsiveView>
+
+          {/* Stats */}
+          <ResponsiveView style={styles.statsContainer}>
+            <ResponsiveView style={[styles.statCard, { backgroundColor: colors.surface }]}>
+              <MaterialIcons name="local-shipping" size={24} color={colors.primary} />
+              <ResponsiveView style={styles.statContent}>
+                <ResponsiveText size="lg" weight="bold" color={colors.text}>
+                  {stats.totalDeliveries}
+                </ResponsiveText>
+                <ResponsiveText size="sm" color={colors.textSecondary}>
+                  Total Deliveries
+                </ResponsiveText>
+              </ResponsiveView>
+            </ResponsiveView>
+
+            <ResponsiveView style={[styles.statCard, { backgroundColor: colors.surface }]}>
+              <MaterialIcons name="check-circle" size={24} color={colors.success} />
+              <ResponsiveView style={styles.statContent}>
+                <ResponsiveText size="lg" weight="bold" color={colors.text}>
+                  {stats.completedDeliveries}
+                </ResponsiveText>
+                <ResponsiveText size="sm" color={colors.textSecondary}>
+                  Completed
+                </ResponsiveText>
+              </ResponsiveView>
+            </ResponsiveView>
+          </ResponsiveView>
+
+          <ResponsiveView style={styles.statsContainer}>
+            <ResponsiveView style={[styles.statCard, { backgroundColor: colors.surface }]}>
+              <MaterialIcons name="attach-money" size={24} color={colors.warning} />
+              <ResponsiveView style={styles.statContent}>
+                <ResponsiveText size="lg" weight="bold" color={colors.text}>
+                  ₱{stats.todayEarnings.toFixed(2)}
+                </ResponsiveText>
+                <ResponsiveText size="sm" color={colors.textSecondary}>
+                  Today's Earnings
+                </ResponsiveText>
+              </ResponsiveView>
+            </ResponsiveView>
+
+            <ResponsiveView style={[styles.statCard, { backgroundColor: colors.surface }]}>
+              <MaterialIcons name="account-balance-wallet" size={24} color={colors.info} />
+              <ResponsiveView style={styles.statContent}>
+                <ResponsiveText size="lg" weight="bold" color={colors.text}>
+                  ₱{stats.totalEarnings.toFixed(2)}
+                </ResponsiveText>
+                <ResponsiveText size="sm" color={colors.textSecondary}>
+                  Total Earnings
+                </ResponsiveText>
+              </ResponsiveView>
+            </ResponsiveView>
+          </ResponsiveView>
+
+          {/* Rider Details */}
+          <ResponsiveView style={[styles.detailsCard, { backgroundColor: colors.surface }]}>
+            <ResponsiveView marginBottom="md">
+              <ResponsiveText size="lg" weight="bold" color={colors.text}>
+                Rider Details
+              </ResponsiveText>
+            </ResponsiveView>
+            
+            <ResponsiveView style={styles.detailRow}>
+              <ResponsiveText size="md" color={colors.textSecondary}>
+                Vehicle Number:
+              </ResponsiveText>
+              <ResponsiveText size="md" color={colors.text}>
+                {profile?.vehicle_number || 'Not set'}
+              </ResponsiveText>
+            </ResponsiveView>
+            
+            <ResponsiveView style={styles.detailRow}>
+              <ResponsiveText size="md" color={colors.textSecondary}>
+                Joined:
+              </ResponsiveText>
+              <ResponsiveText size="md" color={colors.text}>
+                {profile?.created_at ? new Date(profile.created_at).toLocaleDateString() : 'Unknown'}
+              </ResponsiveText>
+            </ResponsiveView>
+            
+            <ResponsiveView style={styles.detailRow}>
+              <ResponsiveText size="md" color={colors.textSecondary}>
+                Last Updated:
+              </ResponsiveText>
+              <ResponsiveText size="md" color={colors.text}>
+                {profile?.updated_at ? new Date(profile.updated_at).toLocaleDateString() : 'Unknown'}
+              </ResponsiveText>
+            </ResponsiveView>
           </ResponsiveView>
         </ResponsiveView>
       </ScrollView>
@@ -389,24 +247,29 @@ export default function DeliveryProfileScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  loadingContainer: {
-    flex: 1,
+  center: {
     justifyContent: 'center',
     alignItems: 'center',
   },
-  scrollView: {
-    flex: 1,
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: ResponsiveSpacing.xl,
+    padding: ResponsiveSpacing.md,
+    borderRadius: ResponsiveBorderRadius.lg,
+    ...Layout.shadows.sm,
+  },
+  profileCard: {
+    padding: ResponsiveSpacing.lg,
+    borderRadius: ResponsiveBorderRadius.lg,
+    marginBottom: ResponsiveSpacing.xl,
+    ...Layout.shadows.sm,
   },
   profileHeader: {
-    padding: 24,
+    flexDirection: 'row',
     alignItems: 'center',
-  },
-  avatarContainer: {
-    position: 'relative',
-    marginBottom: 16,
+    marginBottom: ResponsiveSpacing.lg,
   },
   avatar: {
     width: 80,
@@ -414,65 +277,47 @@ const styles = StyleSheet.create({
     borderRadius: 40,
     justifyContent: 'center',
     alignItems: 'center',
+    marginRight: ResponsiveSpacing.md,
+  },
+  profileInfo: {
+    flex: 1,
+  },
+  availabilityContainer: {
+    marginTop: ResponsiveSpacing.sm,
   },
   availabilityBadge: {
-    position: 'absolute',
-    bottom: 0,
-    right: 0,
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 2,
-    borderColor: 'white',
-  },
-  content: {
-    padding: 20,
-  },
-  statusCard: {
-    padding: 16,
-    borderRadius: 12,
-    borderWidth: 1,
-    marginBottom: 20,
-  },
-  statusHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 8,
-    gap: 8,
+    alignSelf: 'flex-start',
+    paddingHorizontal: ResponsiveSpacing.sm,
+    paddingVertical: ResponsiveSpacing.xs,
+    borderRadius: ResponsiveBorderRadius.sm,
   },
-  statsCard: {
-    padding: 16,
-    borderRadius: 12,
-    borderWidth: 1,
-    marginBottom: 20,
+  statsContainer: {
+    flexDirection: 'row',
+    gap: ResponsiveSpacing.md,
+    marginBottom: ResponsiveSpacing.lg,
   },
-  statsGrid: {
-    gap: 16,
-  },
-  statItem: {
+  statCard: {
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
+    padding: ResponsiveSpacing.md,
+    borderRadius: ResponsiveBorderRadius.lg,
+    ...Layout.shadows.sm,
   },
-  infoCard: {
-    padding: 16,
-    borderRadius: 12,
-    borderWidth: 1,
-    marginBottom: 20,
+  statContent: {
+    marginLeft: ResponsiveSpacing.md,
   },
-  infoItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 16,
+  detailsCard: {
+    padding: ResponsiveSpacing.lg,
+    borderRadius: ResponsiveBorderRadius.lg,
+    ...Layout.shadows.sm,
   },
-  actionsContainer: {
+  detailRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginBottom: 20,
-    gap: 8,
-  },
-  signOutContainer: {
-    marginTop: 20,
+    alignItems: 'center',
+    paddingVertical: ResponsiveSpacing.sm,
   },
 });

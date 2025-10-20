@@ -141,10 +141,39 @@ export default function CartScreen() {
             marginBottom="xs"
           >
             <TouchableOpacity 
-              onPress={() => updateQuantity(item.id, item.quantity - 1)}
-              style={styles.quantityButton}
+              onPress={() => {
+                if (item.quantity <= 1) {
+                  // Show alert when trying to decrease below 1
+                  Alert.alert(
+                    'Remove Item',
+                    `Are you sure you want to remove ${item.product_name} from your cart?`,
+                    [
+                      {
+                        text: 'Cancel',
+                        style: 'cancel',
+                      },
+                      {
+                        text: 'Remove',
+                        style: 'destructive',
+                        onPress: () => removeItem(item.id),
+                      },
+                    ]
+                  );
+                } else {
+                  updateQuantity(item.id, item.quantity - 1);
+                }
+              }}
+              style={[
+                styles.quantityButton,
+                item.quantity <= 1 && { opacity: 0.5 }
+              ]}
+              disabled={item.quantity <= 1}
             >
-              <MaterialIcons name="remove" size={16} color={colors.text} />
+              <MaterialIcons 
+                name="remove" 
+                size={16} 
+                color={item.quantity <= 1 ? colors.textSecondary : colors.text} 
+              />
             </TouchableOpacity>
             <ResponsiveView paddingHorizontal="md">
               <ResponsiveText size="sm" weight="semiBold" color={colors.text}>

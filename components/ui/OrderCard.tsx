@@ -93,45 +93,7 @@ const formatOrderDate = (dateString: string): string => {
   }
 };
 
-// Helper function to extract pizza details from customization_details
-const getPizzaDetails = (orderItem: any): string | null => {
-  if (!orderItem.customization_details) return null;
-  
-  try {
-    const details = typeof orderItem.customization_details === 'string' 
-      ? JSON.parse(orderItem.customization_details) 
-      : orderItem.customization_details;
-    
-    const parts = [];
-    if (details.size) parts.push(details.size);
-    if (details.crust) parts.push(details.crust);
-    
-    return parts.length > 0 ? parts.join(' • ') : null;
-  } catch (error) {
-    console.warn('Error parsing customization_details:', error);
-    return null;
-  }
-};
-
-// Helper function to extract pizza toppings from customization_details
-const getPizzaToppings = (orderItem: any): string | null => {
-  if (!orderItem.customization_details) return null;
-  
-  try {
-    const details = typeof orderItem.customization_details === 'string' 
-      ? JSON.parse(orderItem.customization_details) 
-      : orderItem.customization_details;
-    
-    if (details.toppings && Array.isArray(details.toppings) && details.toppings.length > 0) {
-      return details.toppings.join(', ');
-    }
-    
-    return null;
-  } catch (error) {
-    console.warn('Error parsing customization_details for toppings:', error);
-    return null;
-  }
-};
+import { getCompactCustomizationDisplay } from '../../utils/customizationDisplay';
 
 export const OrderCard: React.FC<OrderCardProps> = ({
   order,
@@ -153,6 +115,9 @@ export const OrderCard: React.FC<OrderCardProps> = ({
   const statusColor = getStatusColor(order.status, colors);
   const statusIcon = getStatusIcon(order.status);
   const orderTime = formatOrderDate(order.created_at);
+  const deliveredTime = (order as any).actual_delivery_time
+    ? formatOrderDate((order as any).actual_delivery_time)
+    : null;
   const displayOrderNumber = (order as any).order_number || (order.id ? order.id.slice(-8) : '');
   
   // Get the first item's image or use a default
@@ -241,23 +206,19 @@ export const OrderCard: React.FC<OrderCardProps> = ({
       )}
 
       <ResponsiveView style={styles.orderItems}>
-        {order.items?.slice(0, 3).map((orderItem, index: number) => (
-          <ResponsiveView key={index} style={styles.orderItem}>
-            <ResponsiveView style={styles.orderItemLeft}>
-               <ResponsiveText size="sm" color={colors.textSecondary}>
-                 {orderItem.quantity}x {orderItem.product_name}
-                 {getPizzaDetails(orderItem) && (
-                   ` • ${getPizzaDetails(orderItem)}`
-                 )}
-               </ResponsiveText>
-               {getPizzaToppings(orderItem) && (
-                 <ResponsiveText size="xs" color={colors.textTertiary} numberOfLines={1}>
-                   Toppings: {getPizzaToppings(orderItem)}
-                 </ResponsiveText>
-               )}
+        {order.items?.slice(0, 3).map((orderItem, index: number) => {
+          const customizationDisplay = getCompactCustomizationDisplay(orderItem);
+          return (
+            <ResponsiveView key={index} style={styles.orderItem}>
+              <ResponsiveView style={styles.orderItemLeft}>
+                <ResponsiveText size="sm" color={colors.textSecondary}>
+                  {orderItem.quantity}x {orderItem.product_name}
+                  {customizationDisplay && ` • ${customizationDisplay}`}
+                </ResponsiveText>
+              </ResponsiveView>
             </ResponsiveView>
-          </ResponsiveView>
-        )) || (
+          );
+        }) || (
           <ResponsiveText size="sm" color={colors.textSecondary}>
             No items found
           </ResponsiveText>
@@ -273,9 +234,15 @@ export const OrderCard: React.FC<OrderCardProps> = ({
       <ResponsiveView style={styles.orderFooter}>
         <ResponsiveView style={styles.timeInfo}>
           <MaterialIcons name="access-time" size={16} color={colors.textSecondary} />
-          <ResponsiveText size="sm" color={colors.textSecondary}>
-            {orderTime}
-          </ResponsiveText>
+          {order.status === 'delivered' && deliveredTime ? (
+            <ResponsiveText size="sm" color={colors.textSecondary}>
+              Delivered at • {deliveredTime}
+            </ResponsiveText>
+          ) : (
+            <ResponsiveText size="sm" color={colors.textSecondary}>
+              Placed at • {orderTime}
+            </ResponsiveText>
+          )}
         </ResponsiveView>
         <ResponsiveView style={styles.totalContainer}>
           <ResponsiveText size="sm" color={colors.textSecondary}>Total:</ResponsiveText>
@@ -380,15 +347,11 @@ export const OrderCard: React.FC<OrderCardProps> = ({
             <ResponsiveView style={styles.orderItemLeft}>
               <ResponsiveText size="sm" color={colors.textSecondary} numberOfLines={1}>
                 {orderItem.quantity}x {orderItem.product_name}
-                {getPizzaDetails(orderItem) && (
-                  ` • ${getPizzaDetails(orderItem)}`
-                )}
+                {(() => {
+                  const customizationDisplay = getCompactCustomizationDisplay(orderItem);
+                  return customizationDisplay && ` • ${customizationDisplay}`;
+                })()}
               </ResponsiveText>
-              {getPizzaToppings(orderItem) && (
-                <ResponsiveText size="xs" color={colors.textTertiary} numberOfLines={1}>
-                  Toppings: {getPizzaToppings(orderItem)}
-                </ResponsiveText>
-              )}
               {orderItem.special_instructions && (
                 <ResponsiveText size="xs" color={colors.textTertiary} numberOfLines={1}>
                   Note: {orderItem.special_instructions}
@@ -411,9 +374,15 @@ export const OrderCard: React.FC<OrderCardProps> = ({
       <ResponsiveView style={styles.orderFooter}>
         <ResponsiveView style={styles.timeInfo}>
           <MaterialIcons name="access-time" size={16} color={colors.textSecondary} />
-          <ResponsiveText size="sm" color={colors.textSecondary}>
-            {orderTime}
-          </ResponsiveText>
+          {order.status === 'delivered' && deliveredTime ? (
+            <ResponsiveText size="sm" color={colors.textSecondary}>
+              Delivered at • {deliveredTime}
+            </ResponsiveText>
+          ) : (
+            <ResponsiveText size="sm" color={colors.textSecondary}>
+              Placed at • {orderTime}
+            </ResponsiveText>
+          )}
         </ResponsiveView>
         <ResponsiveView style={styles.totalContainer}>
           <ResponsiveText size="sm" color={colors.textSecondary}>Total:</ResponsiveText>

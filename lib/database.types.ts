@@ -471,6 +471,29 @@ export interface RiderDashboard {
   totalEarnings: number;
 }
 
+// Image Metadata Type
+export interface ImageMetadata {
+  id: string;
+  order_id: string;
+  type: 'payment_proof' | 'delivery_proof';
+  url: string;
+  thumbnail_url?: string;
+  uploaded_by: string;
+  uploaded_at: string;
+  metadata: {
+    size: number;
+    width: number;
+    height: number;
+    format: string;
+    originalName: string;
+  };
+  verified: boolean;
+  verified_by?: string;
+  verified_at?: string;
+  created_at: string;
+  updated_at: string;
+}
+
 // Database Tables
 export type Tables = {
   users: User;
@@ -490,6 +513,7 @@ export type Tables = {
   order_notes: OrderNote;
   saved_products: SavedProduct;
   notifications: Notification;
+  image_metadata: ImageMetadata;
 };
 
 export type TableName = keyof Tables;

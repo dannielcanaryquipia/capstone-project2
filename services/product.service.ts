@@ -18,6 +18,7 @@ export class ProductService {
           name,
           description,
           base_price,
+          image_url,
           category_id,
           is_available,
           is_recommended,
@@ -40,7 +41,7 @@ export class ProductService {
       }
 
       if (filters?.search) {
-        query = query.or(`name.ilike.%${filters.search}%,description.ilike.%${filters.search}%`);
+        query = query.or(`name.ilike.%${filters.search}%,description.ilike.%${filters.search}%,categories.name.ilike.%${filters.search}%`);
       }
 
       if (filters?.price_min) {
@@ -55,8 +56,12 @@ export class ProductService {
 
       if (error) throw error;
 
-      // Ensure backward-compat price field
-      const products = (data || []).map((p: any) => ({ ...p, price: p.base_price }));
+      // Ensure backward-compat price field and map categories to category
+      const products = (data || []).map((p: any) => ({ 
+        ...p, 
+        price: p.base_price,
+        category: p.categories ? { name: p.categories.name } : null
+      }));
       return products as Product[];
     } catch (error) {
       console.error('Error fetching products (lite):', error);
@@ -93,7 +98,7 @@ export class ProductService {
       }
 
       if (filters?.search) {
-        query = query.or(`name.ilike.%${filters.search}%,description.ilike.%${filters.search}%`);
+        query = query.or(`name.ilike.%${filters.search}%,description.ilike.%${filters.search}%,categories.name.ilike.%${filters.search}%`);
       }
 
       if (filters?.price_min) {
@@ -434,7 +439,7 @@ export class ProductService {
             crust_id
           )
         `)
-        .or(`name.ilike.%${query}%,description.ilike.%${query}%`)
+        .or(`name.ilike.%${query}%,description.ilike.%${query}%,categories.name.ilike.%${query}%`)
         .eq('is_available', true)
         .order('name', { ascending: true });
 

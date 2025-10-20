@@ -65,11 +65,6 @@ export default function NotificationScreen() {
   const { colors, isDark } = useTheme();
   const router = useRouter();
 
-  // Debug logging
-  console.log('NotificationScreen - notifications:', notifications.length);
-  console.log('NotificationScreen - unreadCount:', unreadCount);
-  console.log('NotificationScreen - isLoading:', isLoading);
-  console.log('NotificationScreen - error:', error);
 
   const handleNotificationPress = useCallback(async (notification: Notification) => {
     if (!notification.is_read) {
@@ -97,6 +92,7 @@ export default function NotificationScreen() {
   const handleRefresh = useCallback(async () => {
     await refresh();
   }, [refresh]);
+
 
   if (isLoading) {
     return (
@@ -138,11 +134,13 @@ export default function NotificationScreen() {
           </TouchableOpacity>
           <Text style={[styles.headerTitle, { color: colors.text }]}>Notifications</Text>
         </View>
-        {notifications.length > 0 && unreadCount > 0 && (
-          <TouchableOpacity onPress={handleMarkAllAsRead} style={[styles.markAllButton, { backgroundColor: colors.primary }]}>
-            <Text style={[styles.markAllButtonText, { color: colors.textInverse }]}>Mark All Read</Text>
-          </TouchableOpacity>
-        )}
+        <View style={styles.headerRight}>
+          {notifications.length > 0 && unreadCount > 0 && (
+            <TouchableOpacity onPress={handleMarkAllAsRead} style={[styles.markAllButton, { backgroundColor: colors.primary }]}>
+              <Text style={[styles.markAllButtonText, { color: colors.textInverse }]}>Mark All Read</Text>
+            </TouchableOpacity>
+          )}
+        </View>
       </View>
 
       {/* Unread Count Info */}
@@ -237,6 +235,11 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     flex: 1,
+  },
+  headerRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
   },
   backButton: {
     width: 40,

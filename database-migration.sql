@@ -1,3 +1,18 @@
+-- Add proof_of_delivery_url to orders if missing
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1
+    FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name   = 'orders'
+      AND column_name  = 'proof_of_delivery_url'
+  ) THEN
+    ALTER TABLE public.orders
+      ADD COLUMN proof_of_delivery_url text;
+  END IF;
+END $$;
+
 -- Database Migration for AI Recommendations and Payment Verification
 -- Run this in your Supabase SQL Editor
 

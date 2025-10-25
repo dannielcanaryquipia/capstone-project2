@@ -351,9 +351,6 @@ export default function CheckoutScreen() {
         <CheckoutHeader
           title="Checkout"
           onBack={() => router.back()}
-          showProgress
-          currentStep={1}
-          totalSteps={3}
         />
       </ResponsiveView>
 

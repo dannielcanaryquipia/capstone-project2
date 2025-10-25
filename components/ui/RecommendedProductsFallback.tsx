@@ -87,7 +87,8 @@ export default function RecommendedProductsFallback({
   };
 
   const handleClearSearch = () => {
-    router.push('/(customer)/menu');
+    // Navigate to menu page and clear search state
+    router.replace('/(customer)/menu');
   };
 
   // Always show the fallback, even if no recommended products

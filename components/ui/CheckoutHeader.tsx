@@ -1,10 +1,10 @@
 import { MaterialIcons } from '@expo/vector-icons';
 import React from 'react';
 import { StyleSheet, TouchableOpacity, View } from 'react-native';
+import Layout from '../../constants/Layout';
 import { useTheme } from '../../contexts/ThemeContext';
 import { ResponsiveText } from './ResponsiveText';
 import { ResponsiveView } from './ResponsiveView';
-import Layout from '../../constants/Layout';
 
 interface CheckoutHeaderProps {
   title: string;
@@ -14,22 +14,14 @@ interface CheckoutHeaderProps {
     onPress: () => void;
     accessibilityLabel?: string;
   };
-  showProgress?: boolean;
-  currentStep?: number;
-  totalSteps?: number;
 }
 
 export const CheckoutHeader: React.FC<CheckoutHeaderProps> = ({
   title,
   onBack,
   rightAction,
-  showProgress = false,
-  currentStep = 1,
-  totalSteps = 3,
 }) => {
   const { colors } = useTheme();
-
-  const progressPercentage = (currentStep / totalSteps) * 100;
 
   return (
     <ResponsiveView style={[styles.container, { backgroundColor: colors.background }]}>
@@ -46,11 +38,6 @@ export const CheckoutHeader: React.FC<CheckoutHeaderProps> = ({
           <ResponsiveText size="lg" weight="semiBold" color={colors.text}>
             {title}
           </ResponsiveText>
-          {showProgress && (
-            <ResponsiveText size="xs" color={colors.textSecondary} style={styles.progressText}>
-              Step {currentStep} of {totalSteps}
-            </ResponsiveText>
-          )}
         </ResponsiveView>
         
         <View style={styles.rightContainer}>
@@ -67,22 +54,6 @@ export const CheckoutHeader: React.FC<CheckoutHeaderProps> = ({
           )}
         </View>
       </ResponsiveView>
-      
-      {showProgress && (
-        <ResponsiveView style={styles.progressContainer}>
-          <View style={[styles.progressBar, { backgroundColor: colors.border }]}>
-            <View 
-              style={[
-                styles.progressFill, 
-                { 
-                  backgroundColor: colors.primary,
-                  width: `${progressPercentage}%`
-                }
-              ]} 
-            />
-          </View>
-        </ResponsiveView>
-      )}
     </ResponsiveView>
   );
 };
@@ -112,9 +83,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginHorizontal: Layout.spacing.md,
   },
-  progressText: {
-    marginTop: Layout.spacing.xs,
-  },
   rightContainer: {
     width: 40,
     alignItems: 'flex-end',
@@ -129,18 +97,5 @@ const styles = StyleSheet.create({
   placeholder: {
     width: 40,
     height: 40,
-  },
-  progressContainer: {
-    paddingHorizontal: Layout.spacing.lg,
-    paddingBottom: Layout.spacing.sm,
-  },
-  progressBar: {
-    height: 4,
-    borderRadius: 2,
-    overflow: 'hidden',
-  },
-  progressFill: {
-    height: '100%',
-    borderRadius: 2,
   },
 });

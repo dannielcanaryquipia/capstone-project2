@@ -1,6 +1,6 @@
 import { MaterialIcons } from '@expo/vector-icons';
 import React from 'react';
-import { Modal, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Modal, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { useTheme } from '../../contexts/ThemeContext';
 import { ResponsiveText } from './ResponsiveText';
 import { ResponsiveView } from './ResponsiveView';
@@ -71,19 +71,6 @@ export const CartNotification: React.FC<CartNotificationProps> = ({
           {/* Action Buttons */}
           <View style={styles.buttonContainer}>
             <TouchableOpacity
-              style={[styles.button, styles.continueButton, { borderColor: colors.border }]}
-              onPress={onContinueShopping}
-            >
-              <ResponsiveText 
-                style={[styles.continueButtonText, { color: colors.text }]}
-                size="md"
-                weight="medium"
-              >
-                Continue Shopping
-              </ResponsiveText>
-            </TouchableOpacity>
-
-            <TouchableOpacity
               style={[styles.button, styles.cartButton, { backgroundColor: colors.primary }]}
               onPress={onGoToCart}
             >
@@ -94,6 +81,19 @@ export const CartNotification: React.FC<CartNotificationProps> = ({
                 weight="semiBold"
               >
                 Go to Cart
+              </ResponsiveText>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.button, styles.continueButton, { borderColor: colors.border }]}
+              onPress={onContinueShopping}
+            >
+              <ResponsiveText 
+                style={[styles.continueButtonText, { color: colors.text }]}
+                size="md"
+                weight="medium"
+              >
+                Continue Shopping
               </ResponsiveText>
             </TouchableOpacity>
           </View>

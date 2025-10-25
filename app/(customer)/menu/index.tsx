@@ -1,7 +1,8 @@
 import { MaterialIcons } from '@expo/vector-icons';
+import { useFocusEffect } from '@react-navigation/native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { FlatList, StyleSheet, TextInput, TouchableOpacity } from 'react-native';
+import { BackHandler, FlatList, StyleSheet, TextInput, TouchableOpacity } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import ProductCard from '../../../components/ui/ProductCard';
 import RecommendedProductsFallback from '../../../components/ui/RecommendedProductsFallback';
@@ -88,6 +89,24 @@ export default function MenuScreen() {
     didInitFromParamsRef.current = true;
   }, [category, search, allCategories]);
 
+  // Handle back button to prevent going back to "no products found" state
+  useFocusEffect(
+    useCallback(() => {
+      const onBackPress = () => {
+        // If there's a search query, clear it instead of going back
+        if (searchQuery.trim().length > 0) {
+          setSearchQuery('');
+          return true; // Prevent default back behavior
+        }
+        // If no search query, allow normal back navigation to home
+        return false; // Allow default back behavior
+      };
+
+      const subscription = BackHandler.addEventListener('hardwareBackPress', onBackPress);
+      return () => subscription.remove();
+    }, [searchQuery])
+  );
+
   // Enhanced search and filtering logic
   const filteredItems = useMemo(() => {
     // Early return if no products
@@ -148,9 +167,9 @@ export default function MenuScreen() {
 
   const handleClearSearch = useCallback(() => {
     setSearchQuery('');
-    // Navigate to homepage when search is cleared to prevent back navigation issues
-    router.replace('/(customer)/(tabs)/' as any);
-  }, [router]);
+    // Stay on menu page when search is cleared
+    // No navigation needed as we're already on the menu page
+  }, []);
 
   const handleSearchSubmit = useCallback(() => {
     // Search is handled automatically by the filteredItems memo
@@ -197,8 +216,13 @@ export default function MenuScreen() {
       >
         <TouchableOpacity
           onPress={() => {
-            // Always go to homepage instead of using router.back()
-            router.replace('/(customer)/(tabs)/' as any);
+            // If there's a search query, clear it first
+            if (searchQuery.trim().length > 0) {
+              setSearchQuery('');
+            } else {
+              // If no search query, go to homepage
+              router.replace('/(customer)/(tabs)/' as any);
+            }
           }}
           style={{ marginRight: Responsive.ResponsiveSpacing.sm, padding: Responsive.responsiveValue(4, 6, 8, 10) }}
           hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}

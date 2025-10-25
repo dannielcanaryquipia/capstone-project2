@@ -1,17 +1,11 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { Tabs } from 'expo-router';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import BottomTabBar from '../../../components/ui/BottomTabBar';
 import Layout from '../../../constants/Layout';
 import { useTheme } from '../../../contexts/ThemeContext';
 
 export default function TabLayout() {
   const { colors } = useTheme();
-  const insets = useSafeAreaInsets();
-  
-  // Calculate dynamic tab bar height based on safe area
-  const bottomPadding = Math.max(insets.bottom, 8);
-  const tabBarHeight = 60 + bottomPadding;
 
   return (
     <Tabs
@@ -22,9 +16,6 @@ export default function TabLayout() {
           backgroundColor: colors.background,
           borderTopWidth: 1,
           borderTopColor: colors.border,
-          height: tabBarHeight,
-          paddingTop: 8,
-          paddingBottom: bottomPadding,
         },
         tabBarLabelStyle: {
           fontSize: 12,

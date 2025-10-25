@@ -17,7 +17,7 @@ import { ResponsiveView } from '../../../components/ui/ResponsiveView';
 import { Strings } from '../../../constants/Strings';
 import { useTheme } from '../../../contexts/ThemeContext';
 import { useAuth } from '../../../hooks/useAuth';
-import { supabase } from '../../../lib/supabase';
+import { RiderService } from '../../../services/rider.service';
 
 interface EarningsData {
   totalEarnings: number;
@@ -25,10 +25,10 @@ interface EarningsData {
   lastWeek: number;
   thisMonth: number;
   lastMonth: number;
+  todayEarnings: number;
   totalDeliveries: number;
   completedDeliveries: number;
   averageEarningPerDelivery: number;
-  rating: number;
   weeklyBreakdown: Array<{
     day: string;
     earnings: number;
@@ -67,131 +67,44 @@ export default function EarningsScreen() {
         return;
       }
 
-      // Fetch real earnings data from the database
-      const { data: assignments, error } = await supabase
-        .from('delivery_assignments')
-        .select(`
-          *,
-          order:orders(
-            id,
-            order_number,
-            total_amount,
-            status,
-            created_at,
-            delivered_at
-          )
-        `)
-        .eq('rider_id', user.id)
-        .eq('status', 'Delivered')
-        .order('delivered_at', { ascending: false });
-
-      if (error) throw error;
-
-      const deliveredAssignments = assignments || [];
-      
-      // Calculate earnings (assuming 10% of order total as delivery fee)
-      const deliveryFeeRate = 0.1;
-      const earnings = deliveredAssignments.map((assignment: any) => ({
-        id: assignment.id,
-        orderNumber: assignment.order?.order_number || 'N/A',
-        earnings: (assignment.order?.total_amount || 0) * deliveryFeeRate,
-        date: assignment.delivered_at || assignment.order?.created_at || '',
-        status: 'completed',
-        orderId: assignment.order?.id || '',
-      }));
-
-      // Calculate time-based earnings
-      const now = new Date();
-      const thisWeekStart = new Date(now.setDate(now.getDate() - now.getDay()));
-      const lastWeekStart = new Date(thisWeekStart.getTime() - 7 * 24 * 60 * 60 * 1000);
-      const thisMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
-      const lastMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-
-      const thisWeekEarnings = earnings
-        .filter(e => new Date(e.date) >= thisWeekStart)
-        .reduce((sum, e) => sum + e.earnings, 0);
-
-      const lastWeekEarnings = earnings
-        .filter(e => {
-          const date = new Date(e.date);
-          return date >= lastWeekStart && date < thisWeekStart;
-        })
-        .reduce((sum, e) => sum + e.earnings, 0);
-
-      const thisMonthEarnings = earnings
-        .filter(e => new Date(e.date) >= thisMonthStart)
-        .reduce((sum, e) => sum + e.earnings, 0);
-
-      const lastMonthEarnings = earnings
-        .filter(e => {
-          const date = new Date(e.date);
-          return date >= lastMonthStart && date < thisMonthStart;
-        })
-        .reduce((sum, e) => sum + e.earnings, 0);
-
-      const totalEarnings = earnings.reduce((sum, e) => sum + e.earnings, 0);
-      const totalDeliveries = deliveredAssignments.length;
-      const completedDeliveries = deliveredAssignments.length;
-      const averageEarningPerDelivery = totalDeliveries > 0 ? totalEarnings / totalDeliveries : 0;
-
-      // Generate weekly breakdown
-      const weeklyBreakdown = [];
-      const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-      for (let i = 0; i < 7; i++) {
-        const dayStart = new Date(thisWeekStart.getTime() + i * 24 * 60 * 60 * 1000);
-        const dayEnd = new Date(dayStart.getTime() + 24 * 60 * 60 * 1000);
-        
-        const dayEarnings = earnings
-          .filter(e => {
-            const date = new Date(e.date);
-            return date >= dayStart && date < dayEnd;
-          })
-          .reduce((sum, e) => sum + e.earnings, 0);
-
-        const dayDeliveries = earnings
-          .filter(e => {
-            const date = new Date(e.date);
-            return date >= dayStart && date < dayEnd;
-          }).length;
-
-        weeklyBreakdown.push({
-          day: days[i],
-          earnings: dayEarnings,
-          deliveries: dayDeliveries,
-        });
+      // Get or create rider profile
+      let rider = await RiderService.getRiderProfile(user.id);
+      if (!rider) {
+        rider = await RiderService.createRiderProfile(user.id);
       }
 
-      const realData: EarningsData = {
-        totalEarnings,
-        thisWeek: thisWeekEarnings,
-        lastWeek: lastWeekEarnings,
-        thisMonth: thisMonthEarnings,
-        lastMonth: lastMonthEarnings,
-        totalDeliveries,
-        completedDeliveries,
-        averageEarningPerDelivery,
-        rating: 4.8, // Keep mock rating for now
-        weeklyBreakdown,
-        recentDeliveries: earnings.slice(0, 10), // Show last 10 deliveries
-      };
+      if (!rider?.id) {
+        throw new Error('Failed to get or create rider profile');
+      }
+
+      console.log('Loading earnings for rider:', rider.id);
+
+      // Get earnings data using the service
+      const earningsData = await RiderService.getRiderEarnings(rider.id);
+      
+      console.log('Earnings data loaded:', earningsData);
+
+        const realData: EarningsData = {
+          ...earningsData,
+        };
       
       setEarningsData(realData);
     } catch (error) {
       console.error('Error loading earnings data:', error);
       // Fallback to empty data on error
-      setEarningsData({
-        totalEarnings: 0,
-        thisWeek: 0,
-        lastWeek: 0,
-        thisMonth: 0,
-        lastMonth: 0,
-        totalDeliveries: 0,
-        completedDeliveries: 0,
-        averageEarningPerDelivery: 0,
-        rating: 0,
-        weeklyBreakdown: [],
-        recentDeliveries: [],
-      });
+        setEarningsData({
+          totalEarnings: 0,
+          thisWeek: 0,
+          lastWeek: 0,
+          thisMonth: 0,
+          lastMonth: 0,
+          todayEarnings: 0,
+          totalDeliveries: 0,
+          completedDeliveries: 0,
+          averageEarningPerDelivery: 0,
+          weeklyBreakdown: [],
+          recentDeliveries: [],
+        });
     } finally {
       setLoading(false);
     }
@@ -216,7 +129,7 @@ export default function EarningsScreen() {
 
   const getCurrentEarnings = () => {
     switch (activeTab) {
-      case 'Today': return (earningsData?.thisWeek || 0) / 7; // Approximate daily
+      case 'Today': return earningsData?.todayEarnings || 0;
       case 'This Week': return earningsData?.thisWeek || 0;
       case 'This Month': return earningsData?.thisMonth || 0;
       case 'All Time': return earningsData?.totalEarnings || 0;
@@ -340,6 +253,53 @@ export default function EarningsScreen() {
     );
   }
 
+  // Show empty state if no earnings data
+  if (!earningsData || earningsData.totalDeliveries === 0) {
+    return (
+      <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
+        <ResponsiveView style={styles.header}>
+          <ResponsiveText size="xl" weight="bold" color={colors.text}>
+            My Earnings
+          </ResponsiveText>
+          <ResponsiveText size="md" color={colors.textSecondary}>
+            Track your delivery earnings and performance
+          </ResponsiveText>
+        </ResponsiveView>
+
+        <ScrollView
+          style={styles.scrollView}
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />
+          }
+        >
+          <ResponsiveView style={styles.content}>
+            <ResponsiveView style={[styles.emptyState, { backgroundColor: colors.surface }]}>
+              <MaterialIcons name="account-balance-wallet" size={64} color={colors.textSecondary} />
+              <ResponsiveView marginTop="lg">
+                <ResponsiveText size="lg" color={colors.text} align="center" weight="semiBold">
+                  No Earnings Yet
+                </ResponsiveText>
+              </ResponsiveView>
+              <ResponsiveView marginTop="sm">
+                <ResponsiveText size="md" color={colors.textSecondary} align="center">
+                  Complete your first delivery to start earning!
+                </ResponsiveText>
+              </ResponsiveView>
+              <ResponsiveView marginTop="lg">
+                <Button
+                  title="View Available Orders"
+                  onPress={() => router.push('/(delivery)/orders' as any)}
+                  variant="primary"
+                  size="medium"
+                />
+              </ResponsiveView>
+            </ResponsiveView>
+          </ResponsiveView>
+        </ScrollView>
+      </SafeAreaView>
+    );
+  }
+
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
       <ResponsiveView style={styles.header}>
@@ -390,6 +350,20 @@ export default function EarningsScreen() {
         }
       >
         <ResponsiveView style={styles.content}>
+          {/* Debug Info */}
+          {__DEV__ && (
+            <ResponsiveView style={[styles.debugCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+              <ResponsiveText size="sm" color={colors.textSecondary}>
+                Debug Info:
+              </ResponsiveText>
+              <ResponsiveText size="xs" color={colors.textSecondary}>
+                Total Deliveries: {earningsData?.totalDeliveries || 0} | 
+                This Week: ₱{earningsData?.thisWeek?.toFixed(2) || '0.00'} | 
+                This Month: ₱{earningsData?.thisMonth?.toFixed(2) || '0.00'}
+              </ResponsiveText>
+            </ResponsiveView>
+          )}
+
           {/* Main Earnings Card */}
           <ResponsiveView style={[styles.mainEarningsCard, { backgroundColor: colors.primary }]}>
             <ResponsiveText size="lg" weight="semiBold" color={colors.background}>
@@ -427,12 +401,6 @@ export default function EarningsScreen() {
               earningsData?.averageEarningPerDelivery || 0,
               'trending-up',
               colors.warning
-            )}
-            {renderEarningsCard(
-              'Rating',
-              earningsData?.rating || 0,
-              'star',
-              colors.primary
             )}
           </ResponsiveView>
 
@@ -557,5 +525,17 @@ const styles = StyleSheet.create({
     paddingVertical: 2,
     borderRadius: 8,
     marginTop: 4,
+  },
+  emptyState: {
+    padding: 40,
+    borderRadius: 16,
+    alignItems: 'center',
+    marginTop: 20,
+  },
+  debugCard: {
+    padding: 12,
+    borderRadius: 8,
+    marginBottom: 16,
+    borderWidth: 1,
   },
 });

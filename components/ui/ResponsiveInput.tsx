@@ -96,7 +96,7 @@ export const ResponsiveInput: React.FC<ResponsiveInputProps> = ({
       backgroundColor: '#F5F5F5',
       borderRadius: Responsive.ResponsiveBorderRadius.sm,
       borderWidth: 1,
-      borderColor: hasError ? errorColor : isFocused ? '#FFE44D' : '#E0E0E0',
+      borderColor: hasError ? errorColor : isFocused ? '#D4AF37' : '#E0E0E0',
     },
     input: {
       flex: 1,

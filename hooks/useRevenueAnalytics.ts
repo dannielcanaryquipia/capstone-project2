@@ -35,7 +35,7 @@ export const useRevenueAnalytics = (timePeriod: 'month' | 'year' = 'month') => {
       const { data: orders, error: ordersError } = await supabase
         .from('orders')
         .select('total_amount, created_at, status')
-        .eq('status', 'Delivered') // Only count delivered orders
+        .eq('status', 'delivered') // Only count delivered orders
         .order('created_at', { ascending: false });
 
       if (ordersError) throw ordersError;

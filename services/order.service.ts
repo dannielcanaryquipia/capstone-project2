@@ -129,6 +129,15 @@ export class OrderService {
           payment_transactions(
             *,
             proof_of_payment_url
+          ),
+          delivery_assignments(
+            id,
+            delivered_at,
+            rider:riders(
+              id,
+              user_id,
+              user:profiles!riders_user_id_fkey(full_name, phone_number, username)
+            )
           )
         `)
         .eq('id', orderId)
@@ -158,6 +167,15 @@ export class OrderService {
       // Extract proof of payment URL from payment transactions
       const proofOfPaymentUrl = data.payment_transactions?.[0]?.proof_of_payment_url || data.proof_of_payment_url;
       
+      // Extract rider delivery information
+      const deliveryAssignment = data.delivery_assignments?.[0];
+      const deliveredByRider = deliveryAssignment?.rider?.user ? {
+        id: deliveryAssignment.rider.user.id,
+        full_name: deliveryAssignment.rider.user.full_name,
+        phone_number: deliveryAssignment.rider.user.phone_number,
+        username: deliveryAssignment.rider.user.username,
+      } : undefined;
+      
       // Convert database status back to app format
       const convertedOrder = {
         ...data,
@@ -165,6 +183,8 @@ export class OrderService {
         items: convertedItems,
         proof_of_payment_url: proofOfPaymentUrl,
         proof_of_delivery_url: (data as any).proof_of_delivery_url,
+        delivered_by_rider: deliveredByRider,
+        delivered_at: deliveryAssignment?.delivered_at || data.actual_delivery_time,
       };
       
       return convertedOrder as Order;
@@ -231,8 +251,8 @@ export class OrderService {
         .from('orders')
         .insert({
         user_id: orderData.user_id,
-        status: 'Pending',
-        payment_status: 'Pending',
+        status: 'pending',
+        payment_status: 'pending',
           payment_method: orderData.payment_method,
           total_amount,
           delivery_address_id: orderData.delivery_address_id,
@@ -257,6 +277,7 @@ export class OrderService {
           special_instructions: item.special_instructions,
           pizza_size: item.pizza_size,
           pizza_crust: item.pizza_crust,
+          pizza_slice: item.pizza_slice,
           toppings: item.toppings,
           ...item.customization_details,
         },
@@ -338,16 +359,26 @@ export class OrderService {
       // Add tracking entry
       await this.addOrderTracking(orderId, dbStatus, updatedBy, notes);
 
+      // Trigger auto-assignment when order becomes ready for pickup
+      if (dbStatus === 'ready_for_pickup') {
+        try {
+          const { AutoAssignmentService } = await import('./auto-assignment.service');
+          await AutoAssignmentService.onOrderStatusUpdate(orderId, dbStatus);
+        } catch (assignmentError) {
+          console.warn('Auto-assignment failed:', assignmentError);
+        }
+      }
+
       // Send customer notification for key transitions
       try {
-        if (dbStatus === 'Preparing' || dbStatus === 'Out for Delivery') {
+        if (dbStatus === 'preparing' || dbStatus === 'out_for_delivery') {
           const { data: ord } = await supabase
             .from('orders')
             .select('id, user_id, status, order_number')
             .eq('id', orderId)
             .single();
           if (ord?.user_id) {
-            const isDelivery = dbStatus === 'Out for Delivery';
+            const isDelivery = dbStatus === 'out_for_delivery';
             await notificationService.sendNotification({
               userId: ord.user_id,
               title: isDelivery ? 'Your order is on the way' : 'Your order is being prepared',
@@ -688,7 +719,7 @@ export class OrderService {
 
       if (orderCheckError) throw orderCheckError;
       
-      if (orderData.payment_method !== 'COD' && orderData.payment_method !== 'cod') {
+      if (orderData.payment_method !== 'cod') {
         throw new Error('This order is not a COD payment. Only COD orders can be verified by delivery staff.');
       }
 

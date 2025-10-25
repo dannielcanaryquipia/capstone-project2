@@ -78,6 +78,14 @@ interface OrderDetail {
     verified_at?: string;
     verified_by?: string;
   };
+  // Rider delivery information
+  delivered_by_rider?: {
+    id: string;
+    full_name?: string;
+    phone_number?: string;
+    username: string;
+  };
+  delivered_at?: string;
 }
 
 export default function OrderDetailScreen() {
@@ -217,7 +225,7 @@ export default function OrderDetailScreen() {
     if (!id) return;
     Alert.alert(
       'Cancel Order',
-      'Are you sure you want to cancel this GCash order? This action cannot be undone and the customer will be notified.',
+      'Are you sure you want to cancel this order? This action cannot be undone and the customer will be notified.',
       [
         { text: 'Keep Order', style: 'cancel' },
         { 
@@ -278,6 +286,11 @@ export default function OrderDetailScreen() {
       case 'out_for_delivery': return 'delivered';
       default: return null;
     }
+  };
+
+  // Check if order can be cancelled by admin
+  const canCancelOrder = (currentStatus: OrderStatus): boolean => {
+    return currentStatus === 'pending' || currentStatus === 'preparing';
   };
 
   const formatDate = (dateString: string) => {
@@ -468,6 +481,23 @@ export default function OrderDetailScreen() {
           })}
         </ResponsiveView>
 
+        {/* Order Notes */}
+        {order.order_notes && (
+          <ResponsiveView style={[styles.section, { backgroundColor: colors.surface }]}>
+            <ResponsiveView flexDirection="row" alignItems="center" marginBottom="sm">
+              <MaterialIcons name="note" size={20} color={colors.primary} />
+              <ResponsiveView marginLeft="sm">
+                <ResponsiveText size="lg" weight="semiBold" color={colors.text}>
+                  Order Notes
+                </ResponsiveText>
+              </ResponsiveView>
+            </ResponsiveView>
+            <ResponsiveText size="sm" color={colors.textSecondary} style={{ lineHeight: 20 }}>
+              {order.order_notes}
+            </ResponsiveText>
+          </ResponsiveView>
+        )}
+
         {/* Total Amount */}
         <ResponsiveView style={[styles.section, { backgroundColor: colors.surface }]}>
           <ResponsiveView style={styles.totalRow}>
@@ -497,7 +527,7 @@ export default function OrderDetailScreen() {
             <MaterialIcons name="payment" size={responsiveValue(16, 18, 20, 22)} color={colors.primary} />
             <ResponsiveView marginLeft="sm" flex={1}>
               <ResponsiveText size="md" color={colors.text}>
-                Payment Method: {order.payment_method || 'COD'}
+                Payment Method: {order.payment_method || 'cod'}
               </ResponsiveText>
               {order.payment_method === 'gcash' && (
                 <ResponsiveView marginTop="xs">
@@ -570,7 +600,7 @@ export default function OrderDetailScreen() {
               </ResponsiveView>
             </ResponsiveView>
           )}
-          {order.payment_status === 'Pending' && order.payment_method === 'gcash' && (
+          {order.payment_status === 'pending' && order.payment_method === 'gcash' && (
             <ResponsiveView marginTop="md" style={[styles.verificationSection, { backgroundColor: colors.warning + '10', borderColor: colors.warning + '30' }]}>
               <ResponsiveView style={styles.verificationHeader}>
                 <MaterialIcons name="payment" size={24} color={colors.warning} />
@@ -598,17 +628,35 @@ export default function OrderDetailScreen() {
                       ? 'Cancelling Order...' 
                       : order.status === 'cancelled' 
                         ? '❌ Order Cancelled' 
-                        : '❌ Cancel Order'
+                        : !canCancelOrder(order.status)
+                          ? '❌ Cannot Cancel'
+                          : '❌ Cancel Order'
                   } 
-                  onPress={order.status === 'cancelled' ? () => {} : handleCancelOrder} 
+                  onPress={order.status === 'cancelled' || !canCancelOrder(order.status) ? () => {} : handleCancelOrder} 
                   variant="secondary" 
-                  disabled={canceling || verifying || order.status === 'cancelled'}
+                  disabled={canceling || verifying || order.status === 'cancelled' || !canCancelOrder(order.status)}
                   style={[
                     styles.cancelButton,
-                    order.status === 'cancelled' && { opacity: 0.6 }
+                    (order.status === 'cancelled' || !canCancelOrder(order.status)) && { opacity: 0.6 }
                   ]}
                 />
               </ResponsiveView>
+              
+              {!canCancelOrder(order.status) && order.status !== 'cancelled' && (
+                <ResponsiveView marginTop="sm" style={styles.warningBox}>
+                  <MaterialIcons name="info" size={20} color={colors.warning} />
+                  <ResponsiveView marginLeft="xs" flex={1}>
+                    <ResponsiveText size="sm" color={colors.warning}>
+                      {order.status === 'out_for_delivery' 
+                        ? 'Order is already out for delivery and cannot be cancelled.'
+                        : order.status === 'delivered'
+                          ? 'Order has been delivered and cannot be cancelled.'
+                          : 'This order cannot be cancelled at this time.'
+                      }
+                    </ResponsiveText>
+                  </ResponsiveView>
+                </ResponsiveView>
+              )}
               
               {!order.proof_of_payment_url && (
                 <ResponsiveView marginTop="sm" style={styles.warningBox}>
@@ -671,7 +719,7 @@ export default function OrderDetailScreen() {
               </ResponsiveView>
             </ResponsiveView>
           )}
-          {order.payment_status === 'Pending' && order.payment_method === 'cod' && (
+          {order.payment_status === 'pending' && order.payment_method === 'cod' && (
             <ResponsiveView marginTop="md">
               <ResponsiveText size="sm" color={colors.textSecondary} style={{ textAlign: 'center', fontStyle: 'italic' }}>
                 COD payment verification will be handled by delivery staff upon delivery.
@@ -743,6 +791,42 @@ export default function OrderDetailScreen() {
             </ResponsiveView>
           )}
         </ResponsiveView>
+
+        {/* Rider Delivery Information */}
+        {order.delivered_by_rider && order.delivered_at && (
+          <ResponsiveView style={[styles.section, { backgroundColor: colors.surface }]}>
+            <ResponsiveView marginBottom="md">
+              <ResponsiveText size="lg" weight="semiBold" color={colors.text}>
+                Delivery Information
+              </ResponsiveText>
+            </ResponsiveView>
+            
+            <ResponsiveView style={styles.infoRow} marginBottom="sm">
+              <MaterialIcons name="delivery-dining" size={responsiveValue(16, 18, 20, 22)} color={colors.primary} />
+              <ResponsiveView marginLeft="sm" flex={1}>
+                <ResponsiveText size="md" color={colors.text}>
+                  Delivered by: {order.delivered_by_rider.full_name || order.delivered_by_rider.username}
+                </ResponsiveText>
+                {order.delivered_by_rider.phone_number && (
+                  <ResponsiveView marginTop="xs">
+                    <ResponsiveText size="sm" color={colors.textSecondary}>
+                      Phone: {order.delivered_by_rider.phone_number}
+                    </ResponsiveText>
+                  </ResponsiveView>
+                )}
+              </ResponsiveView>
+            </ResponsiveView>
+
+            <ResponsiveView style={styles.infoRow}>
+              <MaterialIcons name="schedule" size={responsiveValue(16, 18, 20, 22)} color={colors.primary} />
+              <ResponsiveView marginLeft="sm" flex={1}>
+                <ResponsiveText size="md" color={colors.text}>
+                  Delivered at: {formatDate(order.delivered_at)}
+                </ResponsiveText>
+              </ResponsiveView>
+            </ResponsiveView>
+          </ResponsiveView>
+        )}
       </ScrollView>
 
       {/* Action Buttons */}

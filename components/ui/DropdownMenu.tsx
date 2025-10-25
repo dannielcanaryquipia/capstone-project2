@@ -1,12 +1,12 @@
 import { MaterialIcons } from '@expo/vector-icons';
 import React, { useRef, useState } from 'react';
 import {
-    Animated,
-    Dimensions,
-    Modal,
-    StyleSheet,
-    TouchableOpacity,
-    TouchableWithoutFeedback
+  Animated,
+  Dimensions,
+  Modal,
+  StyleSheet,
+  TouchableOpacity,
+  TouchableWithoutFeedback
 } from 'react-native';
 import Layout from '../../constants/Layout';
 import { ResponsiveBorderRadius, ResponsiveSpacing, responsiveValue } from '../../constants/Responsive';
@@ -45,15 +45,27 @@ export const DropdownMenu: React.FC<DropdownMenuProps> = ({
   const [isVisible, setIsVisible] = useState(false);
   const [triggerLayout, setTriggerLayout] = useState({ x: 0, y: 0, width: 0, height: 0 });
   const [menuLayout, setMenuLayout] = useState({ width: 0, height: 0 });
+  const [absolutePosition, setAbsolutePosition] = useState({ x: 0, y: 0 });
   const scaleAnim = useRef(new Animated.Value(0)).current;
   const opacityAnim = useRef(new Animated.Value(0)).current;
+  const triggerRef = useRef<any>(null);
 
   const screenWidth = Dimensions.get('window').width;
   const screenHeight = Dimensions.get('window').height;
 
   const handleTriggerPress = () => {
     if (disabled) return;
-    setIsVisible(true);
+    // Measure the absolute position of the trigger
+    const trigger = triggerRef.current;
+    if (trigger) {
+      trigger.measureInWindow((x: number, y: number, width: number, height: number) => {
+        setAbsolutePosition({ x, y });
+        setTriggerLayout({ x, y, width, height });
+        setIsVisible(true);
+      });
+    } else {
+      setIsVisible(true);
+    }
   };
 
   const handleTriggerLayout = (event: any) => {
@@ -68,26 +80,26 @@ export const DropdownMenu: React.FC<DropdownMenuProps> = ({
 
   const getMenuPosition = () => {
     const padding = ResponsiveSpacing.sm;
-    let top = triggerLayout.y;
-    let left = triggerLayout.x;
+    let top = absolutePosition.y;
+    let left = absolutePosition.x;
 
     // Calculate position based on trigger position and screen boundaries
     switch (position) {
       case 'top-right':
-        top = triggerLayout.y - menuLayout.height - padding;
-        left = triggerLayout.x + triggerLayout.width - menuLayout.width;
+        top = absolutePosition.y - menuLayout.height - padding;
+        left = absolutePosition.x + triggerLayout.width - menuLayout.width;
         break;
       case 'top-left':
-        top = triggerLayout.y - menuLayout.height - padding;
-        left = triggerLayout.x;
+        top = absolutePosition.y - menuLayout.height - padding;
+        left = absolutePosition.x;
         break;
       case 'bottom-right':
-        top = triggerLayout.y + triggerLayout.height + padding;
-        left = triggerLayout.x + triggerLayout.width - menuLayout.width;
+        top = absolutePosition.y + triggerLayout.height + padding;
+        left = absolutePosition.x + triggerLayout.width - menuLayout.width;
         break;
       case 'bottom-left':
-        top = triggerLayout.y + triggerLayout.height + padding;
-        left = triggerLayout.x;
+        top = absolutePosition.y + triggerLayout.height + padding;
+        left = absolutePosition.x;
         break;
     }
 
@@ -96,9 +108,9 @@ export const DropdownMenu: React.FC<DropdownMenuProps> = ({
     if (left + menuLayout.width > screenWidth - padding) {
       left = screenWidth - menuLayout.width - padding;
     }
-    if (top < padding) top = triggerLayout.y + triggerLayout.height + padding;
+    if (top < padding) top = absolutePosition.y + triggerLayout.height + padding;
     if (top + menuLayout.height > screenHeight - padding) {
-      top = triggerLayout.y - menuLayout.height - padding;
+      top = absolutePosition.y - menuLayout.height - padding;
     }
 
     return { top, left };
@@ -154,6 +166,7 @@ export const DropdownMenu: React.FC<DropdownMenuProps> = ({
   return (
     <>
       <TouchableOpacity
+        ref={triggerRef}
         onPress={handleTriggerPress}
         onLayout={handleTriggerLayout}
         style={[
@@ -267,6 +280,8 @@ const styles = StyleSheet.create({
   backdrop: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.1)',
+    zIndex: 9998,
+    elevation: 9998,
   },
   menu: {
     position: 'absolute',
@@ -274,6 +289,8 @@ const styles = StyleSheet.create({
     borderRadius: ResponsiveBorderRadius.md,
     borderWidth: 1,
     overflow: 'hidden',
+    zIndex: 9999,
+    elevation: 9999,
   },
   menuItem: {
     flexDirection: 'row',

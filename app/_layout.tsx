@@ -12,7 +12,7 @@ import { useFonts } from 'expo-font';
 import { Stack, useRouter, useSegments } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { useEffect } from 'react';
-import { ActivityIndicator, Platform, View } from 'react-native';
+import { ActivityIndicator, Platform, Text, View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import {
   adaptNavigationTheme,
@@ -22,11 +22,12 @@ import {
 } from 'react-native-paper';
 import 'react-native-reanimated';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
-
+import { AlertProvider } from '../components/ui/AlertProvider';
 import { NotificationProvider } from '../contexts/NotificationContext';
 import { ThemeProvider as AppThemeProvider, useTheme } from '../contexts/ThemeContext';
 import { useAuth } from '../hooks/useAuth';
 import { NotificationTriggersService } from '../services/notification-triggers.service';
+import { sessionService } from '../services/session.service';
 
 export {
   // Catch any errors thrown by the Layout component.
@@ -42,45 +43,60 @@ SplashScreen.preventAutoHideAsync();
 
 // This can be used to protect routes that require authentication
 const AuthGuard = ({ children }: { children: React.ReactNode }) => {
-  const { user, isLoading, isAdmin, isDelivery } = useAuth();
+  const { user, isLoading, isInitialized, isAdmin, isDelivery, error } = useAuth();
   const segments = useSegments();
   const router = useRouter();
 
   useEffect(() => {
+    // Don't navigate until auth is initialized
+    if (!isInitialized || isLoading) return;
+
     const inAuthGroup = segments[0] === '(auth)';
     const inAdminGroup = segments[0] === '(admin)';
     const inDeliveryGroup = segments[0] === '(delivery)';
     const inCustomerGroup = segments[0] === '(customer)';
 
-    if (!isLoading) {
-      if (!user && !inAuthGroup) {
-        router.replace('/(auth)/sign-in');
-      } else if (user && inAuthGroup) {
-        // Determine the correct route based on user role
-        if (isAdmin) {
-          router.replace('/(admin)/dashboard');
-        } else if (isDelivery) {
-          router.replace('/(delivery)/dashboard');
-        } else {
-          router.replace('/(customer)/(tabs)');
-        }
-      } else if (user && !inAuthGroup) {
-        // Check if user is in the wrong role-based section
-        if (isAdmin && !inAdminGroup) {
-          router.replace('/(admin)/dashboard');
-        } else if (isDelivery && !inDeliveryGroup) {
-          router.replace('/(delivery)/dashboard');
-        } else if (!isAdmin && !isDelivery && !inCustomerGroup) {
-          router.replace('/(customer)/(tabs)');
-        }
+    if (!user && !inAuthGroup) {
+      // User not logged in and not in auth group, redirect to sign in
+      router.replace('/(auth)/sign-in');
+    } else if (user && inAuthGroup) {
+      // User logged in but in auth group, redirect to appropriate dashboard
+      if (isAdmin) {
+        router.replace('/(admin)/dashboard');
+      } else if (isDelivery) {
+        router.replace('/(delivery)/dashboard');
+      } else {
+        router.replace('/(customer)/(tabs)');
+      }
+    } else if (user && !inAuthGroup) {
+      // User logged in but in wrong role-based section
+      if (isAdmin && !inAdminGroup) {
+        router.replace('/(admin)/dashboard');
+      } else if (isDelivery && !inDeliveryGroup) {
+        router.replace('/(delivery)/dashboard');
+      } else if (!isAdmin && !isDelivery && !inCustomerGroup) {
+        router.replace('/(customer)/(tabs)');
       }
     }
-  }, [user, isLoading, segments, isAdmin, isDelivery]);
+  }, [user, isLoading, isInitialized, segments, isAdmin, isDelivery, router]);
 
-  if (isLoading) {
+  // Show loading screen while auth is initializing
+  if (!isInitialized || isLoading) {
     return (
       <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
         <ActivityIndicator size="large" />
+      </View>
+    );
+  }
+
+  // Show error screen if there's an auth error
+  if (error && !user) {
+    return (
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 20 }}>
+        <ActivityIndicator size="large" />
+        <Text style={{ marginTop: 10, textAlign: 'center' }}>
+          Authentication error. Please try again.
+        </Text>
       </View>
     );
   }
@@ -169,7 +185,9 @@ function ThemedApp() {
     <PaperProvider theme={paperTheme}>
       <ThemeProvider value={navigationTheme}>
         <NotificationProvider>
-          <RootLayoutNav />
+          <AlertProvider>
+            <RootLayoutNav />
+          </AlertProvider>
         </NotificationProvider>
       </ThemeProvider>
     </PaperProvider>
@@ -177,16 +195,6 @@ function ThemedApp() {
 }
 
 function RootLayoutNav() {
-  const { user, isAdmin, isDelivery } = useAuth();
-
-  // Determine the initial route based on user role
-  const getInitialRoute = () => {
-    if (!user) return '/(auth)/sign-in';
-    if (isAdmin) return '/(admin)';
-    if (isDelivery) return '/(delivery)';
-    return '/(customer)';
-  };
-
   return (
     <Stack>
       <Stack.Screen name="(auth)" options={{ headerShown: false }} />
@@ -222,6 +230,8 @@ function AppContent() {
       SplashScreen.hideAsync();
       // Initialize notification triggers
       NotificationTriggersService.initializeNotificationTriggers();
+      // Initialize session management
+      sessionService.initialize();
     }
   }, [loaded]);
 

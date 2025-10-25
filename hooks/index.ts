@@ -53,6 +53,9 @@ export { useFormValidation } from './useFormValidation';
 export { useRecommendations } from './useRecommendations';
 export { useTopProducts } from './useTopProducts';
 
+// Slice hooks
+export { useSlices } from './useSlices';
+
 // Analytics hooks
 export { useRevenueAnalytics } from './useRevenueAnalytics';
 

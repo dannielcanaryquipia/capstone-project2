@@ -1,6 +1,6 @@
 import { router } from 'expo-router';
 import React, { useCallback, useMemo, useState } from 'react';
-import { Image, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Image, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import AuthForm from '../../components/auth/AuthForm';
 import AuthHeader from '../../components/auth/AuthHeader';
@@ -16,10 +16,21 @@ const createStyles = (colors: any) => StyleSheet.create({
     flex: 1,
     // backgroundColor will be set dynamically by theme
   },
+  keyboardAvoidingView: {
+    flex: 1,
+  },
+  scrollView: {
+    flex: 1,
+  },
+  scrollContent: {
+    flexGrow: 1,
+    paddingBottom: 20, // Extra padding at bottom for better scrolling
+  },
   contentContainer: {
     flex: 1,
     padding: 24,
     justifyContent: 'center',
+    minHeight: '100%', // Ensure minimum height for proper scrolling
   },
   logoContainer: {
     alignItems: 'center',
@@ -201,41 +212,54 @@ export default function ForgotPasswordScreen() {
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
-      <View style={styles.contentContainer}>
-        <AuthHeader />
+      <KeyboardAvoidingView 
+        style={styles.keyboardAvoidingView}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
+      >
+        <ScrollView 
+          style={styles.scrollView}
+          contentContainerStyle={styles.scrollContent}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+        >
+          <View style={styles.contentContainer}>
+            <AuthHeader />
 
-        <AuthForm error={error} style={styles.form}>
-          <Input
-            label="Email Address"
-            value={formData.email}
-            onChangeText={(value: string) => updateField('email', value)}
-            placeholder="Enter your email"
-            keyboardType="email-address"
-            autoCapitalize="none"
-            autoComplete="email"
-            error={formErrors.email}
-            fullWidth
-            iconType="email"
-          />
+            <AuthForm error={error} style={styles.form}>
+              <Input
+                label="Email Address"
+                value={formData.email}
+                onChangeText={(value: string) => updateField('email', value)}
+                placeholder="Enter your email"
+                keyboardType="email-address"
+                autoCapitalize="none"
+                autoComplete="email"
+                error={formErrors.email}
+                fullWidth
+                iconType="email"
+              />
 
-          <Button
-            title="Send Reset Link"
-            onPress={handleResetPassword}
-            loading={isLoading}
-            disabled={isButtonDisabled}
-            fullWidth
-          />
+              <Button
+                title="Send Reset Link"
+                onPress={handleResetPassword}
+                loading={isLoading}
+                disabled={isButtonDisabled}
+                fullWidth
+              />
 
-          <View style={styles.backButton}>
-            <Text style={[styles.backButtonText, { color: colors.textSecondary }]}>
-              <Text>Back to </Text>
-              <Text style={[styles.backButtonLink, { color: colors.themedText }]} onPress={() => !isLoading && router.back()}>
-                Sign In
-              </Text>
-            </Text>
+              <View style={styles.backButton}>
+                <Text style={[styles.backButtonText, { color: colors.textSecondary }]}>
+                  <Text>Back to </Text>
+                  <Text style={[styles.backButtonLink, { color: colors.themedText }]} onPress={() => !isLoading && router.back()}>
+                    Sign In
+                  </Text>
+                </Text>
+              </View>
+            </AuthForm>
           </View>
-        </AuthForm>
-      </View>
+        </ScrollView>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }

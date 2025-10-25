@@ -2,14 +2,15 @@ import { MaterialIcons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  Alert,
   Image,
   RefreshControl,
   ScrollView,
   StyleSheet,
-  TouchableOpacity
+  TouchableOpacity,
+  View
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useAlert } from '../../../components/ui/AlertProvider';
 import Button from '../../../components/ui/Button';
 import { EmptyState } from '../../../components/ui/EmptyState';
 import { ErrorState } from '../../../components/ui/ErrorState';
@@ -171,8 +172,10 @@ const InfoRow: React.FC<{
 
 export default function OrderDetailScreen() {
   const { colors } = useTheme();
+  const { confirm, confirmDestructive, success, error: showError } = useAlert();
   const { isTablet } = useResponsive();
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const { id } = useLocalSearchParams<{ id: string }>();
   const [order, setOrder] = useState<Order | null>(null);
   const [loading, setLoading] = useState(true);
@@ -251,56 +254,55 @@ export default function OrderDetailScreen() {
   }, [order?.items, router]);
 
   const handleCancelOrder = useCallback(() => {
-    Alert.alert(
+    confirmDestructive(
       'Cancel Order',
       'Are you sure you want to cancel this order? This action cannot be undone.',
-      [
-        {
-          text: 'Keep Order',
-          style: 'cancel',
-        },
-        {
-          text: 'Cancel Order',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              if (!order?.id) {
-                Alert.alert('Error', 'Order ID not found.');
-                return;
-              }
+      async () => {
+        try {
+          if (!order?.id) {
+            showError('Error', 'Order ID not found.');
+            return;
+          }
 
-              // Get current user for cancelledBy parameter
-              const { data: { user } } = await supabase.auth.getUser();
-              if (!user) {
-                Alert.alert('Error', 'User not authenticated.');
-                return;
-              }
+          // Get current user for cancelledBy parameter
+          const { data: { user } } = await supabase.auth.getUser();
+          if (!user) {
+            showError('Error', 'User not authenticated.');
+            return;
+          }
 
-              console.log('Starting order cancellation process...');
-              
-              // Call the actual cancel order service
-              await OrderService.cancelOrder(
-                order.id,
-                'Cancelled by customer',
-                user.id
-              );
+          console.log('Starting order cancellation process...');
+          
+          // Call the actual cancel order service
+          await OrderService.cancelOrder(
+            order.id,
+            'Cancelled by customer',
+            user.id
+          );
 
-              console.log('Order cancellation completed, refreshing order data...');
+          console.log('Order cancellation completed, refreshing order data...');
 
-              // Refresh the order data to reflect the cancellation
-              await loadOrder();
+          // Refresh the order data to reflect the cancellation
+          await loadOrder();
 
-              console.log('Order data refreshed, showing success message');
-              Alert.alert('Order Cancelled', 'Your order has been cancelled successfully.');
-            } catch (error) {
-              console.error('Error cancelling order:', error);
-              Alert.alert('Error', 'Failed to cancel order. Please try again.');
-            }
-          },
-        },
-      ]
+          console.log('Order data refreshed, showing success message');
+          success('Order Cancelled', 'Your order has been cancelled successfully.');
+        } catch (error) {
+          console.error('Error cancelling order:', error);
+          showError('Error', 'Failed to cancel order. Please try again.');
+        }
+      },
+      undefined,
+      'Cancel Order',
+      'Keep Order'
     );
-  }, [order?.id, loadOrder]);
+  }, [order?.id, loadOrder, confirmDestructive, showError, success]);
+
+  // Check if order can be cancelled
+  const canCancelOrder = useMemo(() => {
+    if (!order) return false;
+    return order.status === 'pending' || order.status === 'preparing';
+  }, [order?.status]);
 
 
   useEffect(() => {
@@ -312,50 +314,60 @@ export default function OrderDetailScreen() {
   // Loading state
   if (loading) {
     return (
-      <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
-        <LoadingState 
-          message="Loading order details..." 
-          fullScreen 
-        />
-      </SafeAreaView>
+      <View style={[styles.container, { backgroundColor: colors.background }]}>
+        <View style={{ paddingTop: insets.top }}>
+          <LoadingState 
+            message="Loading order details..." 
+            fullScreen 
+          />
+        </View>
+      </View>
     );
   }
 
   // Error state
   if (error || !order) {
     return (
-      <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
-        <ErrorState
-          title="Order Not Found"
-          message={error || 'This order could not be found or you may not have permission to view it.'}
-          actionTitle="Try Again"
-          onActionPress={() => loadOrder()}
-          fullScreen
-        />
-      </SafeAreaView>
+      <View style={[styles.container, { backgroundColor: colors.background }]}>
+        <View style={{ paddingTop: insets.top }}>
+          <ErrorState
+            title="Order Not Found"
+            message={error || 'This order could not be found or you may not have permission to view it.'}
+            actionTitle="Try Again"
+            onActionPress={() => loadOrder()}
+            fullScreen
+          />
+        </View>
+      </View>
     );
   }
 
   // Empty state for no items
   if (!order.items || order.items.length === 0) {
     return (
-      <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
-        <EmptyState
-          icon="shopping-cart"
-          title="No Items Found"
-          description="This order doesn't have any items."
-          actionTitle="Back to Orders"
-          onActionPress={() => router.back()}
-          fullScreen
-        />
-      </SafeAreaView>
+      <View style={[styles.container, { backgroundColor: colors.background }]}>
+        <View style={{ paddingTop: insets.top }}>
+          <EmptyState
+            icon="shopping-cart"
+            title="No Items Found"
+            description="This order doesn't have any items."
+            actionTitle="Back to Orders"
+            onActionPress={() => router.back()}
+            fullScreen
+          />
+        </View>
+      </View>
     );
   }
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['bottom']}>
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
       <ScrollView 
         showsVerticalScrollIndicator={false}
+        contentContainerStyle={{ 
+          paddingTop: insets.top,
+          paddingBottom: Math.max(insets.bottom, 20)
+        }}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
@@ -402,6 +414,13 @@ export default function OrderDetailScreen() {
               </ResponsiveText>
             </ResponsiveView>
           )}
+          {order.status === 'delivered' && (order as any).delivered_by_rider && (
+            <ResponsiveView marginTop="xs">
+              <ResponsiveText size="sm" color={colors.textSecondary}>
+                Delivered by: {(order as any).delivered_by_rider.full_name || (order as any).delivered_by_rider.username}
+              </ResponsiveText>
+            </ResponsiveView>
+          )}
           </ResponsiveView>
         </ResponsiveView>
 
@@ -424,6 +443,25 @@ export default function OrderDetailScreen() {
               />
             ))}
           </ResponsiveView>
+          
+          {/* Order Notes */}
+          {order.notes && (
+            <ResponsiveView marginTop="md">
+              <ResponsiveView style={[styles.notesCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+                <ResponsiveView flexDirection="row" alignItems="center" marginBottom="sm">
+                  <MaterialIcons name="note" size={20} color={colors.primary} />
+                  <ResponsiveView marginLeft="sm">
+                    <ResponsiveText size="md" weight="semiBold" color={colors.text}>
+                      Order Notes
+                    </ResponsiveText>
+                  </ResponsiveView>
+                </ResponsiveView>
+                <ResponsiveText size="sm" color={colors.textSecondary} style={{ lineHeight: 20 }}>
+                  {order.notes}
+                </ResponsiveText>
+              </ResponsiveView>
+            </ResponsiveView>
+          )}
         </ResponsiveView>
 
         {/* Order Summary */}
@@ -498,14 +536,57 @@ export default function OrderDetailScreen() {
                 colors={colors}
               />
             )}
+
+            {/* Rider Delivery Information */}
+            {order.status === 'delivered' && (order as any).delivered_by_rider && (order as any).delivered_at && (
+              <>
+                <InfoRow
+                  icon="delivery-dining"
+                  title="Delivered by"
+                  value={(order as any).delivered_by_rider.full_name || (order as any).delivered_by_rider.username}
+                  colors={colors}
+                />
+                
+                <InfoRow
+                  icon="schedule"
+                  title="Delivered at"
+                  value={formatOrderDate((order as any).delivered_at)}
+                  colors={colors}
+                />
+              </>
+            )}
           </ResponsiveView>
         </ResponsiveView>
 
         {/* Action Buttons */}
         <ResponsiveView padding="lg" paddingBottom="xl">
+          {/* Cancel restriction message */}
+          {!canCancelOrder && order?.status !== 'cancelled' && order?.status !== 'delivered' && (
+            <ResponsiveView 
+              style={[styles.infoBox, { backgroundColor: colors.warning + '10', borderColor: colors.warning + '30' }]}
+              marginBottom="md"
+            >
+              <MaterialIcons name="info" size={20} color={colors.warning} />
+              <ResponsiveView marginLeft="sm" flex={1}>
+                <ResponsiveText size="sm" color={colors.warning} weight="semiBold">
+                  Order Cannot Be Cancelled
+                </ResponsiveText>
+                <ResponsiveText size="xs" color={colors.warning} style={{ marginTop: 2 }}>
+                  {order?.status === 'out_for_delivery' 
+                    ? 'Your order is already on the way and cannot be cancelled.'
+                    : 'This order cannot be cancelled at this time.'
+                  }
+                </ResponsiveText>
+              </ResponsiveView>
+            </ResponsiveView>
+          )}
+
           <ResponsiveView 
             flexDirection={isTablet ? "row" : "column"} 
-            style={{ gap: Layout.spacing.md }}
+            style={{ 
+              gap: Layout.spacing.md,
+              paddingBottom: Math.max(insets.bottom, 16)
+            }}
           >
             <Button
               title="Reorder"
@@ -515,27 +596,33 @@ export default function OrderDetailScreen() {
               icon={<MaterialIcons name="refresh" size={20} color={colors.primary} />}
             />
             <Button
-              title={order?.status === 'cancelled' ? "Order Cancelled" : "Cancel Order"}
-              onPress={order?.status === 'cancelled' ? () => {} : handleCancelOrder}
+              title={
+                order?.status === 'cancelled' 
+                  ? "Order Cancelled" 
+                  : !canCancelOrder 
+                    ? "Cannot Cancel" 
+                    : "Cancel Order"
+              }
+              onPress={order?.status === 'cancelled' || !canCancelOrder ? () => {} : handleCancelOrder}
               variant="danger"
-              disabled={order?.status === 'cancelled'}
+              disabled={order?.status === 'cancelled' || !canCancelOrder}
               style={[
                 styles.actionButton, 
                 isTablet && styles.actionButtonTablet,
-                order?.status === 'cancelled' && { opacity: 0.6 }
+                (order?.status === 'cancelled' || !canCancelOrder) && { opacity: 0.6 }
               ]}
               icon={
                 <MaterialIcons 
                   name="cancel" 
                   size={20} 
-                  color={order?.status === 'cancelled' ? colors.textTertiary : colors.textInverse} 
+                  color={(order?.status === 'cancelled' || !canCancelOrder) ? colors.textTertiary : colors.textInverse} 
                 />
               }
             />
           </ResponsiveView>
         </ResponsiveView>
       </ScrollView>
-    </SafeAreaView>
+    </View>
   );
 }
 
@@ -558,6 +645,11 @@ const styles = StyleSheet.create({
     borderRadius: Layout.borderRadius.md,
     borderWidth: 1,
     overflow: 'hidden',
+  },
+  notesCard: {
+    borderRadius: Layout.borderRadius.md,
+    borderWidth: 1,
+    padding: Layout.spacing.md,
   },
   orderItem: {
     flexDirection: 'row',
@@ -631,5 +723,12 @@ const styles = StyleSheet.create({
   },
   header: {
     borderBottomWidth: 1,
+  },
+  infoBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: Layout.spacing.sm,
+    borderRadius: Layout.borderRadius.sm,
+    borderLeftWidth: 3,
   },
 });

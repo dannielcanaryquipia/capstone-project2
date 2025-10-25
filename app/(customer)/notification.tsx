@@ -1,9 +1,10 @@
 import { MaterialIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import React, { useCallback } from 'react';
-import { ActivityIndicator, Alert, RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { EmptyState } from '../../components/ui/EmptyState';
+import { useAlert } from '../../components/ui/AlertProvider';
 import Layout from '../../constants/Layout';
 import { useNotificationContext } from '../../contexts/NotificationContext';
 import { useTheme } from '../../contexts/ThemeContext';
@@ -63,6 +64,7 @@ export default function NotificationScreen() {
     refresh,
   } = useNotificationContext();
   const { colors, isDark } = useTheme();
+  const { confirm } = useAlert();
   const router = useRouter();
 
 
@@ -74,20 +76,16 @@ export default function NotificationScreen() {
 
   const handleMarkAllAsRead = useCallback(async () => {
     if (unreadCount > 0) {
-      Alert.alert(
+      confirm(
         'Mark All as Read',
         'Are you sure you want to mark all notifications as read?',
-        [
-          { text: 'Cancel', style: 'cancel' },
-          { 
-            text: 'Mark All', 
-            onPress: markAllAsRead,
-            style: 'default'
-          }
-        ]
+        markAllAsRead,
+        undefined,
+        'Mark All',
+        'Cancel'
       );
     }
-  }, [unreadCount, markAllAsRead]);
+  }, [unreadCount, markAllAsRead, confirm]);
 
   const handleRefresh = useCallback(async () => {
     await refresh();

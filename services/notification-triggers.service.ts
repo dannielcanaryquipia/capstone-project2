@@ -57,7 +57,7 @@ export class NotificationTriggersService {
   // Trigger order status change notifications
   private static async triggerOrderStatusNotification(order: Order, oldStatus: string) {
     const statusMessages: Record<string, string> = {
-      'Pending': 'Your order has been received and is being processed.',
+      'pending': 'Your order has been received and is being processed.',
       'Preparing': 'Your order is now being prepared in our kitchen.',
       'Ready for Pickup': 'Your order is ready for pickup!',
       'Out for Delivery': 'Your order is out for delivery and on its way to you.',

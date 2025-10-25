@@ -16,6 +16,7 @@ export interface CartItem {
   // Pizza-specific fields
   pizza_size?: string;
   pizza_crust?: string;
+  pizza_slice?: string;
   toppings?: string[];
   // Customization details (JSON structure)
   customization_details?: any;
@@ -45,6 +46,7 @@ interface CartState {
     special_instructions?: string;
     pizza_size?: string;
     pizza_crust?: string;
+    pizza_slice?: string;
     toppings?: string[];
   }) => void;
   removeItem: (itemId: string) => void;
@@ -53,6 +55,7 @@ interface CartState {
     special_instructions?: string;
     pizza_size?: string;
     pizza_crust?: string;
+    pizza_slice?: string;
     toppings?: string[];
   }) => void;
   clearCart: () => void;
@@ -99,9 +102,14 @@ const useCartStore = create<CartState>()(
         }
         
         // Create customization details for comparison
-        const customization_details = (options.pizza_size || options.pizza_crust || options.toppings) ? {
-          size: options.pizza_size,
-          crust: options.pizza_crust,
+        const customization_details = (options.pizza_size || options.pizza_crust || options.pizza_slice || options.toppings) ? {
+          product_name: product.name,
+          product_image: product.image_url,
+          total_price: (product.price || product.base_price) * quantity,
+          special_instructions: options.special_instructions,
+          pizza_size: options.pizza_size,
+          pizza_crust: options.pizza_crust,
+          pizza_slice: options.pizza_slice,
           toppings: options.toppings || []
         } : undefined;
         
@@ -130,6 +138,7 @@ const useCartStore = create<CartState>()(
           special_instructions: options.special_instructions,
           pizza_size: options.pizza_size,
           pizza_crust: options.pizza_crust,
+          pizza_slice: options.pizza_slice,
           toppings: options.toppings,
           customization_details,
           product,

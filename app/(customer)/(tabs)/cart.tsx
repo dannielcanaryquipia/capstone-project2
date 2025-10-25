@@ -1,8 +1,9 @@
 import { MaterialIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import React from 'react';
-import { Alert, FlatList, Image, StyleSheet, TouchableOpacity, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { FlatList, Image, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useAlert } from '../../../components/ui/AlertProvider';
 import Button from '../../../components/ui/Button';
 import { ResponsiveText } from '../../../components/ui/ResponsiveText';
 import { ResponsiveView } from '../../../components/ui/ResponsiveView';
@@ -13,7 +14,9 @@ import global from '../../../styles/global';
 
 export default function CartScreen() {
   const { colors } = useTheme();
+  const { info, confirm } = useAlert();
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const { 
     items, 
     totalItems, 
@@ -39,7 +42,7 @@ export default function CartScreen() {
   const handleCheckout = () => {
     const selectedItemsList = getSelectedItems();
     if (selectedItemsList.length === 0) {
-      Alert.alert('No Items Selected', 'Please select at least one item to proceed to checkout.');
+      info('No Items Selected', 'Please select at least one item to proceed to checkout.');
       return;
     }
     if (isValid) {
@@ -98,26 +101,31 @@ export default function CartScreen() {
             {item.product_name}
           </ResponsiveText>
           
-          {/* Customization Details */}
-          {(item.pizza_size || item.pizza_crust || (item.toppings && item.toppings.length > 0)) && (
-            <ResponsiveView marginTop="xs">
-              {item.pizza_size && (
-                <ResponsiveText size="xs" color={colors.textSecondary}>
-                  Size: {item.pizza_size}
-                </ResponsiveText>
-              )}
-              {item.pizza_crust && (
-                <ResponsiveText size="xs" color={colors.textSecondary}>
-                  Crust: {item.pizza_crust}
-                </ResponsiveText>
-              )}
-              {item.toppings && item.toppings.length > 0 && (
-                <ResponsiveText size="xs" color={colors.textSecondary} numberOfLines={1}>
-                  Toppings: {item.toppings.join(', ')}
-                </ResponsiveText>
-              )}
-            </ResponsiveView>
-          )}
+           {/* Customization Details */}
+           {(item.pizza_size || item.pizza_crust || item.pizza_slice || (item.toppings && item.toppings.length > 0)) && (
+             <ResponsiveView marginTop="xs">
+               {item.pizza_size && (
+                 <ResponsiveText size="xs" color={colors.textSecondary}>
+                   Size: {item.pizza_size}
+                 </ResponsiveText>
+               )}
+               {item.pizza_crust && (
+                 <ResponsiveText size="xs" color={colors.textSecondary}>
+                   Crust: {item.pizza_crust}
+                 </ResponsiveText>
+               )}
+               {item.pizza_slice && (
+                 <ResponsiveText size="xs" color={colors.textSecondary}>
+                   Slice: {item.pizza_slice}
+                 </ResponsiveText>
+               )}
+               {item.toppings && item.toppings.length > 0 && (
+                 <ResponsiveText size="xs" color={colors.textSecondary} numberOfLines={1}>
+                   Toppings: {item.toppings.join(', ')}
+                 </ResponsiveText>
+               )}
+             </ResponsiveView>
+           )}
           
           <ResponsiveText size="sm" color={colors.textSecondary}>
             ₱{item.unit_price.toFixed(2)} each
@@ -144,20 +152,13 @@ export default function CartScreen() {
               onPress={() => {
                 if (item.quantity <= 1) {
                   // Show alert when trying to decrease below 1
-                  Alert.alert(
+                  confirm(
                     'Remove Item',
                     `Are you sure you want to remove ${item.product_name} from your cart?`,
-                    [
-                      {
-                        text: 'Cancel',
-                        style: 'cancel',
-                      },
-                      {
-                        text: 'Remove',
-                        style: 'destructive',
-                        onPress: () => removeItem(item.id),
-                      },
-                    ]
+                    () => removeItem(item.id),
+                    undefined,
+                    'Remove',
+                    'Cancel'
                   );
                 } else {
                   updateQuantity(item.id, item.quantity - 1);
@@ -215,12 +216,13 @@ export default function CartScreen() {
 
   if (items.length === 0) {
     return (
-      <SafeAreaView style={[global.screen, { backgroundColor: colors.background }]}>
+      <View style={[global.screen, { backgroundColor: colors.background }]}>
         <ResponsiveView 
           flex={1} 
           justifyContent="center" 
           alignItems="center" 
           paddingHorizontal="lg"
+          style={{ paddingTop: insets.top }}
         >
           <MaterialIcons 
             name="shopping-cart" 
@@ -252,13 +254,13 @@ export default function CartScreen() {
             size="large"
           />
         </ResponsiveView>
-      </SafeAreaView>
+      </View>
     );
   }
 
   return (
-    <SafeAreaView style={[global.screen, { backgroundColor: colors.background }]}>
-      <ResponsiveView flex={1}>
+    <View style={[global.screen, { backgroundColor: colors.background }]}>
+      <ResponsiveView flex={1} style={{ paddingTop: insets.top }}>
         {/* Header */}
         <ResponsiveView 
           flexDirection="row" 
@@ -381,7 +383,7 @@ export default function CartScreen() {
           />
         </ResponsiveView>
       </ResponsiveView>
-    </SafeAreaView>
+    </View>
   );
 }
 

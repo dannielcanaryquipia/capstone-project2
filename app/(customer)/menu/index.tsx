@@ -2,7 +2,7 @@ import { MaterialIcons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { FlatList, StyleSheet, TextInput, TouchableOpacity } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import ProductCard from '../../../components/ui/ProductCard';
 import RecommendedProductsFallback from '../../../components/ui/RecommendedProductsFallback';
 import ResponsiveText from '../../../components/ui/ResponsiveText';
@@ -22,6 +22,7 @@ export default function MenuScreen() {
   const { colors } = useTheme();
   const { isProductSaved, toggleSave } = useSavedProducts();
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const { category, search } = useLocalSearchParams();
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
@@ -147,7 +148,9 @@ export default function MenuScreen() {
 
   const handleClearSearch = useCallback(() => {
     setSearchQuery('');
-  }, []);
+    // Navigate to homepage when search is cleared to prevent back navigation issues
+    router.replace('/(customer)/(tabs)/' as any);
+  }, [router]);
 
   const handleSearchSubmit = useCallback(() => {
     // Search is handled automatically by the filteredItems memo
@@ -183,11 +186,20 @@ export default function MenuScreen() {
   }, [colors, router]);
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
+    <ResponsiveView style={[styles.container, { backgroundColor: colors.background }]}>
       {/* Back + Search Bar */}
-      <ResponsiveView flexDirection="row" alignItems="center" paddingHorizontal="lg" marginVertical="md">
+      <ResponsiveView 
+        flexDirection="row" 
+        alignItems="center" 
+        paddingHorizontal="lg" 
+        marginVertical="md"
+        style={{ paddingTop: insets.top }}
+      >
         <TouchableOpacity
-          onPress={() => router.back()}
+          onPress={() => {
+            // Always go to homepage instead of using router.back()
+            router.replace('/(customer)/(tabs)/' as any);
+          }}
           style={{ marginRight: Responsive.ResponsiveSpacing.sm, padding: Responsive.responsiveValue(4, 6, 8, 10) }}
           hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
           activeOpacity={0.7}
@@ -229,7 +241,19 @@ export default function MenuScreen() {
             onSubmitEditing={handleSearchSubmit}
             returnKeyType="search"
           />
-          {/* Clear icon temporarily removed for debugging */}
+          {searchQuery.length > 0 && (
+            <TouchableOpacity 
+              onPress={handleClearSearch}
+              style={styles.clearButton}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            >
+              <MaterialIcons 
+                name="clear" 
+                size={Responsive.responsiveValue(18, 20, 22, 24)} 
+                color={colors.textSecondary} 
+              />
+            </TouchableOpacity>
+          )}
         </ResponsiveView>
       </ResponsiveView>
 
@@ -331,7 +355,7 @@ export default function MenuScreen() {
           />
         </>
       )}
-    </SafeAreaView>
+    </ResponsiveView>
   );
 }
 
@@ -374,7 +398,7 @@ const styles = StyleSheet.create({
     minHeight: Responsive.responsiveValue(36, 40, 44, 48),
   },
   categoryItemActive: {
-    shadowColor: '#FFE44D',
+    shadowColor: '#D4AF37',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.2,
     shadowRadius: 3,

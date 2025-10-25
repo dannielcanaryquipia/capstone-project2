@@ -69,7 +69,7 @@ export default function AdminReportsScreen() {
       const { data: orders, error } = await supabase
         .from('orders')
         .select('total_amount, created_at, status, payment_status')
-        .eq('status', 'Delivered')
+        .eq('status', 'delivered')
         .gte('created_at', startDate.toISOString())
         .lte('created_at', endDate.toISOString())
         .order('created_at', { ascending: false });
@@ -244,7 +244,7 @@ export default function AdminReportsScreen() {
         .select('total_amount, created_at, status')
         .gte('created_at', startDate.toISOString())
         .lte('created_at', endDate.toISOString())
-        .eq('status', 'Delivered');
+        .eq('status', 'delivered');
 
       if (ordersError) throw ordersError;
 
@@ -917,7 +917,7 @@ const styles = StyleSheet.create({
     minHeight: responsiveValue(36, 40, 44, 48),
   },
   categoryItemActive: {
-    shadowColor: '#FFE44D',
+    shadowColor: '#D4AF37',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.2,
     shadowRadius: 3,

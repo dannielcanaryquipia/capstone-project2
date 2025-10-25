@@ -77,7 +77,7 @@ const styles = StyleSheet.create({
     borderRadius: Responsive.responsiveValue(16, 18, 20, 22),
   },
   pillActive: {
-    shadowColor: '#FFE44D',
+    shadowColor: '#D4AF37',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.2,
     shadowRadius: 3,

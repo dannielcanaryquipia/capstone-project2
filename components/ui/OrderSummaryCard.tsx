@@ -18,6 +18,7 @@ export interface OrderItem {
   special_instructions?: string;
   pizza_size?: string;
   pizza_crust?: string;
+  pizza_slice?: string;
   toppings?: string[];
 }
 

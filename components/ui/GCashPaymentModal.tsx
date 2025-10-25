@@ -2,7 +2,6 @@ import { MaterialIcons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import React, { useState } from 'react';
 import {
-  Alert,
   Image,
   Modal,
   ScrollView,
@@ -12,6 +11,7 @@ import {
 } from 'react-native';
 import { responsiveValue } from '../../constants/Responsive';
 import { useTheme } from '../../contexts/ThemeContext';
+import { useAlert } from './AlertProvider';
 import Button from './Button';
 import { ResponsiveText } from './ResponsiveText';
 
@@ -31,6 +31,7 @@ export function GCashPaymentModal({
   qrImageSource
 }: GCashPaymentModalProps) {
   const { colors } = useTheme();
+  const { error, confirm } = useAlert();
   const [proofUri, setProofUri] = useState<string | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [showZoomModal, setShowZoomModal] = useState(false);
@@ -57,9 +58,9 @@ export function GCashPaymentModal({
       if (!result.canceled && result.assets[0]) {
         setProofUri(result.assets[0].uri);
       }
-    } catch (error) {
-      console.error('Error picking image:', error);
-      Alert.alert('Error', 'Failed to pick image. Please try again.');
+    } catch (err) {
+      console.error('Error picking image:', err);
+      error('Error', 'Failed to pick image. Please try again.');
     } finally {
       setIsUploading(false);
     }
@@ -78,23 +79,22 @@ export function GCashPaymentModal({
       if (!result.canceled && result.assets[0]) {
         setProofUri(result.assets[0].uri);
       }
-    } catch (error) {
-      console.error('Error taking photo:', error);
-      Alert.alert('Error', 'Failed to take photo. Please try again.');
+    } catch (err) {
+      console.error('Error taking photo:', err);
+      error('Error', 'Failed to take photo. Please try again.');
     } finally {
       setIsUploading(false);
     }
   };
 
   const handleChangeReceipt = () => {
-    Alert.alert(
+    confirm(
       'Change Receipt',
       'How would you like to change the receipt?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'Take Photo', onPress: handleTakePhoto },
-        { text: 'Choose from Gallery', onPress: handleUploadReceipt },
-      ]
+      handleTakePhoto,
+      undefined,
+      'Take Photo',
+      'Cancel'
     );
   };
 
@@ -156,7 +156,7 @@ export function GCashPaymentModal({
                     <ResponsiveText size="sm" color="white" weight="bold">1</ResponsiveText>
                   </View>
                   <ResponsiveText size="sm" color={colors.textSecondary} style={styles.stepText}>
-                    Tap the QR code below to download it
+                    Tap the QR code below to zoom and screenshot it
                   </ResponsiveText>
                 </View>
                 <View style={styles.stepItem}>

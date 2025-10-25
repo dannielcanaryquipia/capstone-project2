@@ -6,6 +6,7 @@
 export interface RefinedCustomization {
   size?: string;
   crust?: string;
+  slice?: string;
   toppings?: string[];
   pizzaSize?: string;
   totalPrice?: number;
@@ -34,8 +35,15 @@ export const getRefinedCustomization = (orderItem: any): RefinedCustomization | 
     }
     
     // Extract crust
-    if (details.crust) {
+    if (details.pizza_crust) {
+      refined.crust = details.pizza_crust;
+    } else if (details.crust) {
       refined.crust = details.crust;
+    }
+    
+    // Extract slice
+    if (details.pizza_slice) {
+      refined.slice = details.pizza_slice;
     }
     
     // Extract toppings (only if it's an array and not empty)
@@ -54,7 +62,7 @@ export const getRefinedCustomization = (orderItem: any): RefinedCustomization | 
     }
     
     // Return null if no essential details found
-    if (!refined.pizzaSize && !refined.size && !refined.crust && !refined.toppings?.length) {
+    if (!refined.pizzaSize && !refined.size && !refined.crust && !refined.slice && !refined.toppings?.length) {
       return null;
     }
     
@@ -66,7 +74,7 @@ export const getRefinedCustomization = (orderItem: any): RefinedCustomization | 
 };
 
 /**
- * Formats size and crust information for display
+ * Formats size, crust, and slice information for display
  */
 export const formatSizeAndCrust = (customization: RefinedCustomization): string | null => {
   const parts = [];
@@ -79,6 +87,10 @@ export const formatSizeAndCrust = (customization: RefinedCustomization): string 
   
   if (customization.crust) {
     parts.push(`Crust: ${customization.crust}`);
+  }
+  
+  if (customization.slice) {
+    parts.push(`Slice: ${customization.slice}`);
   }
   
   return parts.length > 0 ? parts.join(' • ') : null;

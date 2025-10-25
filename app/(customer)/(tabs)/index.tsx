@@ -2,10 +2,9 @@ import { MaterialIcons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import { useRouter } from 'expo-router';
 import React, { useCallback, useState } from 'react';
-import { Image, ScrollView, StyleSheet, TextInput, TouchableOpacity, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { Image, RefreshControl, ScrollView, StyleSheet, TextInput, TouchableOpacity, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import ProductCard from '../../../components/ui/ProductCard';
-import RecommendedProductsFallback from '../../../components/ui/RecommendedProductsFallback';
 import { ResponsiveText } from '../../../components/ui/ResponsiveText';
 import { ResponsiveView } from '../../../components/ui/ResponsiveView';
 import Layout from '../../../constants/Layout';
@@ -23,8 +22,10 @@ export default function HomeScreen() {
   const { user, profile: authProfile } = useAuth();
   const { profile } = useCurrentUserProfile();
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const userName = authProfile?.full_name || profile?.full_name || user?.user_metadata?.name || 'Guest';
   const [searchQuery, setSearchQuery] = useState('');
+  const [refreshing, setRefreshing] = useState(false);
   
   // Ban emoji usage in search input
   const removeEmojis = useCallback((value: string) => {
@@ -33,11 +34,11 @@ export default function HomeScreen() {
   }, []);
   
   // Use hooks for data fetching
-  const { products, isLoading: productsLoading, error: productsError } = useProducts();
-  const { categories, isLoading: categoriesLoading } = useProductCategories();
+  const { products, isLoading: productsLoading, error: productsError, refresh: refreshProducts } = useProducts();
+  const { categories, isLoading: categoriesLoading, refresh: refreshCategories } = useProductCategories();
   const { addItem } = useCart();
   const { unreadCount } = useNotificationContext();
-  const { orders: allOrders, isLoading: ordersLoading } = useOrders();
+  const { orders: allOrders, isLoading: ordersLoading, refresh: refreshOrders } = useOrders();
   const recentOrders = allOrders.slice(0, 3);
   
   // Add AI recommendations
@@ -45,7 +46,9 @@ export default function HomeScreen() {
     featuredProducts, 
     personalizedProducts, 
     isLoading: recommendationsLoading,
-    error: recommendationsError 
+    error: recommendationsError,
+    loadFeaturedProducts,
+    loadPersonalizedRecommendations
   } = useRecommendations();
   
   // Remove old hardcoded recommendations
@@ -79,6 +82,25 @@ export default function HomeScreen() {
     setSearchQuery('');
   };
 
+  // Handle refresh
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    try {
+      // Refresh all data sources in parallel
+      await Promise.all([
+        refreshProducts(),
+        refreshCategories(),
+        refreshOrders(),
+        loadFeaturedProducts(),
+        loadPersonalizedRecommendations()
+      ]);
+    } catch (error) {
+      console.error('Error refreshing data:', error);
+    } finally {
+      setRefreshing(false);
+    }
+  }, [refreshProducts, refreshCategories, refreshOrders, loadFeaturedProducts, loadPersonalizedRecommendations]);
+
   // Get status color for order status
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -95,8 +117,22 @@ export default function HomeScreen() {
 
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
-      <ScrollView showsVerticalScrollIndicator={false}>
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
+      <ScrollView 
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={{ paddingTop: insets.top }}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor={colors.primary}
+            colors={[colors.primary]}
+            progressBackgroundColor={colors.surface}
+            title="Pull to refresh"
+            titleColor={colors.textSecondary}
+          />
+        }
+      >
         {/* Header */}
         <ResponsiveView 
           flexDirection="row" 
@@ -121,7 +157,7 @@ export default function HomeScreen() {
               <ResponsiveText 
                 size="display" 
                 weight="bold" 
-                color={colors.text}
+                color={colors.themedText}
                 lineHeight="tight"
               >
                 {userName}
@@ -575,7 +611,7 @@ export default function HomeScreen() {
         )}
 
       </ScrollView>
-    </SafeAreaView>
+    </View>
   );
 }
 

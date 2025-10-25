@@ -78,7 +78,7 @@ export class ReportsService {
     }
   }
   // Get top products by revenue, computed from order_items joined with orders (delivered by default)
-  static async getTopProducts(limit: number = 5, includeStatuses: string[] = ['Delivered']): Promise<TopProduct[]> {
+  static async getTopProducts(limit: number = 5, includeStatuses: string[] = ['delivered']): Promise<TopProduct[]> {
     try {
       // Join orders to ensure we only count items from qualifying orders
       const { data, error } = await supabase

@@ -1,8 +1,9 @@
 import { MaterialIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import React from 'react';
-import { Alert, Linking, ScrollView, StyleSheet, TouchableOpacity } from 'react-native';
+import { Linking, ScrollView, StyleSheet, TouchableOpacity } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useAlert } from '../../../components/ui/AlertProvider';
 import Button from '../../../components/ui/Button';
 import ResponsiveText from '../../../components/ui/ResponsiveText';
 import ResponsiveView from '../../../components/ui/ResponsiveView';
@@ -12,6 +13,7 @@ import global from '../../../styles/global';
 
 export default function HelpSupportScreen() {
   const { colors } = useTheme();
+  const { info, confirm } = useAlert();
   const router = useRouter();
 
   const helpItems = [
@@ -21,7 +23,7 @@ export default function HelpSupportScreen() {
       subtitle: 'Find answers to common questions',
       icon: 'help-outline',
       onPress: () => {
-        Alert.alert('FAQ', 'FAQ section coming soon!');
+        info('FAQ', 'FAQ section coming soon!');
       },
     },
     {
@@ -30,20 +32,13 @@ export default function HelpSupportScreen() {
       subtitle: 'Get help from our support team',
       icon: 'support-agent',
       onPress: () => {
-        Alert.alert(
+        confirm(
           'Contact Support',
           'Choose how you\'d like to contact us:',
-          [
-            { text: 'Cancel', style: 'cancel' },
-            { 
-              text: 'Email', 
-              onPress: () => Linking.openURL('mailto:support@kitchenone.com') 
-            },
-            { 
-              text: 'Phone', 
-              onPress: () => Linking.openURL('tel:+1234567890') 
-            },
-          ]
+          () => Linking.openURL('mailto:support@kitchenone.com'),
+          undefined,
+          'Email',
+          'Cancel'
         );
       },
     },
@@ -53,7 +48,7 @@ export default function HelpSupportScreen() {
       subtitle: 'Share your thoughts and suggestions',
       icon: 'feedback',
       onPress: () => {
-        Alert.alert('Feedback', 'Feedback form coming soon!');
+        info('Feedback', 'Feedback form coming soon!');
       },
     },
     {
@@ -62,7 +57,7 @@ export default function HelpSupportScreen() {
       subtitle: 'Report bugs or issues',
       icon: 'bug-report',
       onPress: () => {
-        Alert.alert('Report Problem', 'Problem reporting form coming soon!');
+        info('Report Problem', 'Problem reporting form coming soon!');
       },
     },
   ];
@@ -127,7 +122,7 @@ export default function HelpSupportScreen() {
                 key={action.id}
                 style={[styles.quickActionItem, { backgroundColor: colors.surface }]}
                 onPress={() => {
-                  Alert.alert(action.title, `${action.subtitle} - Coming soon!`);
+                  info(action.title, `${action.subtitle} - Coming soon!`);
                 }}
                 activeOpacity={0.7}
               >
@@ -197,26 +192,34 @@ export default function HelpSupportScreen() {
             backgroundColor: colors.surface,
             ...Layout.shadows.sm
           }]}>
-            <ResponsiveView style={styles.contactItem}>
+            <TouchableOpacity 
+              style={styles.contactItem}
+              onPress={() => Linking.openURL('https://www.facebook.com/profile.php?id=100076165180445')}
+              activeOpacity={0.7}
+            >
               <ResponsiveView style={[styles.contactIcon, { backgroundColor: colors.surfaceVariant }]}>
-                <MaterialIcons name="email" size={20} color={colors.primary} />
+                <MaterialIcons name="facebook" size={20} color={colors.primary} />
               </ResponsiveView>
               <ResponsiveView marginLeft="sm">
                 <ResponsiveText size="md" color={colors.text}>
-                  support@kitchenone.com
+                  Kitchen ONE
                 </ResponsiveText>
               </ResponsiveView>
-            </ResponsiveView>
-            <ResponsiveView style={styles.contactItem}>
+            </TouchableOpacity>
+            <TouchableOpacity 
+              style={styles.contactItem}
+              onPress={() => Linking.openURL('tel:09094744215')}
+              activeOpacity={0.7}
+            >
               <ResponsiveView style={[styles.contactIcon, { backgroundColor: colors.surfaceVariant }]}>
                 <MaterialIcons name="phone" size={20} color={colors.primary} />
               </ResponsiveView>
               <ResponsiveView marginLeft="sm">
                 <ResponsiveText size="md" color={colors.text}>
-                  +1 (234) 567-8900
+                  09094744215
                 </ResponsiveText>
               </ResponsiveView>
-            </ResponsiveView>
+            </TouchableOpacity>
             <ResponsiveView style={styles.contactItem}>
               <ResponsiveView style={[styles.contactIcon, { backgroundColor: colors.surfaceVariant }]}>
                 <MaterialIcons name="schedule" size={20} color={colors.primary} />
@@ -249,7 +252,7 @@ export default function HelpSupportScreen() {
             </ResponsiveView>
             <Button
               title="Call Now"
-              onPress={() => Linking.openURL('tel:+1234567890')}
+              onPress={() => Linking.openURL('tel:09094744215')}
               variant="primary"
               size="small"
             />

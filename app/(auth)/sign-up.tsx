@@ -1,6 +1,6 @@
 import { router } from 'expo-router';
 import React, { useCallback, useMemo } from 'react';
-import { Platform, StyleSheet, View } from 'react-native';
+import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import AuthFooter from '../../components/auth/AuthFooter';
 import AuthForm from '../../components/auth/AuthForm';
@@ -19,10 +19,21 @@ const createStyles = (colors: any) => StyleSheet.create({
     flex: 1, 
     // backgroundColor will be set dynamically by theme
   },
+  keyboardAvoidingView: {
+    flex: 1,
+  },
+  scrollView: {
+    flex: 1,
+  },
+  scrollContent: {
+    flexGrow: 1,
+    paddingBottom: 20, // Extra padding at bottom for better scrolling
+  },
   container: {
     flex: 1,
     paddingHorizontal: 24,
     paddingTop: Platform.OS === 'ios' ? 0 : 40,
+    minHeight: '100%', // Ensure minimum height for proper scrolling
   },
   form: {
     flex: 1,
@@ -86,89 +97,102 @@ export default function SignUpScreen() {
 
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor: colors.background }]}>
-      <View style={styles.container}>
-        <AuthHeader />
+      <KeyboardAvoidingView 
+        style={styles.keyboardAvoidingView}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
+      >
+        <ScrollView 
+          style={styles.scrollView}
+          contentContainerStyle={styles.scrollContent}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+        >
+          <View style={styles.container}>
+            <AuthHeader />
 
-        <AuthForm error={error} style={styles.form}>
-          <Input
-            label={Strings.fullNameLabel}
-            value={formData.fullName}
-            onChangeText={(value) => updateField('fullName', value)}
-            placeholder="Enter your full name"
-            autoCapitalize="words"
-            error={formErrors.fullName}
-            fullWidth
-            iconType="person"
-          />
+            <AuthForm error={error} style={styles.form}>
+              <Input
+                label={Strings.fullNameLabel}
+                value={formData.fullName}
+                onChangeText={(value) => updateField('fullName', value)}
+                placeholder="Enter your full name"
+                autoCapitalize="words"
+                error={formErrors.fullName}
+                fullWidth
+                iconType="person"
+              />
 
-          <Input
-            label={Strings.emailLabel}
-            value={formData.email}
-            onChangeText={(value) => updateField('email', value)}
-            placeholder="Enter your email"
-            keyboardType="email-address"
-            autoCapitalize="none"
-            autoComplete="email"
-            error={formErrors.email}
-            fullWidth
-            iconType="email"
-          />
+              <Input
+                label={Strings.emailLabel}
+                value={formData.email}
+                onChangeText={(value) => updateField('email', value)}
+                placeholder="Enter your email"
+                keyboardType="email-address"
+                autoCapitalize="none"
+                autoComplete="email"
+                error={formErrors.email}
+                fullWidth
+                iconType="email"
+              />
 
-          <Input
-            label={Strings.passwordLabel}
-            value={formData.password}
-            onChangeText={handlePasswordChange}
-            placeholder="Create a password (min 6 characters)"
-            autoCapitalize="none"
-            autoComplete="new-password"
-            error={formErrors.password}
-            fullWidth
-            iconType="password"
-            showPasswordToggle
-          />
+              <Input
+                label={Strings.passwordLabel}
+                value={formData.password}
+                onChangeText={handlePasswordChange}
+                placeholder="Create a password (min 6 characters)"
+                autoCapitalize="none"
+                autoComplete="new-password"
+                error={formErrors.password}
+                fullWidth
+                iconType="password"
+                showPasswordToggle
+              />
 
-          <Input
-            label={Strings.confirmPasswordLabel}
-            value={formData.confirmPassword}
-            onChangeText={(value) => updateField('confirmPassword', value)}
-            placeholder="Confirm your password"
-            autoCapitalize="none"
-            autoComplete="new-password"
-            error={formErrors.confirmPassword}
-            fullWidth
-            iconType="password"
-            showPasswordToggle
-          />
+              <Input
+                label={Strings.confirmPasswordLabel}
+                value={formData.confirmPassword}
+                onChangeText={(value) => updateField('confirmPassword', value)}
+                placeholder="Confirm your password"
+                autoCapitalize="none"
+                autoComplete="new-password"
+                error={formErrors.confirmPassword}
+                fullWidth
+                iconType="password"
+                showPasswordToggle
+              />
 
-          <Input
-            label={`${Strings.phoneLabel} ${Strings.optional}`}
-            value={formData.phone}
-            onChangeText={(value) => updateField('phone', value)}
-            placeholder="Enter your phone number"
-            keyboardType="phone-pad"
-            error={formErrors.phone}
-            fullWidth
-            iconType="phone"
-          />
+              <Input
+                label={`${Strings.phoneLabel} ${Strings.optional}`}
+                value={formData.phone}
+                onChangeText={(value) => updateField('phone', value)}
+                placeholder="Enter your phone number"
+                keyboardType="phone-pad"
+                error={formErrors.phone}
+                fullWidth
+                iconType="phone"
+              />
 
-          <Button
-            title={Strings.signUpCta}
-            onPress={handleSignUp}
-            loading={isLoading}
-            disabled={isButtonDisabled}
-            style={[global.button, isButtonDisabled && global.buttonDisabled]}
-            fullWidth
-          />
+              <Button
+                title={Strings.signUpCta}
+                onPress={handleSignUp}
+                loading={isLoading}
+                disabled={isButtonDisabled}
+                style={[global.button, isButtonDisabled && global.buttonDisabled]}
+                fullWidth
+              />
 
 
-          <AuthFooter
-            primaryText={Strings.alreadyHaveAccount}
-            linkText={Strings.signInTitle}
-            onLinkPress={() => !isLoading && router.replace('/(auth)/sign-in')}
-            disabled={isLoading}
-          />
-        </AuthForm>
-      </View>
+              <AuthFooter
+                primaryText={Strings.alreadyHaveAccount}
+                linkText={Strings.signInTitle}
+                onLinkPress={() => !isLoading && router.replace('/(auth)/sign-in')}
+                disabled={isLoading}
+              />
+            </AuthForm>
+          </View>
+        </ScrollView>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }

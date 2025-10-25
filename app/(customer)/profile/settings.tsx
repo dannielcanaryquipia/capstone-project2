@@ -3,7 +3,6 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import {
-    Alert,
     Linking,
     ScrollView,
     StyleSheet,
@@ -11,6 +10,7 @@ import {
     TouchableOpacity
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useAlert } from '../../../components/ui/AlertProvider';
 import Button from '../../../components/ui/Button';
 import ResponsiveText from '../../../components/ui/ResponsiveText';
 import ResponsiveView from '../../../components/ui/ResponsiveView';
@@ -30,6 +30,7 @@ interface SettingsItem {
 
 export default function SettingsScreen() {
   const { colors } = useTheme();
+  const { confirm, confirmDestructive, success, info, error: showError } = useAlert();
   const router = useRouter();
   const [settings, setSettings] = useState({
     pushNotifications: true,
@@ -60,7 +61,7 @@ export default function SettingsScreen() {
       setSettings(newSettings);
     } catch (error) {
       console.error('Error saving settings:', error);
-      Alert.alert('Error', 'Failed to save settings. Please try again.');
+      showError('Error', 'Failed to save settings. Please try again.');
     }
   };
 
@@ -70,86 +71,68 @@ export default function SettingsScreen() {
     
     // Show confirmation for important settings
     if (key === 'locationServices' && newValue) {
-      Alert.alert(
+      info(
         'Location Services',
-        'Location services help us provide accurate delivery estimates and find nearby restaurants.',
-        [{ text: 'OK' }]
+        'Location services help us provide accurate delivery estimates and find nearby restaurants.'
       );
     }
   };
 
   const handlePrivacyPolicy = () => {
-    Alert.alert(
+    confirm(
       'Privacy Policy',
       'Our privacy policy outlines how we collect, use, and protect your personal information. You can view the full policy on our website.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        { 
-          text: 'View Online', 
-          onPress: () => Linking.openURL('https://kitchenone.com/privacy-policy') 
-        },
-      ]
+      () => Linking.openURL('https://kitchenone.com/privacy-policy'),
+      undefined,
+      'View Online',
+      'Cancel'
     );
   };
 
   const handleTermsOfService = () => {
-    Alert.alert(
+    confirm(
       'Terms of Service',
       'Our terms of service govern your use of our app and services. You can view the full terms on our website.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        { 
-          text: 'View Online', 
-          onPress: () => Linking.openURL('https://kitchenone.com/terms-of-service') 
-        },
-      ]
+      () => Linking.openURL('https://kitchenone.com/terms-of-service'),
+      undefined,
+      'View Online',
+      'Cancel'
     );
   };
 
   const handleDataExport = () => {
-    Alert.alert(
+    confirm(
       'Export Data',
       'You can request a copy of all your data including orders, addresses, and preferences. This will be sent to your registered email address.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        { 
-          text: 'Request Export', 
-          onPress: () => {
-            Alert.alert('Success', 'Data export request submitted. You will receive an email within 24 hours.');
-          }
-        },
-      ]
+      () => {
+        success('Success', 'Data export request submitted. You will receive an email within 24 hours.');
+      },
+      undefined,
+      'Request Export',
+      'Cancel'
     );
   };
 
   const handleDeleteAccount = () => {
-    Alert.alert(
+    confirmDestructive(
       'Delete Account',
       'This action cannot be undone. All your data, including orders and addresses, will be permanently deleted.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        { 
-          text: 'Delete Account', 
-          style: 'destructive',
-          onPress: () => {
-            Alert.alert(
-              'Confirm Deletion',
-              'Are you absolutely sure you want to delete your account?',
-              [
-                { text: 'Cancel', style: 'cancel' },
-                { 
-                  text: 'Yes, Delete', 
-                  style: 'destructive',
-                  onPress: () => {
-                    // TODO: Implement account deletion
-                    Alert.alert('Account Deletion', 'Account deletion feature will be implemented soon.');
-                  }
-                },
-              ]
-            );
-          }
-        },
-      ]
+      () => {
+        confirmDestructive(
+          'Confirm Deletion',
+          'Are you absolutely sure you want to delete your account?',
+          () => {
+            // TODO: Implement account deletion
+            info('Account Deletion', 'Account deletion feature will be implemented soon.');
+          },
+          undefined,
+          'Yes, Delete',
+          'Cancel'
+        );
+      },
+      undefined,
+      'Delete Account',
+      'Cancel'
     );
   };
 

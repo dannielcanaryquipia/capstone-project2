@@ -6,6 +6,7 @@ import {
   ActivityIndicator,
   Alert,
   Image,
+  Linking,
   Modal,
   RefreshControl,
   ScrollView,
@@ -14,7 +15,8 @@ import {
   TouchableOpacity,
   View
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useAlert } from '../../../components/ui/AlertProvider';
 import Button from '../../../components/ui/Button';
 import ResponsiveText from '../../../components/ui/ResponsiveText';
 import ResponsiveView from '../../../components/ui/ResponsiveView';
@@ -40,7 +42,9 @@ export default function ProfileScreen() {
   const { user, signOut } = useAuth();
   const { profile, isLoading, error, refresh, updateProfile } = useCurrentUserProfile();
   const { colors } = useTheme();
+  const { success: showSuccess, error: showError, confirm, confirmDestructive, info } = useAlert();
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const [refreshing, setRefreshing] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [editForm, setEditForm] = useState({
@@ -49,6 +53,21 @@ export default function ProfileScreen() {
   });
   const [isUpdating, setIsUpdating] = useState(false);
   const { localAvatar, isLoading: isUploadingAvatar, saveAvatar, removeAvatar } = useAvatar();
+
+  // Function to open Kitchen One website
+  const openWebsite = async () => {
+    const url = 'https://kitchenone.com'; // Replace with your actual website URL
+    try {
+      const supported = await Linking.canOpenURL(url);
+      if (supported) {
+        await Linking.openURL(url);
+      } else {
+        showError('Error', 'Cannot open website. Please check your internet connection.');
+      }
+    } catch (error) {
+      showError('Error', 'Failed to open website. Please try again.');
+    }
+  };
 
   const handleRefresh = async () => {
     setRefreshing(true);
@@ -66,7 +85,7 @@ export default function ProfileScreen() {
 
   const handleSaveProfile = async () => {
     if (!editForm.fullName.trim()) {
-      Alert.alert('Error', 'Full name is required');
+      showError('Error', 'Full name is required');
       return;
     }
 
@@ -80,11 +99,11 @@ export default function ProfileScreen() {
       // Immediately refresh profile data and close modal for smooth UX
       await refresh();
       setShowEditModal(false);
-      Alert.alert('Success', 'Profile updated successfully');
+      showSuccess('Success', 'Profile updated successfully');
     } catch (error) {
       console.error('Error updating profile:', error);
       const errorMessage = error instanceof Error ? error.message : 'Failed to update profile. Please try again.';
-      Alert.alert('Error', errorMessage);
+      showError('Error', errorMessage);
     } finally {
       setIsUpdating(false);
     }
@@ -153,44 +172,37 @@ export default function ProfileScreen() {
   const uploadAvatar = async (imageUri: string) => {
     const success = await saveAvatar(imageUri);
     if (success) {
-      Alert.alert('Success', 'Profile picture updated successfully');
+      showSuccess('Success', 'Profile picture updated successfully');
     } else {
-      Alert.alert('Error', 'Failed to save profile picture. Please try again.');
+      showError('Error', 'Failed to save profile picture. Please try again.');
     }
   };
 
   const removeAvatarHandler = async () => {
     const success = await removeAvatar();
     if (success) {
-      Alert.alert('Success', 'Profile picture removed successfully');
+      showSuccess('Success', 'Profile picture removed successfully');
     } else {
-      Alert.alert('Error', 'Failed to remove profile picture. Please try again.');
+      showError('Error', 'Failed to remove profile picture. Please try again.');
     }
   };
 
 
   const handleSignOut = () => {
-    Alert.alert(
+    confirmDestructive(
       Strings.signOut,
       Strings.confirmLogout,
-      [
-        {
-          text: Strings.cancel,
-          style: 'cancel',
-        },
-        {
-          text: Strings.signOut,
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              await signOut();
-              router.replace('/(auth)/sign-in');
-            } catch (error) {
-              Alert.alert('Error', 'Failed to sign out. Please try again.');
-            }
-          },
-        },
-      ]
+      async () => {
+        try {
+          await signOut();
+          router.replace('/(auth)/sign-in');
+        } catch (error) {
+          showError('Error', 'Failed to sign out. Please try again.');
+        }
+      },
+      undefined,
+      Strings.signOut,
+      Strings.cancel
     );
   };
 
@@ -241,10 +253,21 @@ export default function ProfileScreen() {
       subtitle: 'Learn more about our app',
       icon: 'info-outline',
       onPress: () => {
-        Alert.alert(
+        info(
           `About ${Strings.appName}`,
           `${Strings.appName} is a modern food delivery app that brings delicious meals right to your doorstep. We are committed to providing the best dining experience with fresh ingredients and excellent service.\n\nVersion 1.0.0`,
-          [{ text: 'OK' }]
+          [
+            {
+              text: 'Visit Website',
+              onPress: openWebsite,
+              style: 'default'
+            },
+            {
+              text: 'Close',
+              onPress: () => {},
+              style: 'cancel'
+            }
+          ]
         );
       },
       showChevron: true,
@@ -253,8 +276,8 @@ export default function ProfileScreen() {
 
   if (isLoading && !profile) {
     return (
-      <SafeAreaView style={[global.screen, styles.center, { backgroundColor: colors.background }]}>
-        <ResponsiveView style={styles.center}>
+      <View style={[global.screen, styles.center, { backgroundColor: colors.background }]}>
+        <ResponsiveView style={[styles.center, { paddingTop: insets.top }]}>
           <ActivityIndicator size="large" color={colors.primary} />
           <ResponsiveView marginTop="md">
             <ResponsiveText size="md" color={colors.textSecondary}>
@@ -262,14 +285,14 @@ export default function ProfileScreen() {
             </ResponsiveText>
           </ResponsiveView>
         </ResponsiveView>
-      </SafeAreaView>
+      </View>
     );
   }
 
   if (error) {
     return (
-      <SafeAreaView style={[global.screen, styles.center, { backgroundColor: colors.background }]}>
-        <ResponsiveView style={styles.center} padding="lg">
+      <View style={[global.screen, styles.center, { backgroundColor: colors.background }]}>
+        <ResponsiveView style={[styles.center, { paddingTop: insets.top }]} padding="lg">
           <MaterialIcons name="error-outline" size={64} color={colors.error} />
           <ResponsiveView marginTop="md">
             <ResponsiveText size="lg" weight="semiBold" color={colors.error} align="center">
@@ -289,14 +312,15 @@ export default function ProfileScreen() {
             style={styles.retryButton}
           />
         </ResponsiveView>
-      </SafeAreaView>
+      </View>
     );
   }
 
   return (
-    <SafeAreaView style={[global.screen, { backgroundColor: colors.background }]}>
+    <View style={[global.screen, { backgroundColor: colors.background }]}>
       <ScrollView 
         style={{ flex: 1 }}
+        contentContainerStyle={{ paddingTop: insets.top }}
         refreshControl={
         <RefreshControl 
           refreshing={refreshing} 
@@ -330,7 +354,7 @@ export default function ProfileScreen() {
           </TouchableOpacity>
           
           <ResponsiveView style={styles.userInfo}>
-            <ResponsiveText size="xl" weight="bold" color={colors.text}>
+            <ResponsiveText size="xl" weight="bold" color={colors.themedText}>
               {profile?.full_name || 'Username'}
             </ResponsiveText>
             <ResponsiveView marginTop="xs">
@@ -380,7 +404,7 @@ export default function ProfileScreen() {
                   </ResponsiveText>
                 </ResponsiveView>
               </ResponsiveView>
-              <ResponsiveText size="md" weight="medium" color={colors.text}>
+              <ResponsiveText size="md" weight="medium" color={colors.themedText}>
                 {profile?.full_name || 'Not provided'}
               </ResponsiveText>
             </ResponsiveView>
@@ -601,7 +625,7 @@ export default function ProfileScreen() {
         </ResponsiveView>
       </Modal>
       </ScrollView>
-    </SafeAreaView>
+    </View>
   );
 }
 

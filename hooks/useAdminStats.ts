@@ -263,7 +263,7 @@ const fetchRevenueStats = async () => {
     .from('orders')
     .select('total_amount, created_at')
     .gte('created_at', thisMonth.toISOString())
-    .eq('status', 'Delivered');
+    .eq('status', 'delivered');
 
   if (thisMonthError) throw thisMonthError;
 
@@ -272,7 +272,7 @@ const fetchRevenueStats = async () => {
     .select('total_amount, created_at')
     .gte('created_at', lastMonth.toISOString())
     .lte('created_at', lastMonthEnd.toISOString())
-    .eq('status', 'Delivered');
+    .eq('status', 'delivered');
 
   if (lastMonthError) throw lastMonthError;
 

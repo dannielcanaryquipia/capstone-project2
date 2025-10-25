@@ -51,7 +51,7 @@ export default function BuyNowButton({
         styles.button,
         getSizeStyles(),
         {
-          backgroundColor: isDark ? colors.primary : colors.black,
+          backgroundColor: isDark ? colors.white : colors.black,
           opacity: disabled ? 0.5 : 1,
         },
         style,

@@ -2,12 +2,12 @@ import { MaterialIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import React, { useMemo, useState } from 'react';
 import {
-  ActivityIndicator,
-  Alert,
-  FlatList,
-  RefreshControl,
-  StyleSheet,
-  TouchableOpacity
+    ActivityIndicator,
+    Alert,
+    FlatList,
+    RefreshControl,
+    StyleSheet,
+    TouchableOpacity
 } from 'react-native';
 import { AdminCard, AdminLayout, AdminSection } from '../../../components/admin';
 import Button from '../../../components/ui/Button';
@@ -439,7 +439,7 @@ const styles = StyleSheet.create({
     minHeight: responsiveValue(36, 40, 44, 48),
   },
   categoryItemActive: {
-    shadowColor: '#FFE44D',
+    shadowColor: '#D4AF37',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.2,
     shadowRadius: 3,

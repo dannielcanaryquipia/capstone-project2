@@ -1,6 +1,6 @@
 import { router, useLocalSearchParams } from 'expo-router';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Image, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Image, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import AuthForm from '../../components/auth/AuthForm';
 import AuthHeader from '../../components/auth/AuthHeader';
@@ -16,10 +16,21 @@ const createStyles = (colors: any) => StyleSheet.create({
     flex: 1,
     // backgroundColor will be set dynamically by theme
   },
+  keyboardAvoidingView: {
+    flex: 1,
+  },
+  scrollView: {
+    flex: 1,
+  },
+  scrollContent: {
+    flexGrow: 1,
+    paddingBottom: 20, // Extra padding at bottom for better scrolling
+  },
   contentContainer: {
     flex: 1,
     padding: 24,
     justifyContent: 'center',
+    minHeight: '100%', // Ensure minimum height for proper scrolling
   },
   form: {
     width: '100%',
@@ -155,54 +166,67 @@ export default function ResetPasswordScreen() {
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
-      <View style={styles.contentContainer}>
-        <AuthHeader />
+      <KeyboardAvoidingView 
+        style={styles.keyboardAvoidingView}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
+      >
+        <ScrollView 
+          style={styles.scrollView}
+          contentContainerStyle={styles.scrollContent}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+        >
+          <View style={styles.contentContainer}>
+            <AuthHeader />
 
-        <AuthForm error={error} style={styles.form}>
-          <Input
-            label="New Password"
-            value={formData.password}
-            onChangeText={handlePasswordChange}
-            placeholder="Enter new password (min 6 characters)"
-            autoCapitalize="none"
-            autoComplete="new-password"
-            error={formErrors.password}
-            fullWidth
-            iconType="password"
-            showPasswordToggle
-          />
+            <AuthForm error={error} style={styles.form}>
+              <Input
+                label="New Password"
+                value={formData.password}
+                onChangeText={handlePasswordChange}
+                placeholder="Enter new password (min 6 characters)"
+                autoCapitalize="none"
+                autoComplete="new-password"
+                error={formErrors.password}
+                fullWidth
+                iconType="password"
+                showPasswordToggle
+              />
 
-          <Input
-            label="Confirm New Password"
-            value={formData.confirmPassword}
-            onChangeText={(value: string) => updateField('confirmPassword', value)}
-            placeholder="Confirm your new password"
-            autoCapitalize="none"
-            autoComplete="new-password"
-            error={formErrors.confirmPassword}
-            fullWidth
-            iconType="password"
-            showPasswordToggle
-          />
+              <Input
+                label="Confirm New Password"
+                value={formData.confirmPassword}
+                onChangeText={(value: string) => updateField('confirmPassword', value)}
+                placeholder="Confirm your new password"
+                autoCapitalize="none"
+                autoComplete="new-password"
+                error={formErrors.confirmPassword}
+                fullWidth
+                iconType="password"
+                showPasswordToggle
+              />
 
-          <Button
-            title="Update Password"
-            onPress={handleResetPassword}
-            loading={isLoading}
-            disabled={isButtonDisabled}
-            fullWidth
-          />
+              <Button
+                title="Update Password"
+                onPress={handleResetPassword}
+                loading={isLoading}
+                disabled={isButtonDisabled}
+                fullWidth
+              />
 
-          <View style={styles.backButton}>
-            <Text style={[styles.backButtonText, { color: colors.textSecondary }]}>
-              <Text>Back to </Text>
-              <Text style={[styles.backButtonLink, { color: colors.themedText }]} onPress={() => !isLoading && router.back()}>
-                Sign In
-              </Text>
-            </Text>
+              <View style={styles.backButton}>
+                <Text style={[styles.backButtonText, { color: colors.textSecondary }]}>
+                  <Text>Back to </Text>
+                  <Text style={[styles.backButtonLink, { color: colors.themedText }]} onPress={() => !isLoading && router.back()}>
+                    Sign In
+                  </Text>
+                </Text>
+              </View>
+            </AuthForm>
           </View>
-        </AuthForm>
-      </View>
+        </ScrollView>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }

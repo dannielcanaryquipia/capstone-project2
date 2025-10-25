@@ -1,49 +1,45 @@
 import { MaterialIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import React, { useState } from 'react';
-import { Alert, FlatList, StyleSheet, TouchableOpacity, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { FlatList, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useAlert } from '../../../components/ui/AlertProvider';
 import ProductCard from '../../../components/ui/ProductCard';
 import { ResponsiveText } from '../../../components/ui/ResponsiveText';
 import { ResponsiveView } from '../../../components/ui/ResponsiveView';
 import Responsive from '../../../constants/Responsive';
+import { useSavedProducts } from '../../../contexts/SavedProductsContext';
 import { useTheme } from '../../../contexts/ThemeContext';
-import { useSavedProducts, useUnsaveProduct } from '../../../hooks/useSavedProducts';
 
 export default function SavedScreen() {
   const { colors } = useTheme();
-  const { savedProducts, isLoading, error, refresh } = useSavedProducts();
-  const { unsaveProduct, isLoading: isRemoving } = useUnsaveProduct();
+  const { savedProducts, isLoading, error, unsaveProduct, refreshSavedProducts } = useSavedProducts();
+  const { confirmDestructive, error: showError } = useAlert();
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const [removingProductId, setRemovingProductId] = useState<string | null>(null);
 
   const handleRemoveProduct = async (productId: string, productName: string) => {
-    Alert.alert(
-      'Remove Product',
+    confirmDestructive(
+      'Remove from Saved',
       `Are you sure you want to remove "${productName}" from your saved products?`,
-      [
-        {
-          text: 'Cancel',
-          style: 'cancel',
-        },
-        {
-          text: 'Remove',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              setRemovingProductId(productId);
-              await unsaveProduct(productId);
-              // Refresh the saved products list
-              await refresh();
-            } catch (error) {
-              console.error('Error removing product:', error);
-              Alert.alert('Error', 'Failed to remove product. Please try again.');
-            } finally {
-              setRemovingProductId(null);
-            }
-          },
-        },
-      ]
+      async () => {
+        try {
+          setRemovingProductId(productId);
+          await unsaveProduct(productId);
+          // The unsaveProduct function already refreshes the list automatically
+        } catch (error) {
+          console.error('Error removing product:', error);
+          showError('Error', 'Failed to remove product. Please try again.');
+        } finally {
+          setRemovingProductId(null);
+        }
+      },
+      () => {
+        // Cancel action - do nothing
+      },
+      'Remove',
+      'Cancel'
     );
   };
 
@@ -144,34 +140,38 @@ export default function SavedScreen() {
 
   if (isLoading) {
     return (
-      <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
+      <View style={[styles.container, { backgroundColor: colors.background }]}>
         <ResponsiveView 
           flex={1} 
           justifyContent="center" 
           alignItems="center"
+          style={{ paddingTop: insets.top }}
         >
           <ResponsiveText size="lg" color={colors.textSecondary}>
             Loading saved products...
           </ResponsiveText>
         </ResponsiveView>
-      </SafeAreaView>
+      </View>
     );
   }
 
   if (savedProducts.length === 0) {
     return (
-      <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
-        {renderEmptyState()}
-      </SafeAreaView>
+      <View style={[styles.container, { backgroundColor: colors.background }]}>
+        <ResponsiveView style={{ paddingTop: insets.top }}>
+          {renderEmptyState()}
+        </ResponsiveView>
+      </View>
     );
   }
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
       <ResponsiveView 
         paddingHorizontal="lg" 
         paddingVertical="md"
         marginBottom="sm"
+        style={{ paddingTop: insets.top }}
       >
         <ResponsiveText 
           size="xxl" 
@@ -208,7 +208,7 @@ export default function SavedScreen() {
         renderItem={renderProduct}
         showsVerticalScrollIndicator={false}
       />
-    </SafeAreaView>
+    </View>
   );
 }
 

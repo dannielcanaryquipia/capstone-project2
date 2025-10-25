@@ -3,11 +3,11 @@ import { useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
-  Alert,
   ScrollView,
   StyleSheet
 } from 'react-native';
 import { AdminCard, AdminLayout, AdminSection } from '../../../components/admin';
+import { useAlert } from '../../../components/ui/AlertProvider';
 import Button from '../../../components/ui/Button';
 import { ResponsiveText } from '../../../components/ui/ResponsiveText';
 import { ResponsiveView } from '../../../components/ui/ResponsiveView';
@@ -16,9 +16,9 @@ import { Strings } from '../../../constants/Strings';
 import { useTheme } from '../../../contexts/ThemeContext';
 import { useAuth } from '../../../hooks';
 import { User, UserService } from '../../../services/user.service';
-
 export default function AdminProfile() {
   const { colors } = useTheme();
+  const { error: showError, confirmDestructive, info } = useAlert();
   const router = useRouter();
   const { user, signOut } = useAuth();
   const [loading, setLoading] = useState(true);
@@ -39,37 +39,33 @@ export default function AdminProfile() {
       setProfile(profileData);
     } catch (error) {
       console.error('Error loading profile:', error);
-      Alert.alert('Error', 'Failed to load profile details');
+      showError('Error', 'Failed to load profile details');
     } finally {
       setLoading(false);
     }
   };
 
   const handleSignOut = () => {
-    Alert.alert(
+    confirmDestructive(
       'Sign Out',
       'Are you sure you want to sign out?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        { 
-          text: 'Sign Out', 
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              await signOut();
-              router.replace('/(auth)/sign-in');
-            } catch (error) {
-              console.error('Error signing out:', error);
-              Alert.alert('Error', 'Failed to sign out. Please try again.');
-            }
-          }
+      async () => {
+        try {
+          await signOut();
+          router.replace('/(auth)/sign-in');
+        } catch (error) {
+          console.error('Error signing out:', error);
+          showError('Error', 'Failed to sign out. Please try again.');
         }
-      ]
+      },
+      undefined,
+      'Sign Out',
+      'Cancel'
     );
   };
 
   const handleChangePassword = () => {
-    Alert.alert('Coming Soon', 'Password change feature will be available soon.');
+    info('Coming Soon', 'Password change feature will be available soon.');
   };
 
   const formatDate = (dateString: string) => {

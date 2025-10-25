@@ -2,12 +2,12 @@ import * as ImagePicker from 'expo-image-picker';
 import { useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import {
-  Alert,
   ScrollView,
   StyleSheet
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Address, AddressCard } from '../../components/ui/AddressCard';
+import { useAlert } from '../../components/ui/AlertProvider';
 import Button from '../../components/ui/Button';
 import { CheckoutHeader } from '../../components/ui/CheckoutHeader';
 import { CheckoutLoadingState } from '../../components/ui/CheckoutLoadingState';
@@ -58,7 +58,9 @@ const paymentMethods: PaymentMethod[] = [
 
 export default function CheckoutScreen() {
   const { colors } = useTheme();
+  const { success } = useAlert();
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const { getSelectedItems, selectedSubtotal, clearCart, resetDeliveryFee } = useCart();
   const items = getSelectedItems();
   const subtotal = selectedSubtotal;
@@ -171,6 +173,7 @@ export default function CheckoutScreen() {
           special_instructions: item.special_instructions,
           pizza_size: item.pizza_size,
           pizza_crust: item.pizza_crust,
+          pizza_slice: item.pizza_slice,
           toppings: item.toppings,
           customization_details: item.customization_details,
         })),
@@ -199,14 +202,14 @@ export default function CheckoutScreen() {
           await supabase.from('payment_transactions' as any).insert({
             order_id: order.id,
             amount: order.total_amount,
-            payment_method: 'GCASH',
-            status: 'Pending',
+            payment_method: 'gcash',
+            status: 'pending',
             proof_of_payment_url: uploadResult.url,
           } as any);
 
           await supabase.from('orders').update({ 
             proof_of_payment_url: uploadResult.url,
-            payment_status: 'Pending'
+            payment_status: 'pending'
           }).eq('id', order.id);
         } catch (e) {
           console.log('Proof upload failed', e);
@@ -220,7 +223,7 @@ export default function CheckoutScreen() {
       const paymentMethodName = selectedPaymentMethodData?.name || 'Unknown';
       const isOnlinePayment = selectedPaymentMethod === 'gcash';
       
-      Alert.alert(
+      success(
         'Order Placed Successfully!',
         isOnlinePayment 
           ? `Your order ${order.order_number} has been placed with ${paymentMethodName}. Admin will verify your receipt shortly.`
@@ -308,11 +311,13 @@ export default function CheckoutScreen() {
 
   if (items.length === 0) {
     return (
-      <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
-        <CheckoutHeader
-          title="Checkout"
-          onBack={() => router.back()}
-        />
+      <ResponsiveView style={[styles.container, { backgroundColor: colors.background }]}>
+        <ResponsiveView style={{ paddingTop: insets.top }}>
+          <CheckoutHeader
+            title="Checkout"
+            onBack={() => router.back()}
+          />
+        </ResponsiveView>
         <ResponsiveView flex={1} justifyContent="center" alignItems="center" paddingHorizontal="lg">
           <EmptyState
             icon="shopping-cart"
@@ -324,19 +329,21 @@ export default function CheckoutScreen() {
             fullScreen
           />
         </ResponsiveView>
-      </SafeAreaView>
+      </ResponsiveView>
     );
   }
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
-      <CheckoutHeader
-        title="Checkout"
-        onBack={() => router.back()}
-        showProgress
-        currentStep={1}
-        totalSteps={3}
-      />
+    <ResponsiveView style={[styles.container, { backgroundColor: colors.background }]}>
+      <ResponsiveView style={{ paddingTop: insets.top }}>
+        <CheckoutHeader
+          title="Checkout"
+          onBack={() => router.back()}
+          showProgress
+          currentStep={1}
+          totalSteps={3}
+        />
+      </ResponsiveView>
 
       <ResponsiveView flex={1} flexDirection={Responsive.isTablet ? 'row' : 'column'}>
         {/* Main Content */}
@@ -347,7 +354,10 @@ export default function CheckoutScreen() {
           <ScrollView 
             style={styles.content} 
             showsVerticalScrollIndicator={false}
-            contentContainerStyle={styles.scrollContent}
+            contentContainerStyle={[
+              styles.scrollContent,
+              { paddingBottom: Math.max(insets.bottom, Responsive.responsiveValue(20, 24, 28, 32)) }
+            ]}
           >
                  {/* Error Display */}
                  {(checkoutError || lastPaymentError) && (
@@ -515,7 +525,7 @@ export default function CheckoutScreen() {
             paddingHorizontal="md"
             paddingVertical="md"
             backgroundColor={colors.surface}
-            style={[styles.stickyFooter, { borderTopColor: colors.border }]}
+            style={[styles.stickyFooter, { borderTopColor: colors.border, paddingBottom: Math.max(insets.bottom, 16) }]}
           >
             <Button
               title={
@@ -554,7 +564,7 @@ export default function CheckoutScreen() {
             paddingHorizontal="lg"
             paddingVertical="md"
             backgroundColor={colors.surface}
-            style={[styles.sidebar, { borderLeftColor: colors.border }]}
+            style={[styles.sidebar, { borderLeftColor: colors.border, paddingBottom: Math.max(insets.bottom, 16) }]}
           >
             <Button
               title={
@@ -576,7 +586,7 @@ export default function CheckoutScreen() {
           </ResponsiveView>
         )}
       </ResponsiveView>
-    </SafeAreaView>
+    </ResponsiveView>
   );
 }
 

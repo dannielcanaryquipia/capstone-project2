@@ -1,7 +1,7 @@
 // Theme Colors
 export const Colors = {
   // Base Colors
-  tint: '#FEDC00',
+  tint: '#D4AF37',
   text: '#333333',
   background: '#F7F7F7',
   card: '#FFFFFF',
@@ -13,9 +13,9 @@ export const Colors = {
   borderDark: '#CCCCCC',
   
   // Primary Colors - Kitchen One Brand
-  primary: '#FFE44D', // Figma yellow - main brand color
-  primaryLight: '#FFF176', // Lighter yellow for backgrounds
-  primaryDark: '#F9A825', // Darker yellow for pressed states
+  primary: '#D4AF37', // Dark golden yellow - main brand color
+  primaryLight: '#E6C547', // Lighter dark yellow for backgrounds
+  primaryDark: '#B8941F', // Darker yellow for pressed states
   
   // Secondary Colors
   secondary: '#4CAF50', // Green - success, delivery
@@ -50,7 +50,7 @@ export const Colors = {
   // Category Button Colors
   categoryButtonText: '#000000', // Black for light mode
   categoryButtonBorder: '#000000', // Black for light mode
-  categoryButtonActiveFill: '#FFE44D', // Yellow for active state
+  categoryButtonActiveFill: '#D4AF37', // Dark yellow for active state
   categoryButtonActiveText: '#000000', // Black text when active
   
   // Status Colors
@@ -122,16 +122,16 @@ export const darkColors = {
   textTertiary: '#7A7A7A',
   textInverse: '#000000',
   
-  // Themed Text Colors for specific elements (yellow in dark mode)
-  themedText: '#FFE44D', // Yellow for dark mode
-  themedPrice: '#FFE44D', // Yellow for dark mode
-  themedDiscount: '#FFE44D', // Yellow for dark mode
-  themedViewAll: '#FFE44D', // Yellow for dark mode
+  // Themed Text Colors for specific elements (dark yellow in dark mode)
+  themedText: '#D4AF37', // Dark yellow for dark mode
+  themedPrice: '#D4AF37', // Dark yellow for dark mode
+  themedDiscount: '#D4AF37', // Dark yellow for dark mode
+  themedViewAll: '#D4AF37', // Dark yellow for dark mode
   
   // Category Button Colors (dark mode)
   categoryButtonText: '#FFFFFF', // White for dark mode
   categoryButtonBorder: '#FFFFFF', // White for dark mode
-  categoryButtonActiveFill: '#FFE44D', // Yellow for active state (same in both modes)
+  categoryButtonActiveFill: '#D4AF37', // Dark yellow for active state (same in both modes)
   categoryButtonActiveText: '#000000', // Black text when active (same in both modes)
   
   // Border Colors
@@ -149,9 +149,9 @@ export const darkColors = {
   info: '#2196F3',
   
   // Primary Colors (keep brand colors)
-  primary: '#FFE44D',
-  primaryLight: '#FFF176',
-  primaryDark: '#F9A825',
+  primary: '#D4AF37',
+  primaryLight: '#E6C547',
+  primaryDark: '#B8941F',
   
   // Secondary Colors
   secondary: '#66BB6A',

@@ -60,7 +60,7 @@ const Button: React.FC<ButtonProps> = memo(({
 
     const variantStyles: Record<ButtonVariant, ViewStyle> = {
       primary: {
-        backgroundColor: '#FEDC00', // Fixed yellow background for primary buttons
+        backgroundColor: '#D4AF37', // Fixed dark yellow background for primary buttons
       },
       secondary: {
         backgroundColor: theme.colors.secondary,

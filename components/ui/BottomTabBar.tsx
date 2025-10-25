@@ -19,7 +19,6 @@ const BottomTabBar: React.FC<BottomTabBarProps> = ({ state, descriptors, navigat
   
   // Calculate dynamic bottom padding based on device safe area
   const bottomPadding = Math.max(insets.bottom, 8); // Minimum 8px padding
-  const tabBarHeight = 60 + bottomPadding; // Base height + safe area
   
   return (
     <View
@@ -28,7 +27,6 @@ const BottomTabBar: React.FC<BottomTabBarProps> = ({ state, descriptors, navigat
         {
           backgroundColor: isDark ? 'rgba(0,0,0,0.25)' : 'rgba(255,255,255,0.6)',
           shadowColor: colors.black,
-          height: tabBarHeight,
           paddingBottom: bottomPadding,
         },
       ]}
@@ -98,7 +96,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-around',
     alignItems: 'center',
     width: '100%',
-    paddingTop: 18,
+    paddingTop: 12,
     borderTopWidth: 0,
     marginHorizontal: 0,
     marginBottom: 0,
@@ -107,6 +105,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 12,
     shadowOffset: { width: 0, height: 4 },
+    minHeight: 60,
   },
   tab: {
     width: '25%',

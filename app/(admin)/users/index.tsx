@@ -1,6 +1,6 @@
 import { MaterialIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -11,7 +11,7 @@ import {
   TouchableOpacity
 } from 'react-native';
 import { AdminCard, AdminLayout, AdminSection } from '../../../components/admin';
-import Button from '../../../components/ui/Button';
+import { useAlert } from '../../../components/ui/AlertProvider';
 import { DropdownMenuItem } from '../../../components/ui/DropdownMenu';
 import { ResponsiveText } from '../../../components/ui/ResponsiveText';
 import { ResponsiveView } from '../../../components/ui/ResponsiveView';
@@ -19,12 +19,15 @@ import Layout from '../../../constants/Layout';
 import { ResponsiveBorderRadius, ResponsiveSpacing, responsiveValue } from '../../../constants/Responsive';
 import { Strings } from '../../../constants/Strings';
 import { useTheme } from '../../../contexts/ThemeContext';
+import { useAuth } from '../../../hooks';
 import { User, UserFilters, UserService } from '../../../services/user.service';
 
 const roleTabs = ['All', 'Customer', 'Admin', 'Delivery Staff'];
 
 export default function AdminUsersScreen() {
   const { colors } = useTheme();
+  const { user: currentUser } = useAuth();
+  const { confirm, confirmDestructive, success, error, show } = useAlert();
   const router = useRouter();
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
@@ -37,10 +40,35 @@ export default function AdminUsersScreen() {
     admins: 0,
     deliveryStaff: 0
   });
+  const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('');
+  const [isSearching, setIsSearching] = useState(false);
+  const searchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Debounce search query
+  useEffect(() => {
+    if (searchTimeoutRef.current) {
+      clearTimeout(searchTimeoutRef.current);
+    }
+
+    if (searchQuery.trim()) {
+      setIsSearching(true);
+    }
+
+    searchTimeoutRef.current = setTimeout(() => {
+      setDebouncedSearchQuery(searchQuery);
+      setIsSearching(false);
+    }, 500); // 500ms delay
+
+    return () => {
+      if (searchTimeoutRef.current) {
+        clearTimeout(searchTimeoutRef.current);
+      }
+    };
+  }, [searchQuery]);
 
   useEffect(() => {
     loadUsers();
-  }, [activeTab, searchQuery]);
+  }, [activeTab, debouncedSearchQuery]);
 
   const loadUsers = async () => {
     try {
@@ -55,9 +83,9 @@ export default function AdminUsersScreen() {
         }
       }
       
-      if (searchQuery.trim()) {
-        filters.search = searchQuery.trim();
-        console.log('Search query:', searchQuery.trim());
+      if (debouncedSearchQuery.trim()) {
+        filters.search = debouncedSearchQuery.trim();
+        console.log('Search query:', debouncedSearchQuery.trim());
       }
       
       const usersData = await UserService.getUsers(filters);
@@ -88,56 +116,100 @@ export default function AdminUsersScreen() {
     setRefreshing(false);
   };
 
+  const handleSearchChange = useCallback((text: string) => {
+    setSearchQuery(text);
+  }, []);
+
+  const handleClearSearch = useCallback(() => {
+    setSearchQuery('');
+    setDebouncedSearchQuery('');
+    setIsSearching(false);
+  }, []);
+
   // Removed Activate/Deactivate user logic as requested
 
   const handleChangeRole = async (userId: string, currentRole: string, userName: string) => {
-    const roleOptions = ['customer', 'admin', 'delivery'];
-    const currentIndex = roleOptions.indexOf(currentRole);
-    const nextRole = roleOptions[(currentIndex + 1) % roleOptions.length];
+    // Define available role transitions
+    const getAvailableRoles = (currentRole: string) => {
+      switch (currentRole) {
+        case 'customer':
+          return [
+            { value: 'delivery', label: 'Delivery Staff', icon: 'delivery-dining' }
+          ];
+        case 'delivery':
+          return [
+            { value: 'customer', label: 'Customer', icon: 'person' }
+          ];
+        case 'admin':
+          return [
+            { value: 'customer', label: 'Customer', icon: 'person' },
+            { value: 'delivery', label: 'Delivery Staff', icon: 'delivery-dining' }
+          ];
+        default:
+          return [];
+      }
+    };
+
+    const availableRoles = getAvailableRoles(currentRole);
     
-    Alert.alert(
+    if (availableRoles.length === 0) {
+      error('No Role Changes Available', 'This user role cannot be changed.');
+      return;
+    }
+
+    // Create role selection buttons
+    const roleButtons: Array<{text: string, onPress: () => void, style: 'default' | 'cancel' | 'destructive'}> = availableRoles.map(role => ({
+      text: `Change to ${role.label}`,
+      onPress: () => confirmRoleChange(userId, role.value, role.label, userName),
+      style: 'default'
+    }));
+
+    // Add cancel button
+    roleButtons.push({
+      text: 'Cancel',
+      onPress: async () => {},
+      style: 'destructive'
+    });
+
+    // Show the role selection using the alert system
+    show(
       'Change User Role',
-      `Change ${userName}'s role from ${currentRole.replace('_', ' ')} to ${nextRole.replace('_', ' ')}?`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        { 
-          text: 'Change Role', 
-          onPress: async () => {
-            try {
-              await UserService.changeUserRole(userId, nextRole);
-              await loadUsers();
-              Alert.alert('Success', 'User role updated successfully!');
-            } catch (error) {
-              console.error('Error updating user role:', error);
-              Alert.alert('Error', 'Failed to update user role. Please try again.');
-            }
-          }
-        }
-      ]
+      `Select a new role for ${userName} (currently ${currentRole.replace('_', ' ').toUpperCase()})`,
+      roleButtons,
+      { type: 'info' }
     );
   };
 
+  const confirmRoleChange = async (userId: string, newRole: string, roleLabel: string, userName: string) => {
+    try {
+      await UserService.changeUserRole(userId, newRole);
+      await loadUsers();
+      success('Role Updated Successfully', `${userName} is now a ${roleLabel}`);
+    } catch (err) {
+      console.error('Error updating user role:', err);
+      error('Update Failed', 'Failed to update user role. Please try again.');
+    }
+  };
+
   const handleDeleteUser = async (userId: string, userName: string) => {
-    Alert.alert(
+    const deleteUser = async () => {
+      try {
+        await UserService.deleteUser(userId);
+        await loadUsers();
+        success('User Deleted', `${userName} has been successfully deleted.`);
+      } catch (err) {
+        console.error('Error deleting user:', err);
+        error('Delete Failed', 'Failed to delete user. Please try again.');
+      }
+    };
+
+    confirmDestructive(
       'Delete User',
       `Are you sure you want to permanently delete ${userName}? This action cannot be undone.`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        { 
-          text: 'Delete', 
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              await UserService.deleteUser(userId);
-              await loadUsers();
-              Alert.alert('Success', 'User deleted successfully!');
-            } catch (error) {
-              console.error('Error deleting user:', error);
-              Alert.alert('Error', 'Failed to delete user. Please try again.');
-            }
-          }
-        }
-      ]
+      deleteUser,
+      undefined,
+      'Delete',
+      'Cancel'
     );
   };
 
@@ -168,7 +240,18 @@ export default function AdminUsersScreen() {
   };
 
   const renderUserItem = ({ item }: { item: User }) => {
-    const actionMenuItems: DropdownMenuItem[] = [
+    // Check if current user is trying to edit themselves
+    const isCurrentUser = currentUser?.id === item.id;
+    
+    const actionMenuItems: DropdownMenuItem[] = isCurrentUser ? [
+      {
+        id: 'self-edit-disabled',
+        title: 'Cannot edit own account',
+        icon: 'block',
+        disabled: true,
+        onPress: () => {},
+      },
+    ] : [
       {
         id: 'change-role',
         title: 'Change Role',
@@ -196,9 +279,13 @@ export default function AdminUsersScreen() {
           />
         }
         variant="outlined"
-        style={styles.userCard}
+        style={[
+          styles.userCard,
+          isCurrentUser && [styles.currentUserCard, { borderColor: colors.primary }]
+        ]}
         showActionMenu={true}
         actionMenuItems={actionMenuItems}
+        disabled={isCurrentUser}
       >
         <ResponsiveView style={styles.userMeta}>
           <ResponsiveView style={[styles.roleBadge, { backgroundColor: `${getRoleColor(item.role)}20` }]}>
@@ -217,13 +304,35 @@ export default function AdminUsersScreen() {
               </ResponsiveText>
             </ResponsiveView>
           </ResponsiveView>
+          
+          {isCurrentUser && (
+            <ResponsiveView style={[styles.currentUserBadge, { backgroundColor: colors.primary + '20' }]}>
+              <MaterialIcons 
+                name="person" 
+                size={responsiveValue(12, 14, 16, 18)} 
+                color={colors.primary} 
+              />
+              <ResponsiveView marginLeft="xs">
+                <ResponsiveText 
+                  size="xs" 
+                  color={colors.primary}
+                  weight="semiBold"
+                >
+                  YOU
+                </ResponsiveText>
+              </ResponsiveView>
+            </ResponsiveView>
+          )}
         </ResponsiveView>
 
-        {item.phone_number && (
-          <ResponsiveText size="sm" color={colors.textSecondary} style={styles.phoneNumber}>
-            {item.phone_number}
-          </ResponsiveText>
-        )}
+        <ResponsiveView style={styles.contactInfo}>
+          <MaterialIcons name="phone" size={responsiveValue(12, 14, 16, 18)} color={colors.textSecondary} />
+          <ResponsiveView marginLeft="xs">
+            <ResponsiveText size="sm" color={colors.textSecondary} style={styles.phoneNumber}>
+              {item.phone_number || 'No contact number'}
+            </ResponsiveText>
+          </ResponsiveView>
+        </ResponsiveView>
 
         <ResponsiveView style={styles.userFooter}>
           <ResponsiveView style={styles.dateInfo}>
@@ -236,14 +345,6 @@ export default function AdminUsersScreen() {
           </ResponsiveView>
         </ResponsiveView>
 
-        <ResponsiveView style={styles.userActions}>
-          <Button
-            title="Change Role"
-            onPress={() => handleChangeRole(item.id, item.role, item.full_name)}
-            variant="primary"
-            size="small"
-          />
-        </ResponsiveView>
       </AdminCard>
     );
   };
@@ -307,18 +408,30 @@ export default function AdminUsersScreen() {
             placeholder="Search users by name or phone"
             placeholderTextColor={colors.textSecondary}
             value={searchQuery}
-            onChangeText={setSearchQuery}
+            onChangeText={handleSearchChange}
             autoCapitalize="none"
             autoCorrect={false}
             returnKeyType="search"
           />
           {searchQuery.length > 0 && (
-            <MaterialIcons 
-              name="clear" 
-              size={responsiveValue(18, 20, 22, 24)} 
-              color={colors.textSecondary}
+            <TouchableOpacity 
+              onPress={handleClearSearch}
               style={styles.clearButton}
-            />
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            >
+              {isSearching ? (
+                <ActivityIndicator 
+                  size="small" 
+                  color={colors.primary} 
+                />
+              ) : (
+                <MaterialIcons 
+                  name="clear" 
+                  size={responsiveValue(18, 20, 22, 24)} 
+                  color={colors.textSecondary}
+                />
+              )}
+            </TouchableOpacity>
           )}
         </ResponsiveView>
       </ResponsiveView>
@@ -413,6 +526,7 @@ const styles = StyleSheet.create({
   },
   clearButton: {
     padding: ResponsiveSpacing.xs,
+    marginLeft: ResponsiveSpacing.xs,
   },
   categoryItem: {
     flexDirection: 'row',
@@ -426,7 +540,7 @@ const styles = StyleSheet.create({
     minHeight: responsiveValue(36, 40, 44, 48),
   },
   categoryItemActive: {
-    shadowColor: '#FFE44D',
+    shadowColor: '#D4AF37',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.2,
     shadowRadius: 3,
@@ -438,6 +552,10 @@ const styles = StyleSheet.create({
   },
   userCard: {
     marginBottom: ResponsiveSpacing.md,
+  },
+  currentUserCard: {
+    opacity: 0.8,
+    borderWidth: 2,
   },
   userMeta: {
     flexDirection: 'row',
@@ -452,8 +570,20 @@ const styles = StyleSheet.create({
     paddingVertical: ResponsiveSpacing.xs,
     borderRadius: ResponsiveBorderRadius.sm,
   },
-  phoneNumber: {
+  currentUserBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: ResponsiveSpacing.sm,
+    paddingVertical: ResponsiveSpacing.xs,
+    borderRadius: ResponsiveBorderRadius.sm,
+  },
+  contactInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
     marginBottom: ResponsiveSpacing.sm,
+  },
+  phoneNumber: {
+    flex: 1,
   },
   userFooter: {
     flexDirection: 'row',
@@ -464,11 +594,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     flex: 1,
-  },
-  userActions: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    gap: ResponsiveSpacing.sm,
   },
   emptyState: {
     flex: 1,

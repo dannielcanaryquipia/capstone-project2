@@ -101,7 +101,7 @@ export type DeliveryStatus = 'Assigned' | 'Picked Up' | 'In Transit' | 'Delivere
 export type UserRole = 'customer' | 'admin' | 'delivery';
 
 // Payment Method Type
-export type PaymentMethod = 'COD' | 'GCash' | 'card';
+export type PaymentMethod = 'cod' | 'gcash' | 'card';
 
 // Order Type
 export interface Order {
@@ -125,6 +125,14 @@ export interface Order {
   order_items?: OrderItem[];
   delivery_assignment?: DeliveryAssignment;
   payment_transactions?: PaymentTransaction[];
+  // Rider delivery information
+  delivered_by_rider?: {
+    id: string;
+    full_name?: string;
+    phone_number?: string;
+    username: string;
+  };
+  delivered_at?: string;
 }
 
 // Order Item Type
@@ -445,12 +453,12 @@ export interface OrderNote {
 // Cart types
 export interface OrderForm {
   delivery_address_id: string;
-  payment_method: 'COD' | 'COP' | 'Online';
+  payment_method: 'cod' | 'gcash' | 'card';
   customer_notes?: string;
 }
 
 export interface PaymentForm {
-  payment_method: 'COD' | 'COP' | 'Online';
+  payment_method: 'cod' | 'gcash' | 'card';
   proof_of_payment_url?: string;
 }
 

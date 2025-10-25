@@ -3,9 +3,9 @@ import * as ImagePicker from 'expo-image-picker';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import {
-  Alert,
-  ScrollView,
-  StyleSheet
+    Alert,
+    ScrollView,
+    StyleSheet
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Button from '../../../components/ui/Button';
@@ -204,8 +204,8 @@ export default function OrderDetailsScreen() {
     const isCOD = order.payment_method?.toLowerCase() === 'cod';
     const isGCash = order.payment_method?.toLowerCase() === 'gcash';
     const paymentVerified = order.payment_status === 'verified' || (order as any).payment_verified;
-    const isOutForDelivery = order.status === 'out_for_delivery' || (order.status as any) === 'Out for Delivery';
-    const isDelivered = order.status === 'delivered' || (order.status as any) === 'Delivered';
+    const isOutForDelivery = order.status === 'out_for_delivery';
+    const isDelivered = order.status === 'delivered';
 
     // COD orders need payment verification first
     if (isCOD && !paymentVerified && isOutForDelivery) {
@@ -304,7 +304,13 @@ export default function OrderDetailsScreen() {
         <ResponsiveView padding="lg">
           {/* Header */}
           <ResponsiveView style={[styles.header, { backgroundColor: colors.surface }]}>
-            <ResponsiveView style={styles.headerLeft}>
+            <Button
+              title=""
+              onPress={() => router.back()}
+              variant="text"
+              icon={<MaterialIcons name="arrow-back" size={24} color={colors.primary} />}
+            />
+            <ResponsiveView style={styles.headerContent}>
               <ResponsiveText size="xl" weight="bold" color={colors.text}>
                 Order #{order.order_number || order.id.slice(-6).toUpperCase()}
               </ResponsiveText>
@@ -329,12 +335,6 @@ export default function OrderDetailsScreen() {
                 </ResponsiveView>
               </ResponsiveView>
             </ResponsiveView>
-            <Button
-              title=""
-              onPress={() => router.back()}
-              variant="text"
-              icon={<MaterialIcons name="arrow-back" size={24} color={colors.primary} />}
-            />
           </ResponsiveView>
 
           {/* Order Info */}
@@ -606,15 +606,15 @@ const styles = StyleSheet.create({
   },
   header: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'flex-start',
     marginBottom: ResponsiveSpacing.lg,
     padding: ResponsiveSpacing.lg,
     borderRadius: ResponsiveBorderRadius.lg,
     ...Layout.shadows.sm,
   },
-  headerLeft: {
+  headerContent: {
     flex: 1,
+    marginLeft: ResponsiveSpacing.md,
   },
   statusRow: {
     flexDirection: 'row',

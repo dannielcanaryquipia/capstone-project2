@@ -1,8 +1,9 @@
 import { MaterialIcons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
-import { Alert, Dimensions, Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Dimensions, Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useAlert } from '../../../components/ui/AlertProvider';
 import BuyNowButton from '../../../components/ui/BuyNowButton';
 import { CartNotification } from '../../../components/ui/CartNotification';
 import SelectablePill from '../../../components/ui/SelectablePill';
@@ -10,6 +11,7 @@ import Layout from '../../../constants/Layout';
 import Responsive from '../../../constants/Responsive';
 import { useSavedProducts } from '../../../contexts/SavedProductsContext';
 import { useTheme } from '../../../contexts/ThemeContext';
+import { useSlices } from '../../../hooks';
 import { useCart } from '../../../hooks/useCart';
 import { useCrusts, useProductDetail } from '../../../hooks/useProductDetail';
 import { useRecommendations } from '../../../hooks/useRecommendations';
@@ -37,9 +39,11 @@ export default function ProductScreen() {
   const { colors, isDark } = useTheme();
   const router = useRouter();
   const { addItem, clearCart, selectAllItems } = useCart();
+  const { confirmDestructive, error: showError, confirm, info } = useAlert();
   const [quantity, setQuantity] = useState(1);
   const [selectedSize, setSelectedSize] = useState('');
   const [selectedCrust, setSelectedCrust] = useState('');
+  const [selectedSlice, setSelectedSlice] = useState('');
   const [showCartNotification, setShowCartNotification] = useState(false);
   const [addedItem, setAddedItem] = useState<{
     name: string;
@@ -57,8 +61,40 @@ export default function ProductScreen() {
   const [isLoadingRecommendations, setIsLoadingRecommendations] = useState(false);
 
   // Check if product is saved and toggle functionality
-  const { isProductSaved, toggleSave } = useSavedProducts();
+  const { isProductSaved, toggleSave, unsaveProduct } = useSavedProducts();
   const isSaved = product.id !== 'loading' ? isProductSaved(product.id) : false;
+
+  // Handle heart icon toggle with confirmation
+  const handleHeartToggle = async () => {
+    if (isSaved) {
+      // Show confirmation dialog for removal using custom alert
+      confirmDestructive(
+        'Remove from Saved',
+        `Are you sure you want to remove "${product.name}" from your saved products?`,
+        async () => {
+          try {
+            await unsaveProduct(product.id);
+          } catch (error) {
+            console.error('Error removing product:', error);
+            showError('Error', 'Failed to remove product. Please try again.');
+          }
+        },
+        () => {
+          // Cancel action - do nothing
+        },
+        'Remove',
+        'Cancel'
+      );
+    } else {
+      // Save the product
+      try {
+        await toggleSave(product.id);
+      } catch (error) {
+        console.error('Error saving product:', error);
+        showError('Error', 'Failed to save product. Please try again.');
+      }
+    }
+  };
 
 
   // Determine if this is a Pizza category (to show size & crust)
@@ -75,6 +111,10 @@ export default function ProductScreen() {
   // Fetch all crusts from crusts table (not from pizza_options)
   const { crusts: allCrusts } = useCrusts();
   const availableCrustsForSize = useMemo(() => (allCrusts || []).map(c => c.name), [allCrusts]);
+
+  // Fetch all slices from slices table
+  const { slices: allSlices } = useSlices();
+  const availableSlices = useMemo(() => (allSlices || []).map((s: any) => s.name), [allSlices]);
 
   // Determine price based on selected size (fallback to base_price)
   const selectedSizePrice = useMemo(() => {
@@ -94,6 +134,12 @@ export default function ProductScreen() {
       setSelectedCrust(availableCrustsForSize[0]);
     }
   }, [availableCrustsForSize, selectedCrust]);
+
+  useEffect(() => {
+    if (!selectedSlice && availableSlices.length > 0) {
+      setSelectedSlice(availableSlices[0]);
+    }
+  }, [availableSlices, selectedSlice]);
 
   // Load category recommendations when product is loaded
   useEffect(() => {
@@ -125,25 +171,20 @@ export default function ProductScreen() {
   const decreaseQuantity = () => {
     if (quantity <= 1) {
       // Show alert when trying to decrease below 1
-      Alert.alert(
+      confirmDestructive(
         'Remove Item',
         'Are you sure you want to remove this item?',
-        [
-          {
-            text: 'Cancel',
-            style: 'cancel',
-          },
-          {
-            text: 'Remove',
-            style: 'destructive',
-            onPress: () => {
-              // Navigate back or reset to 1
-              setQuantity(1);
-              // Optionally navigate back to menu
-              // router.back();
-            },
-          },
-        ]
+        () => {
+          // Navigate back or reset to 1
+          setQuantity(1);
+          // Optionally navigate back to menu
+          // router.back();
+        },
+        () => {
+          // Cancel action - do nothing
+        },
+        'Remove',
+        'Cancel'
       );
     } else {
       setQuantity(prev => prev - 1);
@@ -172,6 +213,7 @@ export default function ProductScreen() {
       if (isPizzaCategory) {
         if (selectedSize) cartOptions.pizza_size = selectedSize;
         if (selectedCrust) cartOptions.pizza_crust = selectedCrust;
+        if (selectedSlice) cartOptions.pizza_slice = selectedSlice;
       }
 
       // Add item to cart
@@ -188,10 +230,10 @@ export default function ProductScreen() {
       setShowCartNotification(true);
     } catch (error: any) {
       // Handle cart limit error
-      Alert.alert(
+      info(
         'Cart Limit Reached',
         error.message || 'You can only add up to 10 different items to your cart.',
-        [{ text: 'OK' }]
+        [{ text: 'OK', onPress: () => {} }]
       );
     }
   };
@@ -215,17 +257,10 @@ export default function ProductScreen() {
     if (!product || product.id === 'loading') return;
 
     // Show confirmation alert
-    Alert.alert(
+    confirm(
       'Buy Now',
       `Proceed to checkout with ${quantity} ${product.name}?`,
-      [
-        {
-          text: 'Cancel',
-          style: 'cancel',
-        },
-        {
-          text: 'Continue',
-          onPress: () => {
+      () => {
             try {
               // Convert ProductDetail to Product type for cart
               const productForCart = {
@@ -245,6 +280,7 @@ export default function ProductScreen() {
               if (isPizzaCategory) {
                 if (selectedSize) cartOptions.pizza_size = selectedSize;
                 if (selectedCrust) cartOptions.pizza_crust = selectedCrust;
+                if (selectedSlice) cartOptions.pizza_slice = selectedSlice;
               }
 
               // Clear existing cart for buy now flow
@@ -262,15 +298,17 @@ export default function ProductScreen() {
               }, 100);
             } catch (error: any) {
               // Handle cart limit error
-              Alert.alert(
+              showError(
                 'Error',
-                error.message || 'Unable to proceed with checkout.',
-                [{ text: 'OK' }]
+                error.message || 'Unable to proceed with checkout.'
               );
             }
           },
-        },
-      ]
+      () => {
+        // Cancel action - do nothing
+      },
+      'Continue',
+      'Cancel'
     );
   };
 
@@ -303,22 +341,25 @@ export default function ProductScreen() {
           
           {/* Overlay Header Icons */}
           <View style={styles.imageOverlay}>
-            <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+        <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
               <MaterialIcons name="arrow-back" size={28} color={colors.white} style={styles.iconShadow} />
-            </TouchableOpacity>
+        </TouchableOpacity>
             <TouchableOpacity 
-              style={styles.heartButton}
-              onPress={() => toggleSave(product.id)}
+              style={[
+                styles.heartButton,
+                isSaved && { backgroundColor: 'rgba(255, 0, 0, 0.8)' }
+              ]}
+              onPress={handleHeartToggle}
             >
               <MaterialIcons 
                 name={isSaved ? "favorite" : "favorite-border"} 
                 size={28} 
-                color={colors.white} 
+                color={isSaved ? colors.white : colors.white} 
                 style={styles.iconShadow} 
               />
-            </TouchableOpacity>
-          </View>
+          </TouchableOpacity>
         </View>
+      </View>
 
         {/* Product Info */}
         <View style={[styles.productInfo, { backgroundColor: colors.card }]}>
@@ -332,7 +373,7 @@ export default function ProductScreen() {
                 minimumFontScale={0.9}
               >
                 {product.name}
-              </Text>
+                </Text>
             </View>
             <Text style={[styles.price, { color: colors.themedPrice }]}>₱{selectedSizePrice.toFixed(2)}</Text>
           </View>
@@ -343,8 +384,8 @@ export default function ProductScreen() {
 
           {/* Size Selection (from product_options) - Only for Pizza */}
           {isPizzaCategory && availableSizes.length > 0 && (
-            <View style={styles.section}>
-              <Text style={[styles.sectionTitle, { color: colors.text }]}>Size</Text>
+          <View style={styles.section}>
+            <Text style={[styles.sectionTitle, { color: colors.text }]}>Size</Text>
             <ScrollView
               horizontal
               showsHorizontalScrollIndicator={false}
@@ -365,8 +406,8 @@ export default function ProductScreen() {
 
           {/* Crust Selection (from crusts.name) - Only for Pizza */}
           {isPizzaCategory && availableCrustsForSize.length > 0 && (
-            <View style={styles.section}>
-              <Text style={[styles.sectionTitle, { color: colors.text }]}>Crust</Text>
+          <View style={styles.section}>
+            <Text style={[styles.sectionTitle, { color: colors.text }]}>Crust</Text>
             <ScrollView
               horizontal
               showsHorizontalScrollIndicator={false}
@@ -378,6 +419,28 @@ export default function ProductScreen() {
                   label={String(crust).charAt(0).toUpperCase() + String(crust).slice(1)}
                   selected={selectedCrust === crust}
                   onPress={() => setSelectedCrust(crust)}
+                  size="md"
+                />
+              ))}
+            </ScrollView>
+            </View>
+          )}
+
+          {/* Slice Selection (from slices.name) - Only for Pizza */}
+          {isPizzaCategory && availableSlices.length > 0 && (
+            <View style={styles.section}>
+              <Text style={[styles.sectionTitle, { color: colors.text }]}>Slice</Text>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={{ paddingHorizontal: Responsive.ResponsiveSpacing.md }}
+            >
+              {availableSlices.map((slice: string) => (
+                <SelectablePill
+                  key={String(slice)}
+                  label={String(slice).charAt(0).toUpperCase() + String(slice).slice(1)}
+                  selected={selectedSlice === slice}
+                  onPress={() => setSelectedSlice(slice)}
                   size="md"
                 />
               ))}
@@ -422,13 +485,13 @@ export default function ProductScreen() {
         </View>
 
         {/* You May Also Like - AI Powered */}
-        <View style={styles.relatedSection}>
+          <View style={styles.relatedSection}>
           <Text style={[styles.sectionTitle, { color: colors.text }]}>You May Also Like</Text>
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.relatedItemsContainer}
-          >
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.relatedItemsContainer}
+            >
             {isLoadingRecommendations ? (
               <View style={[styles.relatedItem, { backgroundColor: colors.card, justifyContent: 'center', alignItems: 'center' }]}>
                 <Text style={[styles.relatedItemName, { color: colors.textSecondary }]}>Loading recommendations...</Text>
@@ -449,10 +512,10 @@ export default function ProductScreen() {
                   />
                   <Text style={[styles.relatedItemName, { color: colors.text }]} numberOfLines={2}>
                     {recommendedProduct.name}
-                  </Text>
-                  <Text style={[styles.relatedItemPrice, { color: colors.themedPrice }]}>
+                    </Text>
+                    <Text style={[styles.relatedItemPrice, { color: colors.themedPrice }]}>
                     ₱{recommendedProduct.base_price.toFixed(2)}
-                  </Text>
+                    </Text>
                 </TouchableOpacity>
               ))
             ) : (
@@ -460,13 +523,13 @@ export default function ProductScreen() {
                 <Text style={[styles.relatedItemName, { color: colors.textSecondary }]}>No recommendations available</Text>
               </View>
             )}
-          </ScrollView>
-        </View>
+            </ScrollView>
+          </View>
       </ScrollView>
 
       {/* Add to Cart Bar */}
       <SafeAreaView style={{ backgroundColor: colors.card }} edges={['bottom']}>
-        <View style={[styles.cartBar, { backgroundColor: colors.card, borderTopColor: colors.border }]}>
+      <View style={[styles.cartBar, { backgroundColor: colors.card, borderTopColor: colors.border }]}>
         <View style={styles.quantitySelector}>
           <TouchableOpacity 
             onPress={decreaseQuantity} 
@@ -499,19 +562,19 @@ export default function ProductScreen() {
           </TouchableOpacity>
         </View>
         <View style={styles.buttonContainer}>
-          <TouchableOpacity
-            style={[styles.addToCartButton, { backgroundColor: colors.primary }]}
-            onPress={addToCart}
-          >
+        <TouchableOpacity
+          style={[styles.addToCartButton, { backgroundColor: colors.primary }]}
+          onPress={addToCart}
+        >
             <MaterialIcons name="shopping-cart" size={24} color={colors.black} />
-          </TouchableOpacity>
+        </TouchableOpacity>
           <BuyNowButton
             onPress={handleBuyNow}
             style={styles.buyNowButton}
             size="md"
           />
-        </View>
-        </View>
+      </View>
+    </View>
       </SafeAreaView>
 
       {/* Cart Notification Modal */}

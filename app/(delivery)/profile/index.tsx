@@ -4,7 +4,6 @@ import { useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
-  Alert,
   Image,
   Linking,
   Modal,
@@ -126,15 +125,24 @@ export default function RiderProfileScreen() {
   };
 
   const handleAvatarPress = () => {
-    Alert.alert(
+    confirmDestructive(
       'Change Avatar',
       'Choose how you want to update your profile picture',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'Take Photo', onPress: () => pickImage('camera') },
-        { text: 'Choose from Library', onPress: () => pickImage('library') },
-        { text: 'Remove Avatar', onPress: () => removeAvatarHandler(), style: 'destructive' },
-      ]
+      () => pickImage('camera'),
+      () => pickImage('library'),
+      'Take Photo',
+      'Choose from Library'
+    );
+  };
+
+  const handleRemoveAvatar = () => {
+    confirmDestructive(
+      'Remove Avatar',
+      'Are you sure you want to remove your profile picture?',
+      removeAvatarHandler,
+      undefined,
+      'Remove',
+      'Cancel'
     );
   };
 
@@ -145,7 +153,7 @@ export default function RiderProfileScreen() {
       if (source === 'camera') {
         const permissionResult = await ImagePicker.requestCameraPermissionsAsync();
         if (permissionResult.granted === false) {
-          Alert.alert('Permission Required', 'Camera permission is required to take photos.');
+          showError('Permission Required', 'Camera permission is required to take photos.');
           return;
         }
         result = await ImagePicker.launchCameraAsync({
@@ -157,7 +165,7 @@ export default function RiderProfileScreen() {
       } else {
         const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
         if (permissionResult.granted === false) {
-          Alert.alert('Permission Required', 'Photo library permission is required to select images.');
+          showError('Permission Required', 'Photo library permission is required to select images.');
           return;
         }
         result = await ImagePicker.launchImageLibraryAsync({
@@ -173,7 +181,7 @@ export default function RiderProfileScreen() {
       }
     } catch (error) {
       console.error('Error picking image:', error);
-      Alert.alert('Error', 'Failed to pick image. Please try again.');
+      showError('Error', 'Failed to pick image. Please try again.');
     }
   };
 
@@ -304,7 +312,7 @@ export default function RiderProfileScreen() {
           <ResponsiveText size="md" color={colors.textSecondary}>
               {Strings.loading}
           </ResponsiveText>
-          </ResponsiveView>
+        </ResponsiveView>
         </ResponsiveView>
       </View>
     );
@@ -356,6 +364,7 @@ export default function RiderProfileScreen() {
             <TouchableOpacity 
               style={styles.avatarContainer}
               onPress={handleAvatarPress}
+              onLongPress={localAvatar ? handleRemoveAvatar : undefined}
               disabled={isUploadingAvatar}
               activeOpacity={0.7}
             >
@@ -373,7 +382,7 @@ export default function RiderProfileScreen() {
               )}
               <ResponsiveView style={[styles.avatarEditIcon, { backgroundColor: colors.primary }]}>
                 <MaterialIcons name="camera-alt" size={16} color={colors.textInverse} />
-              </ResponsiveView>
+          </ResponsiveView>
             </TouchableOpacity>
             
             <ResponsiveView style={styles.userInfo}>
@@ -389,7 +398,7 @@ export default function RiderProfileScreen() {
                 <ResponsiveView marginTop="xs">
                   <ResponsiveText size="sm" color={colors.textTertiary}>
                     Member since {formatMemberSince(profile.created_at)}
-                  </ResponsiveText>
+                </ResponsiveText>
                 </ResponsiveView>
               )}
                 <ResponsiveView style={styles.availabilityContainer}>
@@ -422,16 +431,16 @@ export default function RiderProfileScreen() {
             >
               <MaterialIcons name="edit" size={24} color={colors.themedText} />
             </TouchableOpacity>
-          </ResponsiveView>
-
+            </ResponsiveView>
+            
           {/* Account Information Section */}
           <ResponsiveView style={styles.section}>
             <ResponsiveView marginBottom="md">
               <ResponsiveText size="lg" weight="semiBold" color={colors.text}>
                 Account Information
               </ResponsiveText>
-            </ResponsiveView>
-            
+          </ResponsiveView>
+
             <ResponsiveView style={[styles.infoCard, { 
               backgroundColor: colors.surface,
               borderColor: colors.border,
@@ -450,48 +459,48 @@ export default function RiderProfileScreen() {
                 </ResponsiveView>
                 <ResponsiveText size="md" weight="medium" color={colors.themedText}>
                   {profile?.profile?.full_name || 'Not provided'}
-                </ResponsiveText>
-              </ResponsiveView>
-
+              </ResponsiveText>
+            </ResponsiveView>
+            
               <ResponsiveView style={[styles.infoRow]}>
                 <ResponsiveView style={styles.infoLabel}>
                   <ResponsiveView style={[styles.infoIcon, { backgroundColor: colors.surfaceVariant }]}>
                     <MaterialIcons name="email" size={20} color={colors.themedText} />
                   </ResponsiveView>
                   <ResponsiveView marginLeft="sm">
-                    <ResponsiveText size="md" color={colors.textSecondary}>
+              <ResponsiveText size="md" color={colors.textSecondary}>
                       Email
-                    </ResponsiveText>
+              </ResponsiveText>
                   </ResponsiveView>
                 </ResponsiveView>
                 <ResponsiveText size="md" weight="medium" color={colors.text}>
                   {user?.email || 'Not provided'}
-                </ResponsiveText>
-              </ResponsiveView>
-
+              </ResponsiveText>
+            </ResponsiveView>
+            
               <ResponsiveView style={styles.infoRow}>
                 <ResponsiveView style={styles.infoLabel}>
                   <ResponsiveView style={[styles.infoIcon, { backgroundColor: colors.surfaceVariant }]}>
                     <MaterialIcons name="phone" size={20} color={colors.themedText} />
                   </ResponsiveView>
                   <ResponsiveView marginLeft="sm">
-                    <ResponsiveText size="md" color={colors.textSecondary}>
+              <ResponsiveText size="md" color={colors.textSecondary}>
                       Phone Number
-                    </ResponsiveText>
+              </ResponsiveText>
                   </ResponsiveView>
                 </ResponsiveView>
                 <ResponsiveText size="md" weight="medium" color={colors.text}>
                   {profile?.profile?.phone_number || 'Not provided'}
-                </ResponsiveText>
-              </ResponsiveView>
-
+              </ResponsiveText>
+            </ResponsiveView>
+            
               <ResponsiveView style={styles.infoRow}>
                 <ResponsiveView style={styles.infoLabel}>
                   <ResponsiveView style={[styles.infoIcon, { backgroundColor: colors.surfaceVariant }]}>
                     <MaterialIcons name="local-shipping" size={20} color={colors.themedText} />
                   </ResponsiveView>
                   <ResponsiveView marginLeft="sm">
-                    <ResponsiveText size="md" color={colors.textSecondary}>
+              <ResponsiveText size="md" color={colors.textSecondary}>
                       Vehicle Number
                     </ResponsiveText>
                   </ResponsiveView>
@@ -575,13 +584,13 @@ export default function RiderProfileScreen() {
                 <ResponsiveView style={styles.statContent}>
                   <ResponsiveText size="lg" weight="bold" color={colors.text}>
                     ₱{(stats.totalEarnings || 0).toFixed(2)}
-                  </ResponsiveText>
+              </ResponsiveText>
                   <ResponsiveText size="sm" color={colors.textSecondary}>
                     Total Earnings
-                  </ResponsiveText>
-                  </ResponsiveView>
-                </ResponsiveView>
-              </ResponsiveView>
+              </ResponsiveText>
+            </ResponsiveView>
+          </ResponsiveView>
+        </ResponsiveView>
             </ResponsiveView>
           </ResponsiveView>
 

@@ -1,9 +1,9 @@
-import React from 'react';
-import { Modal, View, StyleSheet, TouchableOpacity } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
+import React from 'react';
+import { Modal, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { useTheme } from '../../contexts/ThemeContext';
 import ResponsiveText from './ResponsiveText';
 import ResponsiveView from './ResponsiveView';
-import { useTheme } from '../../contexts/ThemeContext';
 
 export interface AlertButton {
   text: string;
@@ -144,7 +144,16 @@ export const AlertDialog: React.FC<AlertDialogProps> = ({
           {/* Buttons */}
           {buttons.length > 0 && (
             <View style={styles.buttonContainer}>
-              {buttons.map((button, index) => (
+              {buttons
+                .sort((a, b) => {
+                  // Sort so destructive buttons appear first, then primary/default buttons, then cancel
+                  if (a.style === 'destructive' && b.style !== 'destructive') return -1;
+                  if (a.style !== 'destructive' && b.style === 'destructive') return 1;
+                  if (a.style === 'default' && b.style === 'cancel') return -1;
+                  if (a.style === 'cancel' && b.style === 'default') return 1;
+                  return 0;
+                })
+                .map((button, index) => (
                 <TouchableOpacity
                   key={index}
                   style={[

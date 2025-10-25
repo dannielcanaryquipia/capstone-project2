@@ -4,7 +4,6 @@ import { useRouter } from 'expo-router';
 import React, { useState } from 'react';
 import {
   ActivityIndicator,
-  Alert,
   Image,
   Linking,
   Modal,
@@ -118,15 +117,24 @@ export default function ProfileScreen() {
   };
 
   const handleAvatarPress = () => {
-    Alert.alert(
+    confirmDestructive(
       'Change Avatar',
       'Choose how you want to update your profile picture',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'Take Photo', onPress: () => pickImage('camera') },
-        { text: 'Choose from Library', onPress: () => pickImage('library') },
-        { text: 'Remove Avatar', onPress: () => removeAvatarHandler(), style: 'destructive' },
-      ]
+      () => pickImage('camera'),
+      () => pickImage('library'),
+      'Take Photo',
+      'Choose from Library'
+    );
+  };
+
+  const handleRemoveAvatar = () => {
+    confirmDestructive(
+      'Remove Avatar',
+      'Are you sure you want to remove your profile picture?',
+      removeAvatarHandler,
+      undefined,
+      'Remove',
+      'Cancel'
     );
   };
 
@@ -137,7 +145,7 @@ export default function ProfileScreen() {
       if (source === 'camera') {
         const permissionResult = await ImagePicker.requestCameraPermissionsAsync();
         if (permissionResult.granted === false) {
-          Alert.alert('Permission Required', 'Camera permission is required to take photos.');
+          showError('Permission Required', 'Camera permission is required to take photos.');
           return;
         }
         result = await ImagePicker.launchCameraAsync({
@@ -149,7 +157,7 @@ export default function ProfileScreen() {
       } else {
         const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
         if (permissionResult.granted === false) {
-          Alert.alert('Permission Required', 'Photo library permission is required to select images.');
+          showError('Permission Required', 'Photo library permission is required to select images.');
           return;
         }
         result = await ImagePicker.launchImageLibraryAsync({
@@ -165,7 +173,7 @@ export default function ProfileScreen() {
       }
     } catch (error) {
       console.error('Error picking image:', error);
-      Alert.alert('Error', 'Failed to pick image. Please try again.');
+      showError('Error', 'Failed to pick image. Please try again.');
     }
   };
 
@@ -335,6 +343,7 @@ export default function ProfileScreen() {
           <TouchableOpacity 
             style={styles.avatarContainer}
             onPress={handleAvatarPress}
+            onLongPress={localAvatar ? handleRemoveAvatar : undefined}
             disabled={isUploadingAvatar}
             activeOpacity={0.7}
           >

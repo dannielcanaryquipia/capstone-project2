@@ -58,7 +58,7 @@ const paymentMethods: PaymentMethod[] = [
 
 export default function CheckoutScreen() {
   const { colors } = useTheme();
-  const { success } = useAlert();
+  const { success, confirm } = useAlert();
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { getSelectedItems, selectedSubtotal, clearCart, resetDeliveryFee } = useCart();
@@ -121,7 +121,19 @@ export default function CheckoutScreen() {
     }
   }, [uiAddresses, selectedAddress]);
 
-  const handlePlaceOrder = async () => {
+  const handlePlaceOrder = () => {
+    // Show confirmation alert first
+    confirm(
+      'Place Order',
+      `Proceed to place your order for ₱${total.toFixed(2)}?`,
+      processOrder,
+      undefined,
+      'Place Order',
+      'Cancel'
+    );
+  };
+
+  const processOrder = async () => {
     setCheckoutError(null);
     
     if (!isValid) {

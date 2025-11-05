@@ -294,21 +294,6 @@ export default function RiderDashboard({
             </TouchableOpacity>
           </ResponsiveView>
 
-          {/* Debug Info */}
-          {__DEV__ && (
-            <ResponsiveView style={[styles.debugCard, { backgroundColor: colors.surface }]}>
-              <ResponsiveText size="sm" color={colors.textSecondary}>
-                Debug: Available: {availableOrders.length}, Assigned: {assignedOrders.length}, Recent: {recentOrders.length}, Delivered: {deliveredOrders.length}
-              </ResponsiveText>
-              <ResponsiveText size="sm" color={colors.textSecondary}>
-                Stats: Available: {stats.availableOrders}, Pending: {stats.pendingDeliveries}, Completed: {stats.completedDeliveries}
-              </ResponsiveText>
-              <ResponsiveText size="sm" color={colors.textSecondary}>
-                Earnings: Total: ₱{stats.totalEarnings}, Today: ₱{stats.todayEarnings}
-              </ResponsiveText>
-            </ResponsiveView>
-          )}
-
           {/* Available Orders */}
           {availableOrders.length > 0 && (
             <ResponsiveView style={styles.section}>
@@ -577,12 +562,6 @@ const styles = StyleSheet.create({
     padding: ResponsiveSpacing.xl,
     borderRadius: ResponsiveBorderRadius.lg,
     alignItems: 'center',
-    ...Layout.shadows.sm,
-  },
-  debugCard: {
-    padding: ResponsiveSpacing.sm,
-    borderRadius: ResponsiveBorderRadius.sm,
-    marginBottom: ResponsiveSpacing.md,
     ...Layout.shadows.sm,
   },
 });

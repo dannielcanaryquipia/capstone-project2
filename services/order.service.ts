@@ -470,7 +470,7 @@ export class OrderService {
         const proofOfPaymentUrl = order.payment_transactions?.[0]?.proof_of_payment_url || order.proof_of_payment_url;
         
         return {
-          ...order,
+        ...order,
           status: this.convertStatusFromDb(order.status),
           proof_of_payment_url: proofOfPaymentUrl,
         };
@@ -564,6 +564,7 @@ export class OrderService {
         total_orders: orders.length,
         pending_orders: getStatusCount('pending'),
         preparing_orders: getStatusCount('preparing'),
+        ready_for_pickup_orders: getStatusCount('ready_for_pickup'),
         out_for_delivery: getStatusCount('out_for_delivery'),
         delivered_orders: deliveredOrdersCount,
         cancelled_orders: getStatusCount('cancelled'),
@@ -613,7 +614,8 @@ export class OrderService {
           // Check for common variations
           if (targetStatus === 'pending' && status === 'pending') return true;
           if (targetStatus === 'preparing' && (status === 'preparing' || status === 'confirmed')) return true;
-          if (targetStatus === 'out_for_delivery' && (status === 'out_for_delivery' || status === 'out for delivery' || status === 'outfordelivery' || status === 'ready for pickup')) return true;
+          if (targetStatus === 'ready_for_pickup' && (status === 'ready_for_pickup' || status === 'ready for pickup' || status === 'readyforpickup')) return true;
+          if (targetStatus === 'out_for_delivery' && (status === 'out_for_delivery' || status === 'out for delivery' || status === 'outfordelivery')) return true;
           if (targetStatus === 'delivered' && status === 'delivered') return true;
           if (targetStatus === 'cancelled' && (status === 'cancelled' || status === 'canceled')) return true;
           
@@ -625,6 +627,7 @@ export class OrderService {
         total_orders: data.length,
         pending_orders: getStatusCount('pending'),
         preparing_orders: getStatusCount('preparing'),
+        ready_for_pickup_orders: getStatusCount('ready_for_pickup'),
         out_for_delivery: getStatusCount('out_for_delivery'),
         delivered_orders: getStatusCount('delivered'),
         cancelled_orders: getStatusCount('cancelled'),
@@ -850,7 +853,7 @@ export class OrderService {
 
   // Delivery: Mark order delivered with optional proof image
   static async markOrderDelivered(
-    orderId: string,
+    orderId: string, 
     userId: string,
     proofLocalUri?: string
   ): Promise<{ success: boolean; proofUploaded: boolean; message: string }> {
@@ -897,9 +900,17 @@ export class OrderService {
         rider = newRider;
       }
 
-      // Upload delivery proof image using the new service
-      let proofUrl: string | undefined;
+      // Check if proof already exists in order
+      const { data: currentOrder } = await supabase
+        .from('orders')
+        .select('proof_of_delivery_url')
+        .eq('id', orderId)
+        .single();
+
+      let proofUrl: string | undefined = currentOrder?.proof_of_delivery_url;
       let proofUploaded = false;
+
+      // Upload new proof if provided, otherwise use existing
       if (proofLocalUri) {
         try {
           console.log('🔄 Starting delivery proof upload...', { 
@@ -928,38 +939,99 @@ export class OrderService {
             stack: (uploadError as any).stack,
             name: (uploadError as any).name
           });
-          // Continue without photo rather than failing the delivery
+          // Continue with existing proof if available
+          if (!proofUrl) {
+            console.warn('⚠️ No proof available and upload failed, continuing without proof');
+          } else {
+            proofUploaded = true; // Use existing proof
+          }
         }
+      } else if (proofUrl) {
+        console.log('ℹ️ Using existing proof of delivery:', proofUrl);
+        proofUploaded = true; // Mark as uploaded since proof exists
       } else {
-        console.log('ℹ️ No proof photo provided for delivery');
+        console.log('ℹ️ No proof photo provided and no existing proof found');
       }
 
-      // Update delivery assignment
-      console.log('🔄 Updating delivery assignment status to delivered...', { orderId, riderId: (rider as any).id });
-      const { error: assignErr } = await supabase
-        .from('delivery_assignments' as any)
-        .update({ delivered_at: new Date().toISOString(), notes: null } as any)
+      // Check and update delivery assignment
+      console.log('🔄 Checking delivery assignment...', { orderId, riderId: (rider as any).id });
+      const { data: existingAssignment, error: checkError } = await supabase
+        .from('delivery_assignments')
+        .select('id, rider_id, assigned_at, picked_up_at')
         .eq('order_id', orderId)
-        .eq('rider_id', (rider as any).id);
-      if (assignErr) {
-        console.error('❌ Error updating delivery assignment:', assignErr);
-        throw assignErr;
+        .single();
+
+      const now = new Date().toISOString();
+
+      // If assignment doesn't exist, create it
+      if (checkError && checkError.code === 'PGRST116') {
+        console.log('Creating delivery assignment for order:', orderId);
+        const { error: createError } = await supabase
+          .from('delivery_assignments')
+          .insert({
+            order_id: orderId,
+            rider_id: (rider as any).id,
+            status: 'Delivered',
+            assigned_at: now,
+            picked_up_at: now,
+            delivered_at: now
+          });
+
+        if (createError) {
+          console.error('❌ Error creating delivery assignment:', createError);
+          // Continue anyway - we'll update the order status
+        } else {
+          console.log('✅ Delivery assignment created successfully');
+        }
+      } else if (existingAssignment) {
+        // Update existing assignment
+        const updateData: any = {
+          delivered_at: now,
+          status: 'Delivered'
+        };
+
+        // Ensure assigned_at and picked_up_at are set if missing
+        if (!existingAssignment.assigned_at) {
+          updateData.assigned_at = now;
+        }
+        if (!existingAssignment.picked_up_at) {
+          updateData.picked_up_at = now;
+        }
+
+        // If not assigned to this rider, update it
+        if (!existingAssignment.rider_id || existingAssignment.rider_id !== (rider as any).id) {
+          updateData.rider_id = (rider as any).id;
+        }
+
+        console.log('🔄 Updating delivery assignment status to delivered...', { orderId, riderId: (rider as any).id });
+        const { error: assignErr } = await supabase
+          .from('delivery_assignments')
+          .update(updateData)
+          .eq('order_id', orderId);
+
+        if (assignErr) {
+          console.error('❌ Error updating delivery assignment:', assignErr);
+          // Continue anyway - we'll update the order status
+        } else {
+          console.log('✅ Delivery assignment updated successfully');
+        }
       }
-      console.log('✅ Delivery assignment updated successfully');
 
       // Update order status
       const deliveryTime = new Date().toISOString();
       console.log('🔄 Updating order status to delivered...', { 
         orderId, 
         deliveryTime,
-        currentTime: new Date().toLocaleString()
+        currentTime: new Date().toLocaleString(),
+        hasProof: !!proofUrl
       });
       const { error: ordErr } = await supabase
         .from('orders')
-        .update({ 
+        .update({
           status: 'delivered', 
           updated_at: deliveryTime, 
-          actual_delivery_time: deliveryTime 
+          actual_delivery_time: deliveryTime,
+          proof_of_delivery_url: proofUrl || currentOrder?.proof_of_delivery_url
         })
         .eq('id', orderId);
       if (ordErr) {
@@ -1035,6 +1107,43 @@ export class OrderService {
         success: false,
         proofUploaded: false,
         message: error instanceof Error ? error.message : 'Failed to mark order as delivered'
+      };
+    }
+  }
+
+  // Upload proof of delivery separately (without marking as delivered)
+  static async uploadDeliveryProof(
+    orderId: string,
+    userId: string,
+    proofLocalUri: string
+  ): Promise<{ success: boolean; proofUrl: string; message: string }> {
+    try {
+      // Upload delivery proof image
+      const { ImageUploadService } = await import('./image-upload.service');
+      const uploadResult = await ImageUploadService.uploadDeliveryProof(orderId, proofLocalUri, userId);
+      
+      // Update order with proof URL (but don't mark as delivered yet)
+      const { error: updateError } = await supabase
+        .from('orders')
+        .update({
+          proof_of_delivery_url: uploadResult.url,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', orderId);
+
+      if (updateError) throw updateError;
+
+      return {
+        success: true,
+        proofUrl: uploadResult.url,
+        message: 'Proof of delivery uploaded successfully!'
+      };
+    } catch (error) {
+      console.error('Error uploading delivery proof:', error);
+      return {
+        success: false,
+        proofUrl: '',
+        message: error instanceof Error ? error.message : 'Failed to upload proof of delivery'
       };
     }
   }

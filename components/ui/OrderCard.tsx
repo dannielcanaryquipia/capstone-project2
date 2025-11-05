@@ -191,7 +191,7 @@ export const OrderCard: React.FC<OrderCardProps> = ({
         <ResponsiveView style={styles.customerInfo}>
           <MaterialIcons name="person" size={16} color={colors.textSecondary} />
           <ResponsiveText size="sm" color={colors.textSecondary}>
-            {order.delivery_address?.full_address?.split(',')[0] || 'Unknown Customer'}
+            {(order as any).customer?.full_name || order.user?.full_name || 'Unknown Customer'}
           </ResponsiveText>
         </ResponsiveView>
       )}
@@ -324,9 +324,6 @@ export const OrderCard: React.FC<OrderCardProps> = ({
                 {displayStatus}
               </ResponsiveText>
             </ResponsiveView>
-            <ResponsiveText size="sm" color={colors.textTertiary} numberOfLines={1}>
-              {order.user?.full_name || 'Unknown Customer'} • {order.user?.phone_number || 'No phone'}
-            </ResponsiveText>
           </ResponsiveView>
         </ResponsiveView>
         <MaterialIcons name="keyboard-arrow-right" size={24} color={colors.textSecondary} />

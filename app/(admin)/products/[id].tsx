@@ -4,6 +4,7 @@ import React, { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  Image,
   ScrollView,
   StyleSheet,
   TextInput,
@@ -218,7 +219,7 @@ export default function EditProductScreen() {
     >
       {/* Header */}
       <ResponsiveView style={[styles.header, { backgroundColor: colors.surface }]}>
-        <TouchableOpacity onPress={() => router.replace('/(admin)/products' as any)} style={styles.backButton}>
+        <TouchableOpacity onPress={() => router.push('/(admin)/products' as any)} style={styles.backButton}>
           <MaterialIcons name="arrow-back" size={responsiveValue(20, 24, 28, 32)} color={colors.text} />
         </TouchableOpacity>
         <ResponsiveText size="lg" weight="semiBold" color={colors.text}>
@@ -232,6 +233,32 @@ export default function EditProductScreen() {
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
+        {/* Product Image */}
+        {product && (
+          <ResponsiveView style={[styles.imageContainer, { backgroundColor: colors.surface }]} marginBottom="lg">
+            {product.image_url ? (
+              <Image
+                source={{ uri: product.image_url }}
+                style={styles.productImage}
+                resizeMode="cover"
+              />
+            ) : (
+              <ResponsiveView style={[styles.imagePlaceholder, { backgroundColor: colors.background }]}>
+                <MaterialIcons 
+                  name="image" 
+                  size={responsiveValue(48, 56, 64, 72)} 
+                  color={colors.textSecondary} 
+                />
+                <ResponsiveView marginTop="sm">
+                  <ResponsiveText size="sm" color={colors.textSecondary}>
+                    No image available
+                  </ResponsiveText>
+                </ResponsiveView>
+              </ResponsiveView>
+            )}
+          </ResponsiveView>
+        )}
+
         <ResponsiveView style={[styles.formContainer, { backgroundColor: colors.surface }]}>
           {/* Product Name */}
           <ResponsiveView marginBottom="md">
@@ -530,5 +557,21 @@ const styles = StyleSheet.create({
   actionContainer: {
     padding: ResponsiveSpacing.lg,
     ...Layout.shadows.sm,
+  },
+  imageContainer: {
+    borderRadius: ResponsiveBorderRadius.lg,
+    overflow: 'hidden',
+    ...Layout.shadows.sm,
+  },
+  productImage: {
+    width: '100%',
+    height: responsiveValue(200, 240, 280, 320),
+  },
+  imagePlaceholder: {
+    width: '100%',
+    height: responsiveValue(200, 240, 280, 320),
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderRadius: ResponsiveBorderRadius.lg,
   },
 });

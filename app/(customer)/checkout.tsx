@@ -58,7 +58,7 @@ const paymentMethods: PaymentMethod[] = [
 
 export default function CheckoutScreen() {
   const { colors } = useTheme();
-  const { success, confirm } = useAlert();
+  const { success, confirm, error: showError } = useAlert();
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { getSelectedItems, selectedSubtotal, clearCart, resetDeliveryFee } = useCart();
@@ -90,6 +90,7 @@ export default function CheckoutScreen() {
   const [lastPaymentError, setLastPaymentError] = useState<string | null>(null);
   const [gcashModalVisible, setGcashModalVisible] = useState(false);
   const [proofUri, setProofUri] = useState<string | null>(null);
+  const [gcashReadyForOrder, setGcashReadyForOrder] = useState(false); // Track when GCash proof is uploaded
   const gcashQrImage = require('../../assets/gcash_qr.jpg'); // use lowercase extension for Metro
   // Calculate processing fee based on selected payment method
   const selectedPaymentMethodData = paymentMethods.find(method => method.id === selectedPaymentMethod);
@@ -122,7 +123,33 @@ export default function CheckoutScreen() {
   }, [uiAddresses, selectedAddress]);
 
   const handlePlaceOrder = () => {
-    // Show confirmation alert first
+    // Special handling for GCash payment
+    if (selectedPaymentMethod === 'gcash') {
+      // If GCash is ready for order (proof uploaded), proceed directly
+      if (gcashReadyForOrder) {
+        // Show confirmation alert and proceed to order
+        confirm(
+          'Place Order',
+          `Proceed to place your order for ₱${total.toFixed(2)}?`,
+          () => {
+            setGcashReadyForOrder(false); // Reset flag
+            processOrder();
+          },
+          undefined,
+          'Place Order',
+          'Cancel'
+        );
+        return;
+      }
+      
+      // If no proof uploaded yet, show GCash modal
+      if (!proofUri) {
+        setGcashModalVisible(true);
+        return;
+      }
+    }
+    
+    // For COD or other payment methods, show confirmation alert
     confirm(
       'Place Order',
       `Proceed to place your order for ₱${total.toFixed(2)}?`,
@@ -223,8 +250,33 @@ export default function CheckoutScreen() {
             proof_of_payment_url: uploadResult.url,
             payment_status: 'pending'
           }).eq('id', order.id);
-        } catch (e) {
-          console.log('Proof upload failed', e);
+        } catch (e: any) {
+          console.error('❌ Proof upload failed:', e);
+          console.error('❌ Error details:', {
+            message: e?.message,
+            stack: e?.stack,
+            name: e?.name
+          });
+          
+          // Show error to user - don't proceed silently
+          // Log detailed error for debugging
+          const errorMessage = e?.message || 'Failed to upload payment proof. Please try uploading the image again or contact support.';
+          
+          console.error('❌ Payment proof upload error details:', {
+            message: errorMessage,
+            error: e,
+            orderId: order.id
+          });
+          
+          // Show alert with option to continue or retry
+          showError(
+            'Image Upload Failed',
+            errorMessage + '\n\nWould you like to continue with the order anyway, or cancel to retry?'
+          );
+          
+          // For now, allow order to proceed but log warning for admin
+          // In production, you might want to show a modal with retry option
+          console.warn('⚠️ Order proceeding without proof upload - Admin should be notified');
         }
       }
       
@@ -247,6 +299,7 @@ export default function CheckoutScreen() {
           },
           {
             text: 'Continue Shopping',
+            style: 'secondary' as const, // Make Continue Shopping button secondary type
             onPress: () => router.push('/(customer)/(tabs)')
           }
         ]
@@ -519,8 +572,7 @@ export default function CheckoutScreen() {
               onConfirm={(receiptUri: string) => {
                 setProofUri(receiptUri);
                 setGcashModalVisible(false);
-                // Proceed with order placement
-                handlePlaceOrder();
+                setGcashReadyForOrder(true); // Mark as ready for order
               }}
               totalAmount={total}
               qrImageSource={gcashQrImage}
@@ -559,8 +611,7 @@ export default function CheckoutScreen() {
               onConfirm={(receiptUri: string) => {
                 setProofUri(receiptUri);
                 setGcashModalVisible(false);
-                // Proceed with order placement
-                handlePlaceOrder();
+                setGcashReadyForOrder(true); // Mark as ready for order
               }}
               totalAmount={total}
               qrImageSource={gcashQrImage}

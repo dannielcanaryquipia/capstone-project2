@@ -40,35 +40,15 @@ export default function AdminUsersScreen() {
     admins: 0,
     deliveryStaff: 0
   });
-  const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('');
-  const [isSearching, setIsSearching] = useState(false);
-  const searchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [activeSearchQuery, setActiveSearchQuery] = useState('');
 
-  // Debounce search query
+  // Auto-reset search when input is cleared
   useEffect(() => {
-    if (searchTimeoutRef.current) {
-      clearTimeout(searchTimeoutRef.current);
+    if (!searchQuery.trim() && activeSearchQuery.trim()) {
+      // If search input is empty but active search has value, reset it
+      setActiveSearchQuery('');
     }
-
-    if (searchQuery.trim()) {
-      setIsSearching(true);
-    }
-
-    searchTimeoutRef.current = setTimeout(() => {
-      setDebouncedSearchQuery(searchQuery);
-      setIsSearching(false);
-    }, 500); // 500ms delay
-
-    return () => {
-      if (searchTimeoutRef.current) {
-        clearTimeout(searchTimeoutRef.current);
-      }
-    };
-  }, [searchQuery]);
-
-  useEffect(() => {
-    loadUsers();
-  }, [activeTab, debouncedSearchQuery]);
+  }, [searchQuery, activeSearchQuery]);
 
   const loadUsers = async () => {
     try {
@@ -83,14 +63,16 @@ export default function AdminUsersScreen() {
         }
       }
       
-      if (debouncedSearchQuery.trim()) {
-        filters.search = debouncedSearchQuery.trim();
-        console.log('Search query:', debouncedSearchQuery.trim());
+      // Only add search filter if there's an active search query
+      if (activeSearchQuery && activeSearchQuery.trim()) {
+        filters.search = activeSearchQuery.trim();
+        console.log('Search query:', activeSearchQuery.trim());
       }
       
+      console.log('Loading users with filters:', filters);
       const usersData = await UserService.getUsers(filters);
       console.log('Admin users page - received users:', usersData?.length || 0);
-      console.log('Active tab:', activeTab, 'Search query:', searchQuery, 'Filters:', filters);
+      console.log('Active tab:', activeTab, 'Search query:', activeSearchQuery, 'Filters:', filters);
       console.log('Users data:', usersData.map(u => ({ id: u.id, name: u.full_name, role: u.role })));
       setUsers(usersData);
       
@@ -110,6 +92,11 @@ export default function AdminUsersScreen() {
     }
   };
 
+  useEffect(() => {
+    loadUsers();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab, activeSearchQuery]);
+
   const handleRefresh = async () => {
     setRefreshing(true);
     await loadUsers();
@@ -118,12 +105,17 @@ export default function AdminUsersScreen() {
 
   const handleSearchChange = useCallback((text: string) => {
     setSearchQuery(text);
+    // Don't trigger search automatically - wait for user to submit
   }, []);
+
+  const handleSearchSubmit = useCallback(() => {
+    // Trigger search only when user presses Enter
+    setActiveSearchQuery(searchQuery);
+  }, [searchQuery]);
 
   const handleClearSearch = useCallback(() => {
     setSearchQuery('');
-    setDebouncedSearchQuery('');
-    setIsSearching(false);
+    setActiveSearchQuery('');
   }, []);
 
   // Removed Activate/Deactivate user logic as requested
@@ -409,6 +401,7 @@ export default function AdminUsersScreen() {
             placeholderTextColor={colors.textSecondary}
             value={searchQuery}
             onChangeText={handleSearchChange}
+            onSubmitEditing={handleSearchSubmit}
             autoCapitalize="none"
             autoCorrect={false}
             returnKeyType="search"
@@ -419,18 +412,11 @@ export default function AdminUsersScreen() {
               style={styles.clearButton}
               hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
             >
-              {isSearching ? (
-                <ActivityIndicator 
-                  size="small" 
-                  color={colors.primary} 
-                />
-              ) : (
-                <MaterialIcons 
-                  name="clear" 
-                  size={responsiveValue(18, 20, 22, 24)} 
-                  color={colors.textSecondary}
-                />
-              )}
+              <MaterialIcons 
+                name="clear" 
+                size={responsiveValue(18, 20, 22, 24)} 
+                color={colors.textSecondary}
+              />
             </TouchableOpacity>
           )}
         </ResponsiveView>

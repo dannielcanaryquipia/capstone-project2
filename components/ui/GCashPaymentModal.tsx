@@ -46,12 +46,18 @@ export function GCashPaymentModal({
 
   const handleUploadReceipt = async () => {
     try {
+      // Request media library permission first
+      const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (permissionResult.granted === false) {
+        error('Permission Required', 'Photo library permission is required to select images.');
+        return;
+      }
+
       setIsUploading(true);
       
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
-        allowsEditing: true,
-        aspect: [4, 3],
+        allowsEditing: false, // Removed cropping requirement - allow full image
         quality: 0.8,
       });
 
@@ -68,11 +74,17 @@ export function GCashPaymentModal({
 
   const handleTakePhoto = async () => {
     try {
+      // Request camera permission first
+      const permissionResult = await ImagePicker.requestCameraPermissionsAsync();
+      if (permissionResult.granted === false) {
+        error('Permission Required', 'Camera permission is required to take photos.');
+        return;
+      }
+
       setIsUploading(true);
       
       const result = await ImagePicker.launchCameraAsync({
-        allowsEditing: true,
-        aspect: [4, 3],
+        allowsEditing: false, // Removed cropping requirement - allow full image
         quality: 0.8,
       });
 
@@ -101,7 +113,6 @@ export function GCashPaymentModal({
   const handleConfirm = () => {
     if (proofUri) {
       onConfirm(proofUri);
-      onClose();
     }
   };
 

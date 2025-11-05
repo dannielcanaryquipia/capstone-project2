@@ -1,15 +1,17 @@
 import { MaterialIcons } from '@expo/vector-icons';
+import { useFocusEffect } from '@react-navigation/native';
 import { useRouter } from 'expo-router';
-import React, { useMemo, useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import {
     ActivityIndicator,
-    Alert,
     FlatList,
     RefreshControl,
     StyleSheet,
     TouchableOpacity
 } from 'react-native';
 import { AdminCard, AdminLayout, AdminSection } from '../../../components/admin';
+import { useAlert } from '../../../components/ui/AlertProvider';
+import { DropdownMenuItem } from '../../../components/ui/DropdownMenu';
 import Button from '../../../components/ui/Button';
 import { ResponsiveText } from '../../../components/ui/ResponsiveText';
 import { ResponsiveView } from '../../../components/ui/ResponsiveView';
@@ -23,6 +25,7 @@ import { Product, ProductCategory } from '../../../types/product.types';
 
 export default function AdminProductsScreen() {
   const { colors } = useTheme();
+  const { confirm, confirmDestructive, success, error: showError } = useAlert();
   const router = useRouter();
   const [activeCategory, setActiveCategory] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState('');
@@ -44,87 +47,128 @@ export default function AdminProductsScreen() {
   
   const { 
     categories, 
-    isLoading: categoriesLoading 
+    isLoading: categoriesLoading,
+    refresh: refreshCategories 
   } = useProductCategories();
   
   const loading = productsLoading || categoriesLoading;
   const error = productsError;
 
+  // Refresh data when screen comes into focus
+  useFocusEffect(
+    useCallback(() => {
+      // Refresh categories when screen is focused to ensure new categories appear
+      refreshCategories();
+    }, [refreshCategories])
+  );
+
   const handleRefresh = async () => {
     setRefreshing(true);
-    await refreshProducts();
+    await Promise.all([refreshProducts(), refreshCategories()]);
     setRefreshing(false);
   };
 
-  const handleToggleAvailability = async (productId: string, currentStatus: boolean) => {
-    Alert.alert(
-      'Toggle Availability',
-      `Are you sure you want to ${currentStatus ? 'disable' : 'enable'} this product?`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        { 
-          text: currentStatus ? 'Disable' : 'Enable', 
-          onPress: async () => {
-            try {
-              await ProductService.toggleAvailability(productId);
-              await refreshProducts();
-              Alert.alert('Success', 'Product availability updated successfully!');
-            } catch (error) {
-              console.error('Error updating product:', error);
-              Alert.alert('Error', 'Failed to update product. Please try again.');
-            }
-          }
-        }
-      ]
+  const handleToggleAvailability = async (productId: string, currentStatus: boolean, productName: string) => {
+    const toggleProduct = async () => {
+      try {
+        await ProductService.toggleAvailability(productId);
+        await refreshProducts();
+        success('Availability Updated', `${productName} is now ${currentStatus ? 'unavailable' : 'available'}.`);
+      } catch (err) {
+        console.error('Error updating product:', err);
+        showError('Update Failed', 'Failed to update product availability. Please try again.');
+      }
+    };
+
+    confirm(
+      currentStatus ? 'Disable Product' : 'Enable Product',
+      `Are you sure you want to ${currentStatus ? 'disable' : 'enable'} "${productName}"?`,
+      toggleProduct,
+      undefined,
+      currentStatus ? 'Disable' : 'Enable',
+      'Cancel'
     );
   };
 
   const handleDeleteProduct = async (productId: string, productName: string) => {
-    Alert.alert(
+    const deleteProduct = async () => {
+      try {
+        console.log('🗑️ Starting product deletion:', { productId, productName });
+        
+        // Show loading indicator
+        await ProductService.deleteProduct(productId);
+        
+        console.log('✅ Product deleted successfully, refreshing list...');
+        await refreshProducts();
+        
+        success('Product Deleted', `"${productName}" has been successfully deleted along with all related data and images.`);
+      } catch (err: any) {
+        console.error('❌ Error deleting product:', err);
+        const errorMessage = err.message || 'Failed to delete product. Please try again.';
+        showError('Delete Failed', errorMessage);
+      }
+    };
+
+    confirmDestructive(
       'Delete Product',
-      `Are you sure you want to delete "${productName}"? This action cannot be undone.`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        { 
-          text: 'Delete', 
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              await ProductService.deleteProduct(productId);
-              await refreshProducts();
-              Alert.alert('Success', 'Product deleted successfully!');
-            } catch (error) {
-              console.error('Error deleting product:', error);
-              Alert.alert('Error', 'Failed to delete product. Please try again.');
-            }
-          }
-        }
-      ]
+      `Are you sure you want to permanently delete "${productName}"? This will delete:\n\n• The product\n• All product images\n• Related data (saved products, interactions, etc.)\n\nThis action cannot be undone.`,
+      deleteProduct,
+      undefined,
+      'Delete',
+      'Cancel'
     );
   };
 
   const categoryMap = useMemo(() => new Map(categories.map((c: ProductCategory) => [c.id, c.name])), [categories]);
-  const getCategoryName = (categoryId: string) => categoryMap.get(categoryId) || 'Unknown';
+  const getCategoryName = (product: Product) => {
+    // First try to use the category object from the product (if available)
+    if (product.category?.name) {
+      return product.category.name;
+    }
+    // Fallback to map lookup by category_id
+    if (product.category_id) {
+      return categoryMap.get(product.category_id) || 'Unknown';
+    }
+    return 'Unknown';
+  };
 
-  const renderProductItem = ({ item }: { item: Product }) => (
-    <AdminCard
-      title={item.name}
-      subtitle={item.description}
-      icon={
-        <MaterialIcons 
-          name="restaurant-menu" 
-          size={responsiveValue(20, 22, 24, 28)} 
-          color={colors.primary} 
-        />
-      }
-      onPress={() => router.push(`/(admin)/products/${item.id}` as any)}
-      variant="outlined"
-      style={styles.productCard}
-    >
+  const renderProductItem = ({ item }: { item: Product }) => {
+    const actionMenuItems: DropdownMenuItem[] = [
+      {
+        id: 'toggle-availability',
+        title: item.is_available ? 'Disable' : 'Enable',
+        icon: item.is_available ? 'block' : 'check-circle',
+        onPress: () => handleToggleAvailability(item.id, item.is_available, item.name),
+      },
+      {
+        id: 'edit',
+        title: 'Edit',
+        icon: 'edit',
+        onPress: () => router.push(`/(admin)/products/${item.id}` as any),
+      },
+      {
+        id: 'delete',
+        title: 'Delete',
+        icon: 'delete',
+        destructive: true,
+        onPress: () => handleDeleteProduct(item.id, item.name),
+      },
+    ];
+
+    return (
+      <AdminCard
+        title={item.name}
+        subtitle={item.description}
+        onPress={() => router.push(`/(admin)/products/${item.id}` as any)}
+        variant="outlined"
+        style={styles.productCard}
+        showActionMenu={true}
+        actionMenuItems={actionMenuItems}
+      >
       <ResponsiveView style={styles.productMeta}>
         <ResponsiveView style={[styles.categoryBadge, { backgroundColor: `${colors.primary}20` }]}>
           <ResponsiveText size="xs" color={colors.primary} weight="semiBold">
-            {getCategoryName(item.category_id)}
+            {getCategoryName(item)}
           </ResponsiveText>
         </ResponsiveView>
         {item.is_recommended && (
@@ -190,28 +234,9 @@ export default function AdminProductsScreen() {
         </ResponsiveView>
       )}
 
-      <ResponsiveView style={styles.productActions}>
-        <Button
-          title={item.is_available ? 'Disable' : 'Enable'}
-          onPress={() => handleToggleAvailability(item.id, item.is_available)}
-          variant="outline"
-          size="small"
-        />
-        <Button
-          title="Edit"
-          onPress={() => router.push(`/(admin)/products/${item.id}` as any)}
-          variant="primary"
-          size="small"
-        />
-        <Button
-          title="Delete"
-          onPress={() => handleDeleteProduct(item.id, item.name)}
-          variant="danger"
-          size="small"
-        />
-      </ResponsiveView>
-    </AdminCard>
-  );
+      </AdminCard>
+    );
+  };
 
   if (loading) {
     return (
@@ -406,11 +431,6 @@ const styles = StyleSheet.create({
     paddingVertical: ResponsiveSpacing.sm,
     borderTopWidth: 1,
     borderTopColor: 'rgba(0,0,0,0.1)',
-  },
-  productActions: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    gap: ResponsiveSpacing.sm,
   },
   emptyState: {
     alignItems: 'center',

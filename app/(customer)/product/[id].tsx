@@ -15,6 +15,7 @@ import { useSlices } from '../../../hooks';
 import { useCart } from '../../../hooks/useCart';
 import { useCrusts, useProductDetail } from '../../../hooks/useProductDetail';
 import { useRecommendations } from '../../../hooks/useRecommendations';
+import { sortSizes } from '../../../utils/sizeSorting';
 
 const { width } = Dimensions.get('window');
 
@@ -104,8 +105,10 @@ export default function ProductScreen() {
   }, [product]);
 
   // Derive sizes and crusts from product.pizza_options
+  // Sort sizes: Small (10") → Medium (14") → Large (18")
   const availableSizes = useMemo(() => {
-    return Array.from(new Set((product.pizza_options || []).map((o: any) => o.size)));
+    const sizes = Array.from(new Set((product.pizza_options || []).map((o: any) => o.size)));
+    return sortSizes(sizes);
   }, [product]);
 
   // Fetch all crusts from crusts table (not from pizza_options)

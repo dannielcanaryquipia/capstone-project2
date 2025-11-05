@@ -1,9 +1,8 @@
-import { MaterialIcons } from '@expo/vector-icons';
+ import { MaterialIcons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
-  Alert,
   Image,
   Linking,
   Modal,
@@ -13,6 +12,7 @@ import {
   View
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useAlert } from '../../../components/ui/AlertProvider';
 import Button from '../../../components/ui/Button';
 import { ResponsiveText } from '../../../components/ui/ResponsiveText';
 import { ResponsiveView } from '../../../components/ui/ResponsiveView';
@@ -90,6 +90,7 @@ interface OrderDetail {
 
 export default function OrderDetailScreen() {
   const { colors } = useTheme();
+  const { confirmDestructive, success, error: showError } = useAlert();
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
   const [loading, setLoading] = useState(true);
@@ -100,6 +101,7 @@ export default function OrderDetailScreen() {
   const [showImageModal, setShowImageModal] = useState(false);
   const [proofImageUrl, setProofImageUrl] = useState<string | null>(null);
   const [proofImageError, setProofImageError] = useState(false);
+  const [proofAspectRatio, setProofAspectRatio] = useState<number | null>(null);
   const [canceling, setCanceling] = useState(false);
   const [paymentProofs, setPaymentProofs] = useState<Array<any>>([]);
   const [deliveryProofs, setDeliveryProofs] = useState<Array<any>>([]);
@@ -163,7 +165,7 @@ export default function OrderDetailScreen() {
       }
     } catch (error) {
       console.error('Error loading order:', error);
-      Alert.alert('Error', 'Failed to load order details');
+      showError('Error', 'Failed to load order details');
       router.replace('/(admin)/orders');
     } finally {
       setLoading(false);
@@ -173,36 +175,34 @@ export default function OrderDetailScreen() {
   const handleStatusUpdate = async (newStatus: OrderStatus) => {
     if (!order || !id) return;
 
-    Alert.alert(
+    confirmDestructive(
       'Update Order Status',
       `Are you sure you want to mark this order as ${newStatus.replace('_', ' ')}?`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        { 
-          text: 'Update', 
-          onPress: async () => {
-            setUpdating(true);
-            try {
-              await OrderService.updateOrderStatus(id, newStatus, 'Admin status update');
-              await loadOrder(); // Reload order data
-              Alert.alert('Success', 'Order status updated successfully!');
-            } catch (error) {
-              console.error('Error updating order status:', error);
-              Alert.alert('Error', 'Failed to update order status. Please try again.');
-            } finally {
-              setUpdating(false);
-            }
-          }
+      async () => {
+        setUpdating(true);
+        try {
+          await OrderService.updateOrderStatus(id, newStatus, 'Admin status update');
+          await loadOrder(); // Reload order data
+          success('Success', 'Order status updated successfully!');
+        } catch (error) {
+          console.error('Error updating order status:', error);
+          showError('Error', 'Failed to update order status. Please try again.');
+        } finally {
+          setUpdating(false);
         }
-      ]
+      },
+      undefined,
+      'Update',
+      'Cancel'
     );
   };
 
   const handleVerifyPayment = async () => {
     if (!id) return;
-    Alert.alert('Verify Payment', 'Mark payment as verified and move order to Preparing?', [
-      { text: 'Cancel', style: 'cancel' },
-      { text: 'Verify', onPress: async () => {
+    confirmDestructive(
+      'Verify Payment',
+      'Mark payment as verified and move order to Preparing?',
+      async () => {
         try {
           setVerifying(true);
           // Get current admin user ID
@@ -211,56 +211,55 @@ export default function OrderDetailScreen() {
           
           await OrderService.verifyPayment(id as string, user.id);
           await loadOrder();
-          Alert.alert('Success', 'Payment verified. Order moved to Preparing.');
+          success('Success', 'Payment verified. Order moved to Preparing.');
         } catch (e) {
-          Alert.alert('Error', 'Failed to verify payment.');
+          showError('Error', 'Failed to verify payment.');
         } finally {
           setVerifying(false);
         }
-      }}
-    ]);
+      },
+      undefined,
+      'Verify',
+      'Cancel'
+    );
   };
 
   const handleCancelOrder = async () => {
     if (!id) return;
-    Alert.alert(
+    confirmDestructive(
       'Cancel Order',
       'Are you sure you want to cancel this order? This action cannot be undone and the customer will be notified.',
-      [
-        { text: 'Keep Order', style: 'cancel' },
-        { 
-          text: 'Cancel Order', 
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              setCanceling(true);
-              await OrderService.updateOrderStatus(id as string, 'cancelled', 'Admin cancelled - payment not verified');
-              
-              // Send notification to customer
-              try {
-                await notificationService.sendNotification({
-                  userId: order?.user_id || '',
-                  title: 'Order Cancelled',
-                  message: `Your order #${order?.id?.slice(-8) || 'N/A'} has been cancelled due to payment verification issues. Please contact support if you have any questions.`,
-                  type: 'order_update',
-                  relatedId: id as string,
-                });
-              } catch (notificationError) {
-                console.warn('Failed to send cancellation notification:', notificationError);
-                // Don't fail the cancellation if notification fails
-              }
-              
-              await loadOrder();
-              Alert.alert('Order Cancelled', 'The order has been cancelled and the customer has been notified.');
-            } catch (e) {
-              console.error('Error cancelling order:', e);
-              Alert.alert('Error', 'Failed to cancel order. Please try again.');
-            } finally {
-              setCanceling(false);
-            }
+      async () => {
+        try {
+          setCanceling(true);
+          await OrderService.updateOrderStatus(id as string, 'cancelled', 'Admin cancelled - payment not verified');
+          
+          // Send notification to customer
+          try {
+            await notificationService.sendNotification({
+              userId: order?.user_id || '',
+              title: 'Order Cancelled',
+              message: `Your order #${order?.id?.slice(-8) || 'N/A'} has been cancelled due to payment verification issues. Please contact support if you have any questions.`,
+              type: 'order_update',
+              relatedId: id as string,
+            });
+          } catch (notificationError) {
+            console.warn('Failed to send cancellation notification:', notificationError);
+            // Don't fail the cancellation if notification fails
           }
+          
+          await loadOrder();
+          success('Order Cancelled', 'The order has been cancelled and the customer has been notified.');
+        } catch (e) {
+          console.error('Error cancelling order:', e);
+          showError('Error', 'Failed to cancel order. Please try again.');
+        } finally {
+          setCanceling(false);
         }
-      ]
+      },
+      undefined,
+      'Cancel Order',
+      'Keep Order'
     );
   };
 
@@ -547,56 +546,41 @@ export default function OrderDetailScreen() {
               </ResponsiveText>
             </ResponsiveView>
           </ResponsiveView>
-          {/* Proof of Payment - show gallery under payment info */}
+          {/* Proof of Payment - single image with zoom */}
           {(paymentProofs.length > 0 || order.proof_of_payment_url) && (
             <ResponsiveView marginTop="md">
               <ResponsiveText size="md" weight="semiBold" color={colors.text}>
                 Proof of Payment
               </ResponsiveText>
-              <ResponsiveView marginTop="sm" style={styles.proofGrid}>
-                {/* New proofs from image_metadata */}
-                {paymentProofs.map((img) => (
-                  <TouchableOpacity
-                    key={img.id}
-                    onPress={() => {
-                      setProofImageUrl(img.url);
-                      setShowImageModal(true);
-                      setViewedProof(true);
+              <ResponsiveView marginTop="sm">
+                <TouchableOpacity
+                  onPress={() => {
+                    const url = (paymentProofs[0]?.url as string) || (order.proof_of_payment_url as string);
+                    if (!url) return;
+                    setProofImageUrl(url);
+                    setShowImageModal(true);
+                    setViewedProof(true);
                     setProofImageError(false);
-                    }}
-                    style={styles.proofThumbWrap}
-                  >
-                    <Image
-                      source={{ uri: img.thumbnail_url || img.url }}
-                      style={styles.proofThumb}
-                      resizeMode="cover"
-                    />
-                    <ResponsiveView style={styles.proofOverlay}>
-                      <MaterialIcons name="zoom-in" size={20} color="white" />
-                    </ResponsiveView>
-                  </TouchableOpacity>
-                ))}
-                {/* Legacy single URL */}
-                {order.proof_of_payment_url && (
-                  <TouchableOpacity
-                    onPress={() => {
-                      setProofImageUrl(order.proof_of_payment_url as string);
-                      setShowImageModal(true);
-                      setViewedProof(true);
-                    setProofImageError(false);
-                    }}
-                    style={styles.proofThumbWrap}
-                  >
-                    <Image
-                      source={{ uri: order.proof_of_payment_url as string }}
-                      style={styles.proofThumb}
-                      resizeMode="cover"
-                    />
-                    <ResponsiveView style={styles.proofOverlay}>
-                      <MaterialIcons name="zoom-in" size={20} color="white" />
-                    </ResponsiveView>
-                  </TouchableOpacity>
-                )}
+                  }}
+                  style={styles.proofSingleWrap}
+                  activeOpacity={0.85}
+                >
+                  <Image
+                    source={{ uri: (paymentProofs[0]?.thumbnail_url as string) || (paymentProofs[0]?.url as string) || (order.proof_of_payment_url as string) }}
+                    style={styles.proofSingle}
+                    // @ts-ignore
+                    contentFit="cover"
+                    // @ts-ignore
+                    cachePolicy="memory-disk"
+                    // @ts-ignore
+                    placeholder={{ blurhash: '' }}
+                    // @ts-ignore
+                    transition={200}
+                  />
+                  <ResponsiveView style={styles.proofOverlay}>
+                    <MaterialIcons name="zoom-in" size={20} color="white" />
+                  </ResponsiveView>
+                </TouchableOpacity>
               </ResponsiveView>
             </ResponsiveView>
           )}
@@ -862,12 +846,37 @@ export default function OrderDetailScreen() {
             </ResponsiveView>
             
             <ResponsiveView style={styles.imageContainer}>
-              <Image
-                source={{ uri: proofImageUrl || order?.proof_of_payment_url || undefined }}
-                style={styles.proofImage}
-                resizeMode="contain"
-                onError={() => setProofImageError(true)}
-              />
+              <ScrollView
+                style={styles.zoomScroll}
+                contentContainerStyle={styles.zoomScrollContent}
+                maximumZoomScale={3.0}
+                minimumZoomScale={0.5}
+                bouncesZoom={true}
+                showsVerticalScrollIndicator={false}
+                showsHorizontalScrollIndicator={false}
+              >
+                <Image
+                  source={{ uri: proofImageUrl || order?.proof_of_payment_url || '' }}
+                  style={[
+                    styles.zoomImage,
+                    proofAspectRatio ? { aspectRatio: proofAspectRatio } : null,
+                  ]}
+                  // @ts-ignore
+                  contentFit="contain"
+                  // @ts-ignore
+                  cachePolicy="memory-disk"
+                  // @ts-ignore
+                  transition={200}
+                  onError={() => setProofImageError(true)}
+                  onLoad={(e) => {
+                    try {
+                      const w = (e as any)?.nativeEvent?.source?.width;
+                      const h = (e as any)?.nativeEvent?.source?.height;
+                      if (w && h) setProofAspectRatio(w / h);
+                    } catch {}
+                  }}
+                />
+              </ScrollView>
             </ResponsiveView>
             {proofImageError && (
               <ResponsiveView marginTop="sm">
@@ -995,15 +1004,14 @@ const styles = StyleSheet.create({
   },
   imageContainer: {
     width: '100%',
-    height: responsiveValue(300, 350, 400, 450),
+    height: responsiveValue(420, 520, 620, 720),
     borderRadius: ResponsiveBorderRadius.md,
     overflow: 'hidden',
     backgroundColor: 'rgba(0, 0, 0, 0.05)',
   },
-  proofImage: {
-    width: '100%',
-    height: '100%',
-  },
+  zoomScroll: { flex: 1, width: '100%' },
+  zoomScrollContent: { flexGrow: 1, justifyContent: 'center', alignItems: 'center', paddingVertical: ResponsiveSpacing.sm },
+  zoomImage: { width: '100%', height: undefined },
   proofImageContainer: {
     position: 'relative',
     marginBottom: ResponsiveSpacing.sm,
@@ -1087,6 +1095,17 @@ const styles = StyleSheet.create({
   proofThumb: {
     width: '100%',
     height: 100,
+    borderRadius: ResponsiveBorderRadius.md,
+  },
+  // Single proof presentation
+  proofSingleWrap: {
+    width: '100%',
+    borderRadius: ResponsiveBorderRadius.md,
+    overflow: 'hidden',
+  },
+  proofSingle: {
+    width: '100%',
+    height: 160,
     borderRadius: ResponsiveBorderRadius.md,
   },
 });

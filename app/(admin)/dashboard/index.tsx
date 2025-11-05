@@ -25,7 +25,7 @@ export default function AdminDashboard() {
   // Use hooks for data fetching
   const { stats, isLoading: statsLoading, error: statsError, refresh: refreshStats } = useAdminStats();
   const { orders: recentOrders, isLoading: ordersLoading, error: ordersError, refresh: refreshOrders } = useAdminOrders({ 
-    status: ['pending', 'preparing', 'out_for_delivery'] 
+    status: ['pending', 'preparing', 'ready_for_pickup', 'out_for_delivery'] 
   });
 
   const loading = statsLoading || ordersLoading;
@@ -46,6 +46,7 @@ export default function AdminDashboard() {
     switch (status) {
       case 'pending': return colors.warning;
       case 'preparing': return colors.info;
+      case 'ready_for_pickup': return colors.secondary;
       case 'out_for_delivery': return colors.primary;
       case 'delivered': return colors.success;
       case 'cancelled': return colors.error;
@@ -57,6 +58,7 @@ export default function AdminDashboard() {
     switch (status) {
       case 'pending': return 'schedule';
       case 'preparing': return 'restaurant';
+      case 'ready_for_pickup': return 'local-shipping';
       case 'out_for_delivery': return 'delivery-dining';
       case 'delivered': return 'check-circle';
       case 'cancelled': return 'cancel';
@@ -226,6 +228,7 @@ export default function AdminDashboard() {
             {[
               { key: 'pending', label: 'Pending', value: stats?.pending_orders || 0 },
               { key: 'preparing', label: 'Preparing', value: stats?.preparing_orders || 0 },
+              { key: 'ready_for_pickup', label: 'Ready for Pickup', value: stats?.ready_for_pickup_orders || 0 },
               { key: 'out_for_delivery', label: 'Out for Delivery', value: stats?.out_for_delivery || 0 },
               { key: 'delivered', label: 'Delivered', value: stats?.delivered_orders || 0 },
               { key: 'cancelled', label: 'Cancelled', value: stats?.cancelled_orders || 0 },

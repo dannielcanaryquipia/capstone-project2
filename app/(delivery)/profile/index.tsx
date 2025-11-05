@@ -25,6 +25,7 @@ import { useTheme } from '../../../contexts/ThemeContext';
 import { useAuth } from '../../../hooks/useAuth';
 import { useAvatar } from '../../../hooks/useAvatar';
 import { useRiderProfile } from '../../../hooks/useRiderProfile';
+import { authService } from '../../../services/auth.service';
 import global from '../../../styles/global';
 
 interface ProfileActionItem {
@@ -44,7 +45,7 @@ export default function RiderProfileScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { profile, stats, isLoading, error, toggleAvailability, updateProfile, refresh, refreshStats } = useRiderProfile();
-  const { localAvatar, isLoading: isUploadingAvatar, saveAvatar, removeAvatar } = useAvatar();
+  const { isLoading: isUploadingAvatar, saveAvatar, removeAvatar } = useAvatar();
   
   const [refreshing, setRefreshing] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
@@ -56,7 +57,7 @@ export default function RiderProfileScreen() {
 
   // Function to open Kitchen One website
   const openWebsite = async () => {
-    const url = 'https://kitchenone.com'; // Replace with your actual website URL
+    const url = 'https://kitchen-one-website-vcov.vercel.app/'; // Kitchen One website
     try {
       const supported = await Linking.canOpenURL(url);
       if (supported) {
@@ -97,11 +98,13 @@ export default function RiderProfileScreen() {
       return;
     }
 
+    if (!user) return;
+
     setIsUpdating(true);
     try {
-      await updateProfile({
-        full_name: editForm.fullName.trim(),
-        phone_number: editForm.phoneNumber.trim() || undefined,
+      await authService.updateProfile(user.id, {
+        fullName: editForm.fullName.trim(),
+        phoneNumber: editForm.phoneNumber.trim() || null,
       });
       // Immediately refresh profile data and close modal for smooth UX
       await refresh();
@@ -188,6 +191,8 @@ export default function RiderProfileScreen() {
   const uploadAvatar = async (imageUri: string) => {
     const success = await saveAvatar(imageUri);
     if (success) {
+      // Refresh profile to get updated avatar_url
+      await refresh();
       showSuccess('Success', 'Profile picture updated successfully');
     } else {
       showError('Error', 'Failed to save profile picture. Please try again.');
@@ -197,6 +202,8 @@ export default function RiderProfileScreen() {
   const removeAvatarHandler = async () => {
     const success = await removeAvatar();
     if (success) {
+      // Refresh profile to reflect removed avatar
+      await refresh();
       showSuccess('Success', 'Profile picture removed successfully');
     } else {
       showError('Error', 'Failed to remove profile picture. Please try again.');
@@ -358,22 +365,41 @@ export default function RiderProfileScreen() {
           />
         }
       >
+        {/* Back Button Header */}
+        <ResponsiveView 
+          style={[styles.header, { backgroundColor: colors.surface }]}
+          flexDirection="row"
+          alignItems="center"
+          paddingHorizontal="lg"
+          paddingVertical="md"
+        >
+          <TouchableOpacity 
+            onPress={() => router.push('/(delivery)/dashboard')} 
+            style={styles.backButton}
+          >
+            <MaterialIcons name="arrow-back" size={24} color={colors.text} />
+          </TouchableOpacity>
+          <ResponsiveView marginLeft="md">
+            <ResponsiveText size="lg" weight="semiBold" color={colors.text}>
+              Profile
+            </ResponsiveText>
+          </ResponsiveView>
+        </ResponsiveView>
+
         <ResponsiveView padding="lg">
           {/* Profile Header */}
           <ResponsiveView style={[styles.profileHeader, { backgroundColor: colors.surface }]}>
             <TouchableOpacity 
               style={styles.avatarContainer}
               onPress={handleAvatarPress}
-              onLongPress={localAvatar ? handleRemoveAvatar : undefined}
+              onLongPress={profile?.profile?.avatar_url ? handleRemoveAvatar : undefined}
               disabled={isUploadingAvatar}
               activeOpacity={0.7}
             >
-              {localAvatar ? (
-                <Image source={{ uri: localAvatar }} style={styles.avatar} />
+              {profile?.profile?.avatar_url ? (
+                <Image source={{ uri: profile.profile.avatar_url }} style={styles.avatar} />
               ) : (
-                <View style={[styles.avatar, { backgroundColor: colors.surfaceVariant }]}>
-                  <MaterialIcons name="person" size={48} color={colors.themedText} />
-                </View>
+                <View style={[styles.avatar, { backgroundColor: colors.surfaceVariant }]} />
               )}
               {isUploadingAvatar && (
                 <ResponsiveView style={[styles.avatarOverlay, { backgroundColor: colors.background + '80' }]}>
@@ -492,22 +518,6 @@ export default function RiderProfileScreen() {
                 <ResponsiveText size="md" weight="medium" color={colors.text}>
                   {profile?.profile?.phone_number || 'Not provided'}
               </ResponsiveText>
-            </ResponsiveView>
-            
-              <ResponsiveView style={styles.infoRow}>
-                <ResponsiveView style={styles.infoLabel}>
-                  <ResponsiveView style={[styles.infoIcon, { backgroundColor: colors.surfaceVariant }]}>
-                    <MaterialIcons name="local-shipping" size={20} color={colors.themedText} />
-                  </ResponsiveView>
-                  <ResponsiveView marginLeft="sm">
-              <ResponsiveText size="md" color={colors.textSecondary}>
-                      Vehicle Number
-                    </ResponsiveText>
-                  </ResponsiveView>
-                </ResponsiveView>
-                <ResponsiveText size="md" weight="medium" color={colors.text}>
-                  {profile?.vehicle_number || 'Not set'}
-                </ResponsiveText>
               </ResponsiveView>
             </ResponsiveView>
           </ResponsiveView>
@@ -526,15 +536,6 @@ export default function RiderProfileScreen() {
                 icon={<MaterialIcons name="refresh" size={16} color={colors.primary} />}
               />
             </ResponsiveView>
-            
-            {/* Debug Info */}
-            {__DEV__ && (
-              <ResponsiveView style={[styles.debugInfo, { backgroundColor: colors.background }]}>
-                <ResponsiveText size="xs" color={colors.textSecondary}>
-                  Debug: Profile ID: {profile?.id || 'None'} | Stats: {JSON.stringify(stats)}
-                </ResponsiveText>
-              </ResponsiveView>
-            )}
             
             <ResponsiveView style={[styles.statsCard, { 
               backgroundColor: colors.surface,
@@ -794,6 +795,14 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  backButton: {
+    padding: Layout.spacing.sm,
+    marginLeft: -Layout.spacing.sm,
+  },
   profileHeader: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -981,10 +990,5 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: Layout.spacing.md,
-  },
-  debugInfo: {
-    padding: Layout.spacing.sm,
-    borderRadius: Layout.borderRadius.sm,
-    marginBottom: Layout.spacing.sm,
   },
 });

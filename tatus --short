@@ -1,0 +1,58 @@
+warning: in the working copy of 'README.md', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'app/(admin)/dashboard/index.tsx', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'app/(admin)/orders/[id].tsx', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'app/(admin)/products/index.tsx', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'app/(admin)/products/new.tsx', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'app/(admin)/profile/index.tsx', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'app/(admin)/users/index.tsx', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'app/(customer)/(tabs)/index.tsx', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'app/(customer)/(tabs)/profile.tsx', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'app/(customer)/checkout.tsx', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'app/(customer)/product/[id].tsx', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'app/(delivery)/orders/index.tsx', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'app/(delivery)/profile/index.tsx', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'app/_layout.tsx', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'components/rider/RiderOrdersManager.tsx', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'components/ui/GCashPaymentModal.tsx', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'components/ui/OptimizedImage.tsx', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'components/ui/OrderCard.tsx', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'contexts/NotificationContext.tsx', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'package-lock.json', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'package.json', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'services/image-upload.service.ts', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'services/order.service.ts', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'services/product.service.ts', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'types/order.types.ts', LF will be replaced by CRLF the next time Git touches it
+README.md
+app/(admin)/dashboard/index.tsx
+app/(admin)/orders/[id].tsx
+app/(admin)/products/[id].tsx
+app/(admin)/products/index.tsx
+app/(admin)/products/new.tsx
+app/(admin)/profile/index.tsx
+app/(admin)/users/index.tsx
+app/(customer)/(tabs)/index.tsx
+app/(customer)/(tabs)/profile.tsx
+app/(customer)/checkout.tsx
+app/(customer)/product/[id].tsx
+app/(delivery)/order/[id].tsx
+app/(delivery)/orders/earnings.tsx
+app/(delivery)/orders/index.tsx
+app/(delivery)/profile/index.tsx
+app/_layout.tsx
+components/payment/PaymentProofUpload.tsx
+components/rider/RiderDashboard.tsx
+components/rider/RiderOrdersManager.tsx
+components/ui/AlertDialog.tsx
+components/ui/GCashPaymentModal.tsx
+components/ui/OptimizedImage.tsx
+components/ui/OrderCard.tsx
+contexts/NotificationContext.tsx
+hooks/useAdminStats.ts
+hooks/useAvatar.ts
+package-lock.json
+package.json
+services/image-upload.service.ts
+services/order.service.ts
+services/product.service.ts
+types/order.types.ts

@@ -3,11 +3,11 @@ import * as ImagePicker from 'expo-image-picker';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import {
-    Alert,
     ScrollView,
     StyleSheet
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useAlert } from '../../../components/ui/AlertProvider';
 import Button from '../../../components/ui/Button';
 import { LoadingState } from '../../../components/ui/LoadingState';
 import { ResponsiveText } from '../../../components/ui/ResponsiveText';
@@ -25,10 +25,12 @@ export default function OrderDetailsScreen() {
   const { user } = useAuth();
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
+  const { show, confirm, success, error: showError } = useAlert();
   
   const [order, setOrder] = useState<Order | null>(null);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
+  const [uploadingProof, setUploadingProof] = useState(false);
 
   useEffect(() => {
     if (id) {
@@ -44,7 +46,7 @@ export default function OrderDetailsScreen() {
       setOrder(orderData);
     } catch (error) {
       console.error('Error loading order details:', error);
-      Alert.alert('Error', 'Failed to load order details');
+      showError('Error', 'Failed to load order details');
     } finally {
       setLoading(false);
     }
@@ -57,29 +59,131 @@ export default function OrderDetailsScreen() {
     console.log('Order payment method:', order.payment_method);
     console.log('Order payment status:', order.payment_status);
 
-    Alert.alert(
+    confirm(
       'Verify COD Payment',
       `Confirm that you have received ₱${order.total_amount.toFixed(2)} in cash from the customer for this order.`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        { 
-          text: 'Verify Payment', 
-          onPress: async () => {
-            try {
-              setActionLoading(true);
-              await OrderService.verifyCODPayment(order.id, user.id);
-              Alert.alert(
-                'Payment Verified! 💰', 
-                'COD payment verified successfully! Customer has been notified. You can now proceed to mark the order as delivered.',
-                [{ text: 'OK', onPress: () => loadOrderDetails() }]
-              );
-            } catch (error: any) {
-              console.error('Error verifying COD payment:', error);
-              Alert.alert('Error', error.message || 'Failed to verify payment');
-            } finally {
-              setActionLoading(false);
+      async () => {
+        try {
+          setActionLoading(true);
+          await OrderService.verifyCODPayment(order.id, user.id);
+          success(
+            'Payment Verified! 💰', 
+            'COD payment verified successfully! Customer has been notified. You can now proceed to mark the order as delivered.',
+            [{ text: 'OK', onPress: () => loadOrderDetails() }]
+          );
+        } catch (error: any) {
+          console.error('Error verifying COD payment:', error);
+          showError('Error', error.message || 'Failed to verify payment');
+        } finally {
+          setActionLoading(false);
+        }
+      },
+      undefined,
+      'Verify Payment',
+      'Cancel'
+    );
+  };
+
+  const handleUploadProof = async () => {
+    if (!order || !user?.id) return;
+
+    const handleAddPhoto = async () => {
+      try {
+        const permissionResult = await ImagePicker.requestCameraPermissionsAsync();
+        if (permissionResult.granted === false) {
+          showError('Permission Required', 'Camera permission is required to take photos.');
+          return;
+        }
+
+        setUploadingProof(true);
+        try {
+          const res = await ImagePicker.launchCameraAsync({ 
+            mediaTypes: ImagePicker.MediaTypeOptions.Images, 
+            quality: 0.7,
+            allowsEditing: false,
+          });
+          
+          if (res.canceled) {
+            setUploadingProof(false);
+            return;
+          }
+
+          if (res.assets[0]) {
+            const uri = res.assets[0].uri;
+            const result = await OrderService.uploadDeliveryProof(order.id, user.id, uri);
+            if (result.success) {
+              success('Success! 📸', result.message, [{ text: 'OK', onPress: () => loadOrderDetails() }]);
+            } else {
+              showError('Error', result.message);
             }
           }
+        } finally {
+          setUploadingProof(false);
+        }
+      } catch (error: any) {
+        console.error('Error taking photo:', error);
+        showError('Error', error.message || 'Failed to take photo. Please try again.');
+        setUploadingProof(false);
+      }
+    };
+
+    const handleChooseFromGallery = async () => {
+      try {
+        const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
+        if (permissionResult.granted === false) {
+          showError('Permission Required', 'Photo library permission is required to select images.');
+          return;
+        }
+
+        setUploadingProof(true);
+        try {
+          const res = await ImagePicker.launchImageLibraryAsync({ 
+            mediaTypes: ImagePicker.MediaTypeOptions.Images, 
+            quality: 0.7,
+            allowsEditing: false,
+          });
+          
+          if (res.canceled) {
+            setUploadingProof(false);
+            return;
+          }
+
+          if (res.assets[0]) {
+            const uri = res.assets[0].uri;
+            const result = await OrderService.uploadDeliveryProof(order.id, user.id, uri);
+            if (result.success) {
+              success('Success! 📸', result.message, [{ text: 'OK', onPress: () => loadOrderDetails() }]);
+            } else {
+              showError('Error', result.message);
+            }
+          }
+        } finally {
+          setUploadingProof(false);
+        }
+      } catch (error: any) {
+        console.error('Error selecting photo:', error);
+        showError('Error', error.message || 'Failed to select photo. Please try again.');
+        setUploadingProof(false);
+      }
+    };
+
+    show(
+      'Upload Proof of Delivery',
+      'Please add a photo as proof of delivery.',
+      [
+        { 
+          text: 'Take Photo', 
+          style: 'default',
+          onPress: handleAddPhoto
+        },
+        { 
+          text: 'Choose from Gallery', 
+          style: 'default',
+          onPress: handleChooseFromGallery
+        },
+        { 
+          text: 'Cancel', 
+          style: 'cancel'
         }
       ]
     );
@@ -88,70 +192,152 @@ export default function OrderDetailsScreen() {
   const handleMarkDelivered = async () => {
     if (!order || !user?.id) return;
 
-    Alert.alert(
-      'Mark as Delivered',
-      'Proof of delivery is required. Please add a photo to confirm the delivery.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'Add Photo', onPress: async () => {
+    const hasProof = !!(order as any).proof_of_delivery_url;
+
+    // If no proof exists, prompt to upload first (similar to GCash payment proof)
+    if (!hasProof) {
+      const handleAddPhoto = async () => {
+        try {
+          const permissionResult = await ImagePicker.requestCameraPermissionsAsync();
+          if (permissionResult.granted === false) {
+            showError('Permission Required', 'Camera permission is required to take photos.');
+            return;
+          }
+
+          setActionLoading(true);
           try {
             const res = await ImagePicker.launchCameraAsync({ 
               mediaTypes: ImagePicker.MediaTypeOptions.Images, 
-              quality: 0.7, // Reduced quality for better performance
-              allowsEditing: true,
-              aspect: [4, 3]
+              quality: 0.7,
+              allowsEditing: false,
             });
-            if (!res.canceled) {
-              setActionLoading(true);
+            
+            if (res.canceled) {
+              setActionLoading(false);
+              return;
+            }
+
+            if (res.assets[0]) {
               const uri = res.assets[0].uri;
+              // Mark as delivered with proof image
               const result = await OrderService.markOrderDelivered(order.id, user.id, uri);
               if (result.success) {
-                Alert.alert(
-                  result.proofUploaded ? 'Success! 📸' : 'Success! ✅', 
+                success(
+                  'Success! ✅', 
                   result.message,
                   [{ text: 'OK', onPress: () => router.back() }]
                 );
               } else {
-                Alert.alert('Error', result.message);
+                showError('Error', result.message);
               }
             }
-          } catch (error: any) {
-            console.error('Error taking photo:', error);
-            Alert.alert('Error', error.message || 'Failed to take photo');
           } finally {
             setActionLoading(false);
           }
-        }},
-        { text: 'Choose from Gallery', onPress: async () => {
+        } catch (error: any) {
+          console.error('Error taking photo:', error);
+          showError('Error', error.message || 'Failed to take photo. Please try again.');
+          setActionLoading(false);
+        }
+      };
+
+      const handleChooseFromGallery = async () => {
+        try {
+          const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
+          if (permissionResult.granted === false) {
+            showError('Permission Required', 'Photo library permission is required to select images.');
+            return;
+          }
+
+          setActionLoading(true);
           try {
             const res = await ImagePicker.launchImageLibraryAsync({ 
               mediaTypes: ImagePicker.MediaTypeOptions.Images, 
-              quality: 0.7, // Reduced quality for better performance
-              allowsEditing: true,
-              aspect: [4, 3]
+              quality: 0.7,
+              allowsEditing: false,
             });
-            if (!res.canceled) {
-              setActionLoading(true);
+            
+            if (res.canceled) {
+              setActionLoading(false);
+              return;
+            }
+
+            if (res.assets[0]) {
               const uri = res.assets[0].uri;
+              // Mark as delivered with proof image
               const result = await OrderService.markOrderDelivered(order.id, user.id, uri);
               if (result.success) {
-                Alert.alert(
-                  result.proofUploaded ? 'Success! 📸' : 'Success! ✅', 
+                success(
+                  'Success! ✅', 
                   result.message,
                   [{ text: 'OK', onPress: () => router.back() }]
                 );
               } else {
-                Alert.alert('Error', result.message);
+                showError('Error', result.message);
               }
             }
-          } catch (error: any) {
-            console.error('Error selecting photo:', error);
-            Alert.alert('Error', error.message || 'Failed to select photo');
           } finally {
             setActionLoading(false);
           }
-        }}
-      ]
+        } catch (error: any) {
+          console.error('Error selecting photo:', error);
+          showError('Error', error.message || 'Failed to select photo. Please try again.');
+          setActionLoading(false);
+        }
+      };
+
+      // Show modal to upload proof (similar to GCash payment proof modal)
+      show(
+        'Proof of Delivery Required',
+        'Please upload a photo as proof of delivery before marking the order as delivered.',
+        [
+          { 
+            text: 'Take Photo', 
+            style: 'default',
+            onPress: handleAddPhoto
+          },
+          { 
+            text: 'Choose from Gallery', 
+            style: 'default',
+            onPress: handleChooseFromGallery
+          },
+          { 
+            text: 'Cancel', 
+            style: 'cancel'
+          }
+        ]
+      );
+      return;
+    }
+
+    // If proof already exists, proceed with confirmation
+    confirm(
+      'Mark as Delivered',
+      'Are you sure you want to mark this order as delivered? This action cannot be undone.',
+      async () => {
+        try {
+          setActionLoading(true);
+          // Use existing proof
+          const result = await OrderService.markOrderDelivered(order.id, user.id, undefined);
+          if (result.success) {
+            success(
+              'Success! ✅', 
+              result.message,
+              [{ text: 'OK', onPress: () => router.back() }]
+            );
+          } else {
+            showError('Error', result.message);
+          }
+        } catch (error: any) {
+          console.error('Error marking order as delivered:', error);
+          showError('Error', error.message || 'Failed to mark order as delivered');
+        } finally {
+          setActionLoading(false);
+        }
+      },
+      undefined,
+      'Mark as Delivered',
+      'Cancel'
     );
   };
 
@@ -198,7 +384,7 @@ export default function OrderDetailsScreen() {
     });
   };
 
-  const getActionButton = () => {
+  const getActionButtons = () => {
     if (!order || !user?.id) return null;
 
     const isCOD = order.payment_method?.toLowerCase() === 'cod';
@@ -206,48 +392,9 @@ export default function OrderDetailsScreen() {
     const paymentVerified = order.payment_status === 'verified' || (order as any).payment_verified;
     const isOutForDelivery = order.status === 'out_for_delivery';
     const isDelivered = order.status === 'delivered';
+    const hasProof = !!(order as any).proof_of_delivery_url;
 
-    // COD orders need payment verification first
-    if (isCOD && !paymentVerified && isOutForDelivery) {
-      return (
-        <Button
-          title="Verify COD Payment"
-          onPress={handleVerifyCODPayment}
-          loading={actionLoading}
-          variant="primary"
-          size="large"
-          icon={<MaterialIcons name="payment" size={20} color="white" />}
-        />
-      );
-    }
-
-    // GCash orders need admin verification first, then delivery
-    if (isGCash && !paymentVerified && isOutForDelivery) {
-      return (
-        <ResponsiveView style={[styles.infoCard, { backgroundColor: colors.warning + '20', borderColor: colors.warning }]}>
-          <MaterialIcons name="info" size={20} color={colors.warning} />
-          <ResponsiveView marginLeft="sm">
-            <ResponsiveText size="sm" color={colors.warning} weight="medium">
-              Waiting for admin to verify GCash payment before delivery
-            </ResponsiveText>
-          </ResponsiveView>
-        </ResponsiveView>
-      );
-    }
-
-    // Ready for delivery (payment verified or non-payment orders)
-    if ((paymentVerified || !isCOD) && isOutForDelivery && !isDelivered) {
-      return (
-        <Button
-          title="Mark as Delivered"
-          onPress={handleMarkDelivered}
-          loading={actionLoading}
-          variant="primary"
-          size="large"
-          icon={<MaterialIcons name="check-circle" size={20} color="white" />}
-        />
-      );
-    }
+    const buttons: React.ReactNode[] = [];
 
     // Order already delivered
     if (isDelivered) {
@@ -263,7 +410,82 @@ export default function OrderDetailsScreen() {
       );
     }
 
-    return null;
+    // GCash orders need admin verification first
+    if (isGCash && !paymentVerified && isOutForDelivery) {
+      return (
+        <ResponsiveView style={[styles.infoCard, { backgroundColor: colors.warning + '20', borderColor: colors.warning }]}>
+          <MaterialIcons name="info" size={20} color={colors.warning} />
+          <ResponsiveView marginLeft="sm">
+            <ResponsiveText size="sm" color={colors.warning} weight="medium">
+              Waiting for admin to verify GCash payment before delivery
+            </ResponsiveText>
+          </ResponsiveView>
+        </ResponsiveView>
+      );
+    }
+
+    // Only show buttons for orders that are out for delivery
+    if (!isOutForDelivery || isDelivered) {
+      return null;
+    }
+
+    // Button 1: Verify COD Payment (only for COD orders when payment not verified)
+    if (isCOD && !paymentVerified) {
+      buttons.push(
+        <Button
+          key="verify-cod"
+          title="Verify COD Payment"
+          onPress={handleVerifyCODPayment}
+          loading={actionLoading}
+          variant="primary"
+          size="large"
+          icon={<MaterialIcons name="payment" size={20} color="white" />}
+        />
+      );
+    }
+
+    // Button 2: Upload Proof of Delivery (when payment is verified or not COD)
+    if (paymentVerified || !isCOD) {
+      buttons.push(
+        <Button
+          key="upload-proof"
+          title={hasProof ? "Update Proof of Delivery" : "Upload Proof of Delivery"}
+          onPress={handleUploadProof}
+          loading={uploadingProof}
+          variant="outline"
+          size="large"
+          icon={<MaterialIcons name="camera-alt" size={20} color={colors.primary} />}
+        />
+      );
+    }
+
+    // Button 3: Mark as Delivered (at bottom, only when payment verified)
+    // Show this button only after payment is verified (for COD) or for non-COD orders
+    if (paymentVerified || !isCOD) {
+      buttons.push(
+        <Button
+          key="mark-delivered"
+          title="Mark as Delivered"
+          onPress={handleMarkDelivered}
+          loading={actionLoading}
+          variant="primary"
+          size="large"
+          icon={<MaterialIcons name="check-circle" size={20} color="white" />}
+        />
+      );
+    }
+
+    if (buttons.length === 0) return null;
+
+    return (
+      <ResponsiveView style={styles.actionButtonsContainer}>
+        {buttons.map((button, index) => (
+          <ResponsiveView key={index} marginTop={index > 0 ? "md" : undefined}>
+            {button}
+          </ResponsiveView>
+        ))}
+      </ResponsiveView>
+    );
   };
 
   if (loading) {
@@ -587,10 +809,10 @@ export default function OrderDetailsScreen() {
             ))}
           </ResponsiveView>
 
-          {/* Action Button */}
-          {getActionButton() && (
+          {/* Action Buttons */}
+          {getActionButtons() && (
             <ResponsiveView style={styles.actionContainer} marginTop="lg">
-              {getActionButton()}
+              {getActionButtons()}
             </ResponsiveView>
           )}
         </ResponsiveView>
@@ -691,6 +913,9 @@ const styles = StyleSheet.create({
   },
   actionContainer: {
     paddingBottom: ResponsiveSpacing.xl,
+  },
+  actionButtonsContainer: {
+    gap: ResponsiveSpacing.md,
   },
   backButton: {
     marginTop: ResponsiveSpacing.md,

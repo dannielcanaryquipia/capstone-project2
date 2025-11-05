@@ -44,8 +44,7 @@ export const PaymentProofUpload: React.FC<PaymentProofUploadProps> = ({
     try {
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
-        allowsEditing: true,
-        aspect: [4, 3],
+        allowsEditing: false, // Removed cropping requirement - allow full image
         quality: 0.8,
       });
 
@@ -71,8 +70,7 @@ export const PaymentProofUpload: React.FC<PaymentProofUploadProps> = ({
 
     try {
       const result = await ImagePicker.launchCameraAsync({
-        allowsEditing: true,
-        aspect: [4, 3],
+        allowsEditing: false, // Removed cropping requirement - allow full image
         quality: 0.8,
       });
 

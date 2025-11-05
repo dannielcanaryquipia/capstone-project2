@@ -89,8 +89,12 @@ const AuthGuard = ({ children }: { children: React.ReactNode }) => {
     );
   }
 
-  // Show error screen if there's an auth error
-  if (error && !user) {
+  // Only show generic error screen for initialization errors when NOT on auth screens
+  // Auth screens (sign-in/sign-up) should handle their own errors
+  const inAuthGroup = segments[0] === '(auth)';
+  if (error && !user && !inAuthGroup) {
+    // This is an initialization error, not a sign-in error
+    // Only show this for critical auth initialization failures
     return (
       <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 20 }}>
         <ActivityIndicator size="large" />

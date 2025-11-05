@@ -57,11 +57,32 @@ export class ProductService {
       if (error) throw error;
 
       // Ensure backward-compat price field and map categories to category
-      const products = (data || []).map((p: any) => ({ 
-        ...p, 
-        price: p.base_price,
-        category: p.categories ? { name: p.categories.name } : null
-      }));
+      const products = (data || []).map((p: any) => {
+        // Handle category data - it might be an object or array
+        let categoryData = null;
+        if (p.categories) {
+          // If categories is an array, take the first one
+          if (Array.isArray(p.categories) && p.categories.length > 0) {
+            categoryData = { 
+              name: p.categories[0].name,
+              id: p.category_id 
+            };
+          } 
+          // If categories is an object
+          else if (typeof p.categories === 'object' && p.categories.name) {
+            categoryData = { 
+              name: p.categories.name,
+              id: p.category_id 
+            };
+          }
+        }
+        
+        return { 
+          ...p, 
+          price: p.base_price,
+          category: categoryData
+        };
+      });
       return products as Product[];
     } catch (error) {
       console.error('Error fetching products (lite):', error);
@@ -125,13 +146,13 @@ export class ProductService {
         console.warn('Error fetching crusts:', crustsError);
       }
 
-      const crustMap = new Map((crusts || []).map((crust: any) => [crust.id, crust]));
+      const crustMap = new Map<string, any>((crusts || []).map((crust: any) => [crust.id, crust]));
 
       // Map pizza options with crust information
       const productsWithCrusts = (data || []).map((product: any) => ({
         ...product,
         pizza_options: (product.pizza_options || []).map((option: any) => {
-          const crust = crustMap.get(option.crust_id);
+          const crust: any = crustMap.get(option.crust_id);
           return {
             ...option,
             crust: crust ? {
@@ -179,13 +200,13 @@ export class ProductService {
         console.warn('Error fetching crusts:', crustsError);
       }
 
-      const crustMap = new Map((crusts || []).map((crust: any) => [crust.id, crust]));
+      const crustMap = new Map<string, any>((crusts || []).map((crust: any) => [crust.id, crust]));
 
       // Map pizza options with crust information
       const productWithCrusts = {
         ...(data as any),
         pizza_options: ((data as any).pizza_options || []).map((option: any) => {
-          const crust = crustMap.get(option.crust_id);
+          const crust: any = crustMap.get(option.crust_id);
           return {
             ...option,
             crust: crust ? {
@@ -266,10 +287,172 @@ export class ProductService {
     }
   }
 
-  // Delete product
+  // Delete product and all related data
   static async deleteProduct(productId: string): Promise<void> {
     try {
-      // Delete the product
+      // First, get the product to retrieve image URLs and check for related data
+      const product = await this.getProductById(productId);
+      if (!product) {
+        throw new Error('Product not found');
+      }
+
+      // Check if product is used in any orders
+      // We need to check if the orders are completed/delivered or still active
+      const { data: orderItems, error: orderItemsError } = await supabase
+        .from('order_items')
+        .select('id, order_id')
+        .eq('product_id', productId);
+
+      if (orderItemsError) {
+        console.warn('Error checking order items:', orderItemsError);
+      }
+
+      // If product is in orders, check order statuses
+      if (orderItems && orderItems.length > 0) {
+        // Get unique order IDs
+        const orderIds = [...new Set(orderItems.map((item: any) => item.order_id))];
+        
+        // Check order statuses
+        const { data: orders, error: ordersError } = await supabase
+          .from('orders')
+          .select('id, status, order_number')
+          .in('id', orderIds);
+
+        if (ordersError) {
+          console.warn('Error checking orders:', ordersError);
+          // If we can't check orders, be safe and prevent deletion
+          throw new Error('Cannot delete product: Unable to verify order status. Please disable it instead.');
+        }
+
+        // Check if any orders are completed/delivered (these should be preserved)
+        const completedOrders = orders?.filter((order: any) => {
+          const status = order.status?.toLowerCase();
+          return status === 'delivered' || 
+                 status === 'completed' ||
+                 status === 'cancelled';
+        }) || [];
+
+        // If there are completed/delivered orders, prevent deletion
+        if (completedOrders.length > 0) {
+          const orderNumbers = completedOrders.map((o: any) => o.order_number).join(', ');
+          throw new Error(
+            `Cannot delete product: It is associated with ${completedOrders.length} completed/delivered order(s) (${orderNumbers}). ` +
+            `Please disable it instead to preserve order history.`
+          );
+        }
+
+        // If only pending/preparing orders exist, we can delete the order_items first
+        // This allows deletion of products that are only in incomplete orders
+        const incompleteOrders = orders?.filter((order: any) => {
+          const status = order.status?.toLowerCase();
+          return status === 'pending' || 
+                 status === 'preparing' ||
+                 status === 'ready_for_pickup' ||
+                 status === 'out_for_delivery';
+        }) || [];
+
+        if (incompleteOrders.length > 0) {
+          console.log(`⚠️ Product is in ${orderItems.length} order item(s) from ${incompleteOrders.length} incomplete order(s). Deleting order items first...`);
+          
+          // Delete order_items that reference this product
+          const { error: deleteOrderItemsError } = await supabase
+            .from('order_items')
+            .delete()
+            .eq('product_id', productId);
+
+          if (deleteOrderItemsError) {
+            console.warn('Error deleting order items:', deleteOrderItemsError);
+            throw new Error(
+              `Cannot delete product: Failed to remove it from incomplete orders. ` +
+              `Please try again or disable it instead. Error: ${deleteOrderItemsError.message}`
+            );
+          } else {
+            console.log(`✅ Deleted ${orderItems.length} order item(s) associated with this product`);
+          }
+        }
+      }
+
+      // Delete product images from storage
+      if (product.image_url) {
+        try {
+          await this.deleteProductImage(product.image_url);
+        } catch (imageError) {
+          console.warn('Error deleting product image:', imageError);
+          // Continue with deletion even if image deletion fails
+        }
+      }
+
+      // Delete gallery images if they exist
+      if (product.gallery_image_urls && product.gallery_image_urls.length > 0) {
+        for (const imageUrl of product.gallery_image_urls) {
+          try {
+            await this.deleteProductImage(imageUrl);
+          } catch (imageError) {
+            console.warn('Error deleting gallery image:', imageError);
+            // Continue with deletion even if image deletion fails
+          }
+        }
+      }
+
+      // Delete related data manually (in case cascade doesn't work)
+      // Delete related data in sequence, but continue even if some fail
+      const deleteRelatedData = async () => {
+        const operations = [
+          // Delete product co-occurrences
+          supabase
+            .from('product_co_occurrences')
+            .delete()
+            .or(`product_a_id.eq.${productId},product_b_id.eq.${productId}`),
+          
+          // Delete user interactions
+          supabase
+            .from('user_interactions')
+            .delete()
+            .eq('product_id', productId),
+          
+          // Delete saved products
+          supabase
+            .from('saved_products')
+            .delete()
+            .eq('product_id', productId),
+          
+          // Delete inventory transactions
+          supabase
+            .from('inventory_transactions')
+            .delete()
+            .eq('product_id', productId),
+          
+          // Delete product stock
+          supabase
+            .from('product_stock')
+            .delete()
+            .eq('product_id', productId),
+          
+          // Delete pizza options
+          supabase
+            .from('pizza_options')
+            .delete()
+            .eq('product_id', productId),
+        ];
+
+        // Execute all operations, but don't fail if some tables don't exist or have no data
+        for (const operation of operations) {
+          try {
+            const { error } = await operation;
+            if (error && error.code !== 'PGRST116' && error.code !== '42P01') {
+              // PGRST116 = no rows found, 42P01 = table doesn't exist
+              console.warn('Error deleting related data:', error);
+            }
+          } catch (err: any) {
+            console.warn('Error in related data deletion:', err);
+            // Continue with deletion
+          }
+        }
+      };
+
+      await deleteRelatedData();
+
+      // Finally, delete the product itself
       const { error } = await supabase
         .from('products')
         .delete()
@@ -279,6 +462,74 @@ export class ProductService {
     } catch (error) {
       console.error('Error deleting product:', error);
       throw error;
+    }
+  }
+
+  // Helper method to delete product image from storage
+  private static async deleteProductImage(imageUrl: string): Promise<void> {
+    try {
+      if (!imageUrl || imageUrl.trim() === '') {
+        console.warn('Empty image URL provided, skipping deletion');
+        return;
+      }
+
+      // Extract path from URL
+      // URL format: https://[project].supabase.co/storage/v1/object/public/product-images/products/{productId}/{timestamp}.jpg
+      const urlParts = imageUrl.split('/');
+      const bucketIndex = urlParts.findIndex(part => part === 'product-images');
+      
+      if (bucketIndex === -1) {
+        // Try alternative URL format: might be a full URL or just a path
+        console.warn('Could not extract path from product image URL:', imageUrl);
+        
+        // Try to extract path if it contains 'product-images' anywhere
+        const productImagesIndex = imageUrl.indexOf('product-images/');
+        if (productImagesIndex !== -1) {
+          const path = imageUrl.substring(productImagesIndex + 'product-images/'.length);
+          console.log('🗑️ Deleting product image from extracted path:', path);
+          
+          const { error } = await supabase.storage
+            .from('product-images')
+            .remove([path]);
+
+          if (error) {
+            console.warn('Error deleting product image (alternative path):', error);
+          } else {
+            console.log('✅ Product image deleted successfully');
+          }
+        }
+        return;
+      }
+      
+      // Get the path after 'product-images/'
+      const pathIndex = bucketIndex + 1;
+      const path = urlParts.slice(pathIndex).join('/');
+      
+      if (!path || path.trim() === '') {
+        console.warn('Empty path extracted from URL:', imageUrl);
+        return;
+      }
+      
+      console.log('🗑️ Deleting product image from path:', path);
+      
+      const { error } = await supabase.storage
+        .from('product-images')
+        .remove([path]);
+
+      if (error) {
+        // Check if it's a "file not found" error - that's okay, might already be deleted
+        if (error.message?.includes('not found') || error.message?.includes('does not exist')) {
+          console.log('ℹ️ Image already deleted or not found:', path);
+        } else {
+          console.warn('Error deleting product image:', error);
+        }
+        // Don't throw - allow product deletion to continue
+      } else {
+        console.log('✅ Product image deleted successfully');
+      }
+    } catch (error) {
+      console.warn('Failed to delete product image:', error);
+      // Don't throw - allow product deletion to continue
     }
   }
 
@@ -331,6 +582,53 @@ export class ProductService {
       return data;
     } catch (error) {
       console.error('Error creating category:', error);
+      throw error;
+    }
+  }
+
+  // Find or create category by name
+  // This is useful when creating products with new categories
+  static async findOrCreateCategory(categoryName: string, description?: string): Promise<ProductCategory> {
+    try {
+      const trimmedName = categoryName.trim();
+      if (!trimmedName) {
+        throw new Error('Category name cannot be empty');
+      }
+
+      // First, try to find existing category by name (case-insensitive)
+      const { data: existingCategories, error: searchError } = await supabase
+        .from('categories')
+        .select('*')
+        .ilike('name', trimmedName)
+        .limit(1);
+
+      // If we found a category, return it
+      if (existingCategories && existingCategories.length > 0) {
+        return existingCategories[0];
+      }
+
+      // If search error occurred (other than "not found"), log it but continue
+      if (searchError && searchError.code !== 'PGRST116') {
+        console.warn('Error searching for category:', searchError);
+      }
+
+      // Category doesn't exist, create it
+      const { data: newCategory, error: createError } = await supabase
+        .from('categories')
+        .insert({
+          name: trimmedName,
+          description: description || null,
+        })
+        .select()
+        .single();
+
+      if (createError) throw createError;
+      if (!newCategory) {
+        throw new Error('Failed to create category - no data returned');
+      }
+      return newCategory;
+    } catch (error) {
+      console.error('Error finding or creating category:', error);
       throw error;
     }
   }
@@ -454,18 +752,18 @@ export class ProductService {
         console.warn('Error fetching crusts:', crustsError);
       }
 
-      const crustMap = new Map((crusts || []).map((crust: any) => [crust.id, crust]));
+      const crustMap = new Map<string, any>((crusts || []).map((crust: any) => [crust.id, crust]));
 
       // Map pizza options with crust information
       const productsWithCrusts = (data || []).map((product: any) => ({
         ...product,
         pizza_options: (product.pizza_options || []).map((option: any) => {
-          const crust = crustMap.get(option.crust_id);
+          const crust: any = crustMap.get(option.crust_id);
           return {
             ...option,
             crust: crust ? {
               id: option.crust_id,
-              name: crust.name
+              name: crust
             } : undefined
           };
         })

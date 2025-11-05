@@ -83,10 +83,15 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({ chil
 
   // Real-time subscription for notification updates
   useEffect(() => {
-    if (!user?.id) return;
+    if (!user?.id) {
+      console.log('NotificationContext - No user ID, skipping real-time subscription');
+      return;
+    }
+
+    console.log('NotificationContext - Setting up real-time subscription for user:', user.id);
 
     const channel = supabase
-      .channel('user-notifications-changes')
+      .channel(`user-notifications-${user.id}`)
       .on(
         'postgres_changes',
         {
@@ -96,20 +101,33 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({ chil
           filter: `user_id=eq.${user.id}`,
         },
         (payload) => {
-          console.log('Notification change received:', payload);
+          console.log('🔔 NotificationContext - Real-time update received:', {
+            eventType: payload.eventType,
+            notificationId: (payload.new as any)?.id || (payload.old as any)?.id,
+            title: (payload.new as any)?.title || (payload.old as any)?.title,
+          });
           
           if (payload.eventType === 'INSERT') {
+            console.log('🔔 Inserting new notification:', payload.new);
             // Add new notification to the top of the list (LIFO - newest first)
             setNotifications(prev => {
               const newNotification = payload.new as Notification;
+              console.log('🔔 Adding notification to list. Previous count:', prev.length);
               const updatedList = [newNotification, ...prev];
               // Ensure the list remains sorted by created_at in descending order
-              return updatedList.sort((a, b) => 
+              const sorted = updatedList.sort((a, b) => 
                 new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
               );
+              console.log('🔔 New notification added. Total count:', sorted.length);
+              return sorted;
             });
-            setUnreadCount(prev => prev + 1);
+            setUnreadCount(prev => {
+              const newCount = prev + 1;
+              console.log('🔔 Updated unread count:', newCount);
+              return newCount;
+            });
           } else if (payload.eventType === 'UPDATE') {
+            console.log('🔔 Updating notification:', payload.new);
             // Update existing notification and maintain order
             setNotifications(prev => {
               const updatedList = prev.map(notification => 
@@ -125,11 +143,14 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({ chil
             
             // Update unread count if read status changed
             if (payload.old.is_read !== payload.new.is_read) {
-              setUnreadCount(prev => 
-                payload.new.is_read ? prev - 1 : prev + 1
-              );
+              setUnreadCount(prev => {
+                const newCount = payload.new.is_read ? prev - 1 : prev + 1;
+                console.log('🔔 Updated unread count after status change:', newCount);
+                return newCount;
+              });
             }
           } else if (payload.eventType === 'DELETE') {
+            console.log('🔔 Deleting notification:', payload.old);
             // Remove deleted notification
             setNotifications(prev => 
               prev.filter(notification => notification.id !== payload.old.id)
@@ -143,6 +164,7 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({ chil
       .subscribe();
 
     return () => {
+      console.log('NotificationContext - Cleaning up real-time subscription');
       supabase.removeChannel(channel);
     };
   }, [user?.id]);

@@ -20,6 +20,7 @@ export interface AdminStats {
   total_orders: number;
   pending_orders: number;
   preparing_orders: number;
+  ready_for_pickup_orders: number;
   out_for_delivery: number;
   delivered_orders: number;
   cancelled_orders: number;
@@ -95,6 +96,7 @@ export const useAdminStats = () => {
         total_orders: orderStats.total_orders,
         pending_orders: orderStats.pending_orders,
         preparing_orders: orderStats.preparing_orders,
+        ready_for_pickup_orders: orderStats.ready_for_pickup_orders,
         out_for_delivery: orderStats.out_for_delivery,
         delivered_orders: orderStats.delivered_orders,
         cancelled_orders: orderStats.cancelled_orders,

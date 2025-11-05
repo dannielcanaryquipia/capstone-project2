@@ -178,6 +178,7 @@ export class RiderService {
   }
 
   // Get rider's assigned orders (all orders assigned to this rider)
+  // Includes orders with status ready_for_pickup, out_for_delivery, and delivered
   static async getRiderOrders(riderId: string): Promise<RiderAssignment[]> {
     try {
       console.log('RiderService.getRiderOrders: Fetching orders for rider:', riderId);
@@ -202,6 +203,9 @@ export class RiderService {
       console.log('RiderService.getRiderOrders: Query result:', { assignments, error });
 
       if (error) throw error;
+      
+      // Return all assigned orders, which includes ready_for_pickup, out_for_delivery, delivered, etc.
+      // No filtering needed - all assignments are included regardless of order status
       return assignments || [];
     } catch (error) {
       console.error('Error fetching rider orders:', error);
@@ -243,11 +247,14 @@ export class RiderService {
   }
 
   // Get recent orders (last 7 days)
+  // Includes orders with status ready_for_pickup, out_for_delivery, and delivered
   static async getRecentOrders(riderId: string): Promise<RiderAssignment[]> {
     try {
       const sevenDaysAgo = new Date();
       sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
 
+      // Get all assignments for this rider, including those without assigned_at
+      // Explicitly include orders with ready_for_pickup status
       const { data: assignments, error } = await supabase
         .from('delivery_assignments')
         .select(`
@@ -263,11 +270,59 @@ export class RiderService {
           )
         `)
         .eq('rider_id', riderId)
-        .gte('assigned_at', sevenDaysAgo.toISOString())
-        .order('assigned_at', { ascending: false });
+        .order('assigned_at', { ascending: false, nullsFirst: false });
 
       if (error) throw error;
-      return assignments || [];
+
+      // Filter by date: include orders with assigned_at >= 7 days ago, 
+      // OR orders without assigned_at but with picked_up_at or delivered_at in last 7 days
+      // Explicitly include ready_for_pickup orders
+      const filtered = (assignments || []).filter((assignment: any) => {
+        const orderStatus = assignment.order?.status?.toLowerCase();
+        
+        // Always include ready_for_pickup orders if they're assigned to this rider
+        if (orderStatus === 'ready_for_pickup') {
+          // Check if it's within the date range
+          if (assignment.assigned_at) {
+            return new Date(assignment.assigned_at) >= sevenDaysAgo;
+          }
+          if (assignment.order?.created_at) {
+            return new Date(assignment.order.created_at) >= sevenDaysAgo;
+          }
+          return true; // Include recent ready_for_pickup orders even without timestamps
+        }
+        
+        // Standard date filtering for other orders
+        if (assignment.assigned_at) {
+          return new Date(assignment.assigned_at) >= sevenDaysAgo;
+        }
+        // If no assigned_at, check other timestamps
+        if (assignment.picked_up_at) {
+          return new Date(assignment.picked_up_at) >= sevenDaysAgo;
+        }
+        if (assignment.delivered_at) {
+          return new Date(assignment.delivered_at) >= sevenDaysAgo;
+        }
+        // Include if order was created in last 7 days
+        if (assignment.order?.created_at) {
+          return new Date(assignment.order.created_at) >= sevenDaysAgo;
+        }
+        return false;
+      });
+
+      // Sort by most recent activity, prioritizing ready_for_pickup orders
+      return filtered.sort((a: any, b: any) => {
+        const aStatus = a.order?.status?.toLowerCase();
+        const bStatus = b.order?.status?.toLowerCase();
+        
+        // Prioritize ready_for_pickup orders
+        if (aStatus === 'ready_for_pickup' && bStatus !== 'ready_for_pickup') return -1;
+        if (bStatus === 'ready_for_pickup' && aStatus !== 'ready_for_pickup') return 1;
+        
+        const aDate = a.delivered_at || a.picked_up_at || a.assigned_at || a.order?.created_at || '';
+        const bDate = b.delivered_at || b.picked_up_at || b.assigned_at || b.order?.created_at || '';
+        return new Date(bDate).getTime() - new Date(aDate).getTime();
+      });
     } catch (error) {
       console.error('Error fetching recent orders:', error);
       throw error;
@@ -325,11 +380,18 @@ export class RiderService {
         throw new Error('This order has already been assigned to another rider');
       }
 
+      const now = new Date().toISOString();
+
       // Create or update assignment
       if (existingAssignment) {
+        // Update existing assignment - ensure assigned_at is set
         const { error: updateError } = await supabase
           .from('delivery_assignments')
-          .update({ rider_id: riderId })
+          .update({ 
+            rider_id: riderId,
+            assigned_at: existingAssignment.assigned_at || now,
+            status: 'Assigned'
+          })
           .eq('id', existingAssignment.id);
 
         if (updateError) throw updateError;
@@ -339,7 +401,8 @@ export class RiderService {
           .insert({
             order_id: orderId,
             rider_id: riderId,
-            status: 'Assigned'
+            status: 'Assigned',
+            assigned_at: now
           });
 
         if (insertError) throw insertError;
@@ -426,13 +489,76 @@ export class RiderService {
         throw new Error('Payment has already been verified');
       }
 
+      // Ensure delivery assignment exists - this is critical for COD orders
+      // Check if assignment exists
+      const { data: existingAssignment, error: checkError } = await supabase
+        .from('delivery_assignments')
+        .select('id, rider_id, assigned_at')
+        .eq('order_id', orderId)
+        .single();
+
+      const now = new Date().toISOString();
+
+      // Create or update assignment if it doesn't exist or isn't assigned to this rider
+      if (checkError && checkError.code === 'PGRST116') {
+        // No assignment exists, create one
+        console.log('Creating delivery assignment for COD order:', orderId);
+        const { error: createError } = await supabase
+          .from('delivery_assignments')
+          .insert({
+            order_id: orderId,
+            rider_id: riderId,
+            status: 'Picked Up',
+            assigned_at: now,
+            picked_up_at: now
+          });
+
+        if (createError) {
+          console.error('Error creating delivery assignment:', createError);
+          throw new Error('Failed to create delivery assignment');
+        }
+      } else if (existingAssignment) {
+        // Assignment exists but might not be assigned to this rider
+        if (!existingAssignment.rider_id || existingAssignment.rider_id !== riderId) {
+          console.log('Updating delivery assignment for rider:', riderId);
+          const { error: updateAssignError } = await supabase
+            .from('delivery_assignments')
+            .update({
+              rider_id: riderId,
+              status: 'Picked Up',
+              assigned_at: existingAssignment.assigned_at || now,
+              picked_up_at: existingAssignment.picked_up_at || now
+            })
+            .eq('id', existingAssignment.id);
+
+          if (updateAssignError) {
+            console.error('Error updating delivery assignment:', updateAssignError);
+            throw new Error('Failed to update delivery assignment');
+          }
+        } else if (!existingAssignment.assigned_at) {
+          // Assignment exists but missing assigned_at timestamp
+          console.log('Fixing missing assigned_at timestamp for assignment:', existingAssignment.id);
+          const { error: fixError } = await supabase
+            .from('delivery_assignments')
+            .update({
+              assigned_at: now,
+              picked_up_at: existingAssignment.picked_up_at || now
+            })
+            .eq('id', existingAssignment.id);
+
+          if (fixError) {
+            console.warn('Failed to fix assigned_at timestamp:', fixError);
+          }
+        }
+      }
+
       // Update payment status
       const { error: updateError } = await supabase
         .from('orders')
         .update({
           payment_status: 'verified',
           payment_verified: true,
-          payment_verified_at: new Date().toISOString(),
+          payment_verified_at: now,
           payment_verified_by: riderId
         })
         .eq('id', orderId);
@@ -473,6 +599,8 @@ export class RiderService {
     proofImageUri?: string
   ): Promise<{ success: boolean; proofUploaded: boolean; message: string }> {
     try {
+      const now = new Date().toISOString();
+      
       // Upload proof image if provided
       let proofUrl: string | undefined;
       let proofUploaded = false;
@@ -489,25 +617,79 @@ export class RiderService {
         }
       }
 
-      // Update delivery assignment
-      const { error: assignmentError } = await supabase
+      // Check if delivery assignment exists
+      const { data: existingAssignment, error: checkError } = await supabase
         .from('delivery_assignments')
-        .update({
-          delivered_at: new Date().toISOString(),
-          status: 'Delivered'
-        })
+        .select('id, rider_id, assigned_at, picked_up_at')
         .eq('order_id', orderId)
-        .eq('rider_id', riderId);
+        .single();
 
-      if (assignmentError) throw assignmentError;
+      // If assignment doesn't exist, create it (this handles edge cases)
+      if (checkError && checkError.code === 'PGRST116') {
+        console.log('Creating delivery assignment for order:', orderId);
+        const { error: createError } = await supabase
+          .from('delivery_assignments')
+          .insert({
+            order_id: orderId,
+            rider_id: riderId,
+            status: 'Delivered',
+            assigned_at: now,
+            picked_up_at: now,
+            delivered_at: now
+          });
+
+        if (createError) {
+          console.error('Error creating delivery assignment:', createError);
+          // Continue anyway - we'll update the order status
+        }
+      } else if (existingAssignment) {
+        // Update existing assignment
+        // If not assigned to this rider, update it
+        if (!existingAssignment.rider_id || existingAssignment.rider_id !== riderId) {
+          console.log('Updating delivery assignment rider:', riderId);
+          const { error: updateRiderError } = await supabase
+            .from('delivery_assignments')
+            .update({
+              rider_id: riderId,
+              assigned_at: existingAssignment.assigned_at || now,
+              picked_up_at: existingAssignment.picked_up_at || now,
+              delivered_at: now,
+              status: 'Delivered'
+            })
+            .eq('id', existingAssignment.id);
+
+          if (updateRiderError) {
+            console.error('Error updating delivery assignment rider:', updateRiderError);
+          }
+        } else {
+          // Update assignment with delivered status
+          const { error: assignmentError } = await supabase
+            .from('delivery_assignments')
+            .update({
+              delivered_at: now,
+              status: 'Delivered',
+              // Ensure assigned_at and picked_up_at are set if missing
+              assigned_at: existingAssignment.assigned_at || now,
+              picked_up_at: existingAssignment.picked_up_at || now
+            })
+            .eq('order_id', orderId)
+            .eq('rider_id', riderId);
+
+          if (assignmentError) {
+            console.error('Error updating delivery assignment:', assignmentError);
+            // Continue anyway - we'll update the order status
+          }
+        }
+      }
 
       // Update order status
       const { error: orderError } = await supabase
         .from('orders')
         .update({
           status: 'delivered',
-          actual_delivery_time: new Date().toISOString(),
-          proof_of_delivery_url: proofUrl
+          actual_delivery_time: now,
+          proof_of_delivery_url: proofUrl,
+          updated_at: now
         })
         .eq('id', orderId);
 

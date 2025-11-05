@@ -1,27 +1,27 @@
-import React, { useState, useCallback } from 'react';
-import {
-  Image,
-  ImageProps,
-  StyleSheet,
-  View,
-  ActivityIndicator,
-  TouchableOpacity
-} from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
-import { ResponsiveText } from './ResponsiveText';
-import { ResponsiveView } from './ResponsiveView';
-import { useTheme } from '../../contexts/ThemeContext';
+import React, { useCallback, useState } from 'react';
+import {
+  ActivityIndicator,
+  Image,
+  StyleSheet,
+  TouchableOpacity,
+  View
+} from 'react-native';
 import { ResponsiveSpacing } from '../../constants/Responsive';
+import { useTheme } from '../../contexts/ThemeContext';
+import { ResponsiveText } from './ResponsiveText';
 
-interface OptimizedImageProps extends Omit<ImageProps, 'source'> {
-  source: { uri: string };
+interface OptimizedImageProps {
+  source: { uri: string } | string | number;
   thumbnailUri?: string;
   showErrorState?: boolean;
   showLoadingState?: boolean;
   onPress?: () => void;
-  fallbackIcon?: string;
+  fallbackIcon?: keyof typeof MaterialIcons.glyphMap;
   fallbackText?: string;
   aspectRatio?: number;
+  // @ts-ignore
+  style?: ViewStyle | ViewStyle[];
 }
 
 export function OptimizedImage({
@@ -33,8 +33,7 @@ export function OptimizedImage({
   fallbackIcon = 'image',
   fallbackText = 'Image not available',
   aspectRatio,
-  style,
-  ...props
+  style
 }: OptimizedImageProps) {
   const { colors } = useTheme();
   const [isLoading, setIsLoading] = useState(true);
@@ -46,7 +45,7 @@ export function OptimizedImage({
     setHasError(false);
   }, []);
 
-  const handleLoadEnd = useCallback(() => {
+  const handleLoad = useCallback(() => {
     setIsLoading(false);
     setImageLoaded(true);
   }, []);
@@ -55,6 +54,11 @@ export function OptimizedImage({
     setIsLoading(false);
     setHasError(true);
   }, []);
+
+  // Normalize source to object format
+  const normalizedSource = typeof source === 'string' || typeof source === 'number'
+    ? { uri: String(source) }
+    : source;
 
   const renderContent = () => {
     if (hasError && showErrorState) {
@@ -70,26 +74,37 @@ export function OptimizedImage({
 
     return (
       <>
-        {/* Thumbnail (blurred background) */}
+        {/* Main image with expo-image for better Supabase URL handling */}
+        {/* @ts-ignore - expo-image props compatibility */}
+        <Image
+          source={normalizedSource}
+          style={StyleSheet.absoluteFillObject}
+          // @ts-ignore
+          contentFit="cover"
+          // @ts-ignore
+          transition={200}
+          // @ts-ignore
+          cachePolicy="memory-disk"
+          onLoadStart={handleLoadStart}
+          onLoad={handleLoad}
+          onError={handleError}
+          // @ts-ignore
+          placeholder={{ blurhash: thumbnailUri || undefined }}
+          // @ts-ignore
+          priority="normal"
+        />
+
+        {/* Thumbnail (blurred background) for loading state */}
         {thumbnailUri && !imageLoaded && (
           <Image
             source={{ uri: thumbnailUri }}
             style={[StyleSheet.absoluteFillObject, styles.thumbnail]}
+            // @ts-ignore
+            contentFit="cover"
+            // @ts-ignore
             blurRadius={10}
-            resizeMode="cover"
           />
         )}
-
-        {/* Main image */}
-        <Image
-          source={source}
-          style={StyleSheet.absoluteFillObject}
-          onLoadStart={handleLoadStart}
-          onLoadEnd={handleLoadEnd}
-          onError={handleError}
-          resizeMode="cover"
-          {...props}
-        />
 
         {/* Loading indicator */}
         {isLoading && showLoadingState && (

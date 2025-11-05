@@ -1,9 +1,11 @@
 import { MaterialIcons } from '@expo/vector-icons';
+import * as ImagePicker from 'expo-image-picker';
 import { useRouter } from 'expo-router';
 import React, { useState } from 'react';
 import {
   ActivityIndicator,
-  Alert,
+  Image,
+  Modal,
   ScrollView,
   StyleSheet,
   TextInput,
@@ -12,6 +14,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Button from '../../../components/ui/Button';
+import { useAlert } from '../../../components/ui/AlertProvider';
 import { ResponsiveText } from '../../../components/ui/ResponsiveText';
 import { ResponsiveView } from '../../../components/ui/ResponsiveView';
 import Layout from '../../../constants/Layout';
@@ -19,6 +22,7 @@ import { ResponsiveBorderRadius, ResponsiveSpacing, responsiveValue } from '../.
 import { Strings } from '../../../constants/Strings';
 import { useTheme } from '../../../contexts/ThemeContext';
 import { useProductCategories } from '../../../hooks';
+import { ImageUploadService } from '../../../services/image-upload.service';
 import { ProductService } from '../../../services/product.service';
 import global from '../../../styles/global';
 
@@ -29,6 +33,7 @@ interface ProductFormData {
   preparation_time_minutes: string;
   image_url: string;
   category_id: string;
+  newCategoryName: string;
   is_available: boolean;
   is_recommended: boolean;
 }
@@ -36,8 +41,13 @@ interface ProductFormData {
 export default function CreateProductScreen() {
   const { colors } = useTheme();
   const router = useRouter();
+  const { show, error: showError } = useAlert();
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [uploadingImage, setUploadingImage] = useState(false);
+  const [imageUri, setImageUri] = useState<string | null>(null);
+  const [showCategoryModal, setShowCategoryModal] = useState(false);
+  const [categoryMode, setCategoryMode] = useState<'select' | 'create'>('select');
   
   const [formData, setFormData] = useState<ProductFormData>({
     name: '',
@@ -46,11 +56,12 @@ export default function CreateProductScreen() {
     preparation_time_minutes: '30',
     image_url: '',
     category_id: '',
+    newCategoryName: '',
     is_available: true,
     is_recommended: false,
   });
 
-  const { categories, isLoading: categoriesLoading } = useProductCategories();
+  const { categories, isLoading: categoriesLoading, refresh: refreshCategories } = useProductCategories();
 
   const handleInputChange = (field: keyof ProductFormData, value: string | boolean) => {
     setFormData(prev => ({
@@ -62,28 +73,118 @@ export default function CreateProductScreen() {
   const handleCategorySelect = (categoryId: string) => {
     setFormData(prev => ({
       ...prev,
-      category_id: categoryId
+      category_id: categoryId,
+      newCategoryName: ''
     }));
+    setCategoryMode('select');
+    setShowCategoryModal(false);
+  };
+
+  const handleCreateNewCategory = () => {
+    setCategoryMode('create');
+    setFormData(prev => ({
+      ...prev,
+      category_id: ''
+    }));
+    setShowCategoryModal(false);
+  };
+
+  const pickImage = async (source: 'camera' | 'library') => {
+    try {
+      let result;
+      
+      if (source === 'camera') {
+        const permissionResult = await ImagePicker.requestCameraPermissionsAsync();
+        if (permissionResult.granted === false) {
+          showError('Permission Required', 'Camera permission is required to take photos.');
+          return;
+        }
+        result = await ImagePicker.launchCameraAsync({
+          mediaTypes: ImagePicker.MediaTypeOptions.Images,
+          allowsEditing: true,
+          aspect: [1, 1],
+          quality: 0.8,
+        });
+      } else {
+        const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
+        if (permissionResult.granted === false) {
+          showError('Permission Required', 'Photo library permission is required to select images.');
+          return;
+        }
+        result = await ImagePicker.launchImageLibraryAsync({
+          mediaTypes: ImagePicker.MediaTypeOptions.Images,
+          allowsEditing: true,
+          aspect: [1, 1],
+          quality: 0.8,
+        });
+      }
+
+      if (!result.canceled && result.assets[0]) {
+        setImageUri(result.assets[0].uri);
+        await uploadProductImage(result.assets[0].uri);
+      }
+    } catch (error) {
+      console.error('Error picking image:', error);
+      showError('Error', 'Failed to pick image. Please try again.');
+    }
+  };
+
+  const uploadProductImage = async (uri: string) => {
+    setUploadingImage(true);
+    try {
+      const result = await ImageUploadService.uploadProductImage(null, uri);
+      setFormData(prev => ({
+        ...prev,
+        image_url: result.url
+      }));
+    } catch (error: any) {
+      console.error('Error uploading image:', error);
+      showError('Upload Error', error.message || 'Failed to upload image. Please try again.');
+      setImageUri(null);
+    } finally {
+      setUploadingImage(false);
+    }
   };
 
   const validateForm = (): boolean => {
     if (!formData.name.trim()) {
-      Alert.alert('Validation Error', 'Product name is required');
+      showError('Validation Error', 'Product name is required');
       return false;
     }
     if (!formData.description.trim()) {
-      Alert.alert('Validation Error', 'Product description is required');
+      showError('Validation Error', 'Product description is required');
       return false;
     }
     if (!formData.base_price || parseFloat(formData.base_price) < 0) {
-      Alert.alert('Validation Error', 'Valid base price is required');
+      showError('Validation Error', 'Valid base price is required');
       return false;
     }
-    if (!formData.category_id) {
-      Alert.alert('Validation Error', 'Please select a category');
+    if (categoryMode === 'select' && !formData.category_id) {
+      showError('Validation Error', 'Please select a category');
+      return false;
+    }
+    if (categoryMode === 'create' && !formData.newCategoryName.trim()) {
+      showError('Validation Error', 'Please enter a category name');
       return false;
     }
     return true;
+  };
+
+  const resetForm = () => {
+    setFormData({
+      name: '',
+      description: '',
+      base_price: '0.00',
+      preparation_time_minutes: '30',
+      image_url: '',
+      category_id: '',
+      newCategoryName: '',
+      is_available: true,
+      is_recommended: false,
+    });
+    setImageUri(null);
+    setCategoryMode('select');
+    setShowCategoryModal(false);
   };
 
   const handleSave = async () => {
@@ -91,36 +192,55 @@ export default function CreateProductScreen() {
 
     setSaving(true);
     try {
+      let categoryId = formData.category_id;
+
+      // If creating a new category, find or create it
+      if (categoryMode === 'create' && formData.newCategoryName.trim()) {
+        const category = await ProductService.findOrCreateCategory(formData.newCategoryName.trim());
+        categoryId = category.id;
+        // Refresh categories list to include the new one
+        await refreshCategories();
+      }
+
       const productData = {
         name: formData.name.trim(),
         description: formData.description.trim(),
         price: parseFloat(formData.base_price),
         preparation_time: parseInt(formData.preparation_time_minutes),
         image_url: formData.image_url.trim() || undefined,
-        category_id: formData.category_id,
+        category_id: categoryId,
         is_available: formData.is_available,
         is_recommended: formData.is_recommended,
       };
 
       await ProductService.createProduct(productData);
-      Alert.alert('Success', 'Product created successfully!', [
-        { text: 'OK', onPress: () => router.back() }
+      
+      // Refresh categories if a new one was created
+      if (categoryMode === 'create') {
+        await refreshCategories();
+      }
+      
+      // Reset form to clean state
+      resetForm();
+      
+      show('Success', 'Product created successfully!', [
+        { text: 'OK', style: 'default', onPress: () => router.push('/(admin)/products' as any) }
       ]);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error creating product:', error);
-      Alert.alert('Error', 'Failed to create product. Please try again.');
+      showError('Error', error.message || 'Failed to create product. Please try again.');
     } finally {
       setSaving(false);
     }
   };
 
   const handleCancel = () => {
-    Alert.alert(
+    show(
       'Discard Changes',
       'Are you sure you want to discard your changes?',
       [
-        { text: 'Keep Editing', style: 'cancel' },
-        { text: 'Discard', style: 'destructive', onPress: () => router.back() }
+        { text: 'Discard', style: 'destructive', onPress: () => router.back() },
+        { text: 'Keep Editing', style: 'cancel' }
       ]
     );
   };
@@ -150,7 +270,7 @@ export default function CreateProductScreen() {
     >
       {/* Header */}
       <ResponsiveView style={[styles.header, { backgroundColor: colors.surface }]}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+        <TouchableOpacity onPress={() => router.push('/(admin)/products' as any)} style={styles.backButton}>
           <MaterialIcons name="arrow-back" size={responsiveValue(20, 24, 28, 32)} color={colors.text} />
         </TouchableOpacity>
         <ResponsiveText size="lg" weight="semiBold" color={colors.text}>
@@ -249,57 +369,196 @@ export default function CreateProductScreen() {
             />
           </ResponsiveView>
 
-          {/* Image URL */}
+          {/* Product Image Upload */}
           <ResponsiveView marginBottom="md">
             <ResponsiveView marginBottom="sm">
               <ResponsiveText size="md" weight="medium" color={colors.text}>
-                Image URL
+                Product Image
               </ResponsiveText>
             </ResponsiveView>
-            <TextInput
-              style={[styles.input, { 
-                backgroundColor: colors.background, 
-                color: colors.text,
-                borderColor: colors.border 
-              }]}
-              value={formData.image_url}
-              onChangeText={(value) => handleInputChange('image_url', value)}
-              placeholder="Enter image URL (optional)"
-              placeholderTextColor={colors.textSecondary}
-            />
+            
+            {imageUri ? (
+              <ResponsiveView style={styles.imagePreviewContainer}>
+                <Image source={{ uri: imageUri }} style={styles.imagePreview} />
+                <TouchableOpacity
+                  style={[styles.removeImageButton, { backgroundColor: colors.error }]}
+                  onPress={() => {
+                    setImageUri(null);
+                    setFormData(prev => ({ ...prev, image_url: '' }));
+                  }}
+                >
+                  <MaterialIcons name="close" size={20} color={colors.surface} />
+                </TouchableOpacity>
+                {uploadingImage && (
+                  <ResponsiveView style={styles.uploadingOverlay}>
+                    <ActivityIndicator size="small" color={colors.primary} />
+                    <ResponsiveText size="sm" color={colors.text} style={{ marginTop: 8 }}>
+                      Uploading...
+                    </ResponsiveText>
+                  </ResponsiveView>
+                )}
+              </ResponsiveView>
+            ) : (
+              <ResponsiveView style={styles.imageUploadContainer}>
+                <TouchableOpacity
+                  style={[styles.imageUploadButton, { 
+                    backgroundColor: colors.background,
+                    borderColor: colors.border 
+                  }]}
+                  onPress={() => show(
+                    'Select Image',
+                    'Choose an option',
+                    [
+                      { text: 'Camera', style: 'default', onPress: () => pickImage('camera') },
+                      { text: 'Gallery', style: 'default', onPress: () => pickImage('library') },
+                      { text: 'Cancel', style: 'cancel' }
+                    ]
+                  )}
+                  disabled={uploadingImage}
+                >
+                  {uploadingImage ? (
+                    <ActivityIndicator size="small" color={colors.primary} />
+                  ) : (
+                    <>
+                      <MaterialIcons name="image" size={32} color={colors.textSecondary} />
+                      <ResponsiveText size="sm" color={colors.textSecondary} style={{ marginTop: 8 }}>
+                        Tap to upload image
+                      </ResponsiveText>
+                    </>
+                  )}
+                </TouchableOpacity>
+              </ResponsiveView>
+            )}
           </ResponsiveView>
 
           {/* Category Selection */}
           <ResponsiveView marginBottom="md">
-            <ResponsiveView marginBottom="sm">
+            <ResponsiveView marginBottom="sm" style={styles.categoryHeader}>
               <ResponsiveText size="md" weight="medium" color={colors.text}>
                 Category *
               </ResponsiveText>
+              <TouchableOpacity
+                onPress={() => setShowCategoryModal(true)}
+                style={[styles.addCategoryButton, { backgroundColor: colors.primary }]}
+              >
+                <MaterialIcons name="add" size={18} color={colors.surface} />
+                <ResponsiveText size="sm" color={colors.surface} style={{ marginLeft: 4 }}>
+                  New
+                </ResponsiveText>
+              </TouchableOpacity>
             </ResponsiveView>
-            <ResponsiveView style={styles.categoryContainer}>
-              {categories.map((category) => (
+
+            {categoryMode === 'select' ? (
+              <ResponsiveView style={styles.categoryContainer}>
+                {categories.length === 0 ? (
+                  <ResponsiveText size="sm" color={colors.textSecondary}>
+                    No categories available. Create a new one.
+                  </ResponsiveText>
+                ) : (
+                  categories.map((category) => (
+                    <TouchableOpacity
+                      key={category.id}
+                      style={[
+                        styles.categoryButton,
+                        { 
+                          backgroundColor: formData.category_id === category.id ? colors.primary : colors.background,
+                          borderColor: colors.border
+                        }
+                      ]}
+                      onPress={() => handleCategorySelect(category.id)}
+                    >
+                      <ResponsiveText 
+                        size="md" 
+                        color={formData.category_id === category.id ? colors.surface : colors.text}
+                        weight={formData.category_id === category.id ? 'semiBold' : 'regular'}
+                      >
+                        {category.name}
+                      </ResponsiveText>
+                    </TouchableOpacity>
+                  ))
+                )}
+              </ResponsiveView>
+            ) : (
+              <ResponsiveView>
+                <TextInput
+                  style={[styles.input, { 
+                    backgroundColor: colors.background, 
+                    color: colors.text,
+                    borderColor: colors.border 
+                  }]}
+                  value={formData.newCategoryName}
+                  onChangeText={(value) => setFormData(prev => ({ ...prev, newCategoryName: value }))}
+                  placeholder="Enter new category name"
+                  placeholderTextColor={colors.textSecondary}
+                />
                 <TouchableOpacity
-                  key={category.id}
-                  style={[
-                    styles.categoryButton,
-                    { 
-                      backgroundColor: formData.category_id === category.id ? colors.primary : colors.background,
-                      borderColor: colors.border
-                    }
-                  ]}
-                  onPress={() => handleCategorySelect(category.id)}
+                  onPress={() => {
+                    setCategoryMode('select');
+                    setFormData(prev => ({ ...prev, newCategoryName: '' }));
+                  }}
+                  style={[styles.switchModeButton, { borderColor: colors.border }]}
                 >
-                  <ResponsiveText 
-                    size="md" 
-                    color={formData.category_id === category.id ? colors.surface : colors.text}
-                    weight={formData.category_id === category.id ? 'semiBold' : 'regular'}
-                  >
-                    {category.name}
+                  <ResponsiveText size="sm" color={colors.textSecondary}>
+                    Select existing category instead
                   </ResponsiveText>
                 </TouchableOpacity>
-              ))}
-            </ResponsiveView>
+              </ResponsiveView>
+            )}
           </ResponsiveView>
+
+          {/* Category Selection Modal */}
+          <Modal
+            visible={showCategoryModal}
+            transparent
+            animationType="slide"
+            onRequestClose={() => setShowCategoryModal(false)}
+          >
+            <View style={styles.modalOverlay}>
+              <ResponsiveView style={[styles.modalContent, { backgroundColor: colors.surface }]}>
+                <ResponsiveView style={styles.modalHeader}>
+                  <ResponsiveText size="lg" weight="semiBold" color={colors.text}>
+                    Category Options
+                  </ResponsiveText>
+                  <TouchableOpacity onPress={() => setShowCategoryModal(false)}>
+                    <MaterialIcons name="close" size={24} color={colors.text} />
+                  </TouchableOpacity>
+                </ResponsiveView>
+
+                <TouchableOpacity
+                  style={[styles.modalOption, { borderColor: colors.border }]}
+                  onPress={() => {
+                    setCategoryMode('select');
+                    setShowCategoryModal(false);
+                  }}
+                >
+                  <MaterialIcons name="list" size={24} color={colors.primary} />
+                  <ResponsiveView style={{ marginLeft: 12 }}>
+                    <ResponsiveText size="md" weight="medium" color={colors.text}>
+                      Select Existing Category
+                    </ResponsiveText>
+                    <ResponsiveText size="sm" color={colors.textSecondary}>
+                      Choose from existing categories
+                    </ResponsiveText>
+                  </ResponsiveView>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[styles.modalOption, { borderColor: colors.border }]}
+                  onPress={handleCreateNewCategory}
+                >
+                  <MaterialIcons name="add-circle" size={24} color={colors.primary} />
+                  <ResponsiveView style={{ marginLeft: 12 }}>
+                    <ResponsiveText size="md" weight="medium" color={colors.text}>
+                      Create New Category
+                    </ResponsiveText>
+                    <ResponsiveText size="sm" color={colors.textSecondary}>
+                      Add a new category to the list
+                    </ResponsiveText>
+                  </ResponsiveView>
+                </TouchableOpacity>
+              </ResponsiveView>
+            </View>
+          </Modal>
 
           {/* Available for Order Toggle */}
           <ResponsiveView style={styles.toggleContainer} marginBottom="md">
@@ -462,5 +721,93 @@ const styles = StyleSheet.create({
   actionContainer: {
     padding: ResponsiveSpacing.lg,
     ...Layout.shadows.sm,
+  },
+  imageUploadContainer: {
+    marginTop: ResponsiveSpacing.sm,
+  },
+  imageUploadButton: {
+    borderWidth: 2,
+    borderStyle: 'dashed',
+    borderRadius: ResponsiveBorderRadius.md,
+    padding: ResponsiveSpacing.xl,
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: responsiveValue(120, 140, 160, 180),
+  },
+  imagePreviewContainer: {
+    position: 'relative',
+    marginTop: ResponsiveSpacing.sm,
+  },
+  imagePreview: {
+    width: '100%',
+    height: responsiveValue(200, 240, 280, 320),
+    borderRadius: ResponsiveBorderRadius.md,
+    resizeMode: 'cover',
+  },
+  removeImageButton: {
+    position: 'absolute',
+    top: ResponsiveSpacing.sm,
+    right: ResponsiveSpacing.sm,
+    width: responsiveValue(32, 36, 40, 44),
+    height: responsiveValue(32, 36, 40, 44),
+    borderRadius: responsiveValue(16, 18, 20, 22),
+    alignItems: 'center',
+    justifyContent: 'center',
+    ...Layout.shadows.sm,
+  },
+  uploadingOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    borderRadius: ResponsiveBorderRadius.md,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  categoryHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  addCategoryButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: ResponsiveSpacing.sm,
+    paddingVertical: ResponsiveSpacing.xs,
+    borderRadius: ResponsiveBorderRadius.sm,
+  },
+  switchModeButton: {
+    marginTop: ResponsiveSpacing.sm,
+    padding: ResponsiveSpacing.sm,
+    borderWidth: 1,
+    borderRadius: ResponsiveBorderRadius.sm,
+    alignItems: 'center',
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'flex-end',
+  },
+  modalContent: {
+    borderTopLeftRadius: ResponsiveBorderRadius.xl,
+    borderTopRightRadius: ResponsiveBorderRadius.xl,
+    padding: ResponsiveSpacing.lg,
+    paddingBottom: ResponsiveSpacing.xl,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: ResponsiveSpacing.lg,
+  },
+  modalOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: ResponsiveSpacing.md,
+    borderWidth: 1,
+    borderRadius: ResponsiveBorderRadius.md,
+    marginBottom: ResponsiveSpacing.md,
   },
 });

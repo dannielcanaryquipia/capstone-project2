@@ -272,74 +272,6 @@ export default function HomeScreen() {
           )}
         </ResponsiveView>
 
-        {/* Special Offers */}
-        <ResponsiveView marginBottom="lg" paddingHorizontal="lg">
-        <ResponsiveView 
-          flexDirection="row" 
-          justifyContent="flex-start" 
-          alignItems="center"
-          marginBottom="lg"
-        >
-          <ResponsiveText size="xxl" weight="bold" color={colors.text}>
-            Special Offers
-          </ResponsiveText>
-        </ResponsiveView>
-          <ResponsiveView 
-            backgroundColor={colors.primary + '10'}
-            borderRadius="lg"
-            padding="lg"
-            flexDirection="row"
-            alignItems="center"
-            style={{ overflow: 'hidden' }}
-          >
-            <ResponsiveView flex={1}>
-              <ResponsiveView marginBottom="xs">
-                <ResponsiveText 
-                  size="xxl" 
-                  weight="bold" 
-                  color={colors.themedDiscount}
-                >
-                  30% OFF
-                </ResponsiveText>
-              </ResponsiveView>
-              <ResponsiveView marginBottom="sm">
-                <ResponsiveText 
-                  size="md" 
-                  color={colors.textSecondary}
-                >
-                  On your first order
-                </ResponsiveText>
-              </ResponsiveView>
-              <ResponsiveView 
-                backgroundColor={colors.primary + '20'}
-                paddingHorizontal="sm"
-                paddingVertical="xs"
-                borderRadius="pill"
-                alignSelf="flex-start"
-              >
-                <ResponsiveText 
-                  size="sm" 
-                  color={colors.themedDiscount}
-                >
-                  Use code: WELCOME30
-                </ResponsiveText>
-              </ResponsiveView>
-            </ResponsiveView>
-            <Image 
-              source={{ uri: 'https://images.unsplash.com/photo-1565299624946-b28f40a0ae38?w=500&auto=format&fit=crop&q=60&ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxzZWFyY2h8Mnx8Zm9vZCUyMGRlbGl2ZXJ5fGVufDB8fDB8fHww' }} 
-              style={[
-                styles.specialOfferImage,
-                { 
-                  width: Responsive.responsiveValue(100, 110, 120, 140),
-                  height: Responsive.responsiveValue(80, 90, 100, 120),
-                  marginLeft: Responsive.ResponsiveSpacing.sm
-                }
-              ]}
-            />
-          </ResponsiveView>
-        </ResponsiveView>
-
-
         {/* Featured Products Section - AI Powered */}
         <ResponsiveView marginTop="sm" paddingHorizontal="lg" marginBottom="lg">
           <ResponsiveView 
@@ -689,9 +621,6 @@ const styles = StyleSheet.create({
   clearButton: {
     padding: Responsive.responsiveValue(4, 6, 8, 10),
     marginLeft: Responsive.responsiveValue(4, 6, 8, 10),
-  },
-  specialOfferImage: {
-    borderRadius: 12,
   },
   quickActionCard: {
     flex: 1,

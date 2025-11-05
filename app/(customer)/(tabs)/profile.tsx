@@ -51,11 +51,11 @@ export default function ProfileScreen() {
     phoneNumber: '',
   });
   const [isUpdating, setIsUpdating] = useState(false);
-  const { localAvatar, isLoading: isUploadingAvatar, saveAvatar, removeAvatar } = useAvatar();
+  const { isLoading: isUploadingAvatar, saveAvatar, removeAvatar } = useAvatar();
 
   // Function to open Kitchen One website
   const openWebsite = async () => {
-    const url = 'https://kitchenone.com'; // Replace with your actual website URL
+    const url = 'https://kitchen-one-website-vcov.vercel.app/'; // Kitchen One website
     try {
       const supported = await Linking.canOpenURL(url);
       if (supported) {
@@ -180,6 +180,8 @@ export default function ProfileScreen() {
   const uploadAvatar = async (imageUri: string) => {
     const success = await saveAvatar(imageUri);
     if (success) {
+      // Refresh profile to get updated avatar_url
+      await refresh();
       showSuccess('Success', 'Profile picture updated successfully');
     } else {
       showError('Error', 'Failed to save profile picture. Please try again.');
@@ -189,6 +191,8 @@ export default function ProfileScreen() {
   const removeAvatarHandler = async () => {
     const success = await removeAvatar();
     if (success) {
+      // Refresh profile to reflect removed avatar
+      await refresh();
       showSuccess('Success', 'Profile picture removed successfully');
     } else {
       showError('Error', 'Failed to remove profile picture. Please try again.');
@@ -343,12 +347,12 @@ export default function ProfileScreen() {
           <TouchableOpacity 
             style={styles.avatarContainer}
             onPress={handleAvatarPress}
-            onLongPress={localAvatar ? handleRemoveAvatar : undefined}
+            onLongPress={profile?.avatar_url ? handleRemoveAvatar : undefined}
             disabled={isUploadingAvatar}
             activeOpacity={0.7}
           >
-            {localAvatar ? (
-              <Image source={{ uri: localAvatar }} style={styles.avatar} />
+            {profile?.avatar_url ? (
+              <Image source={{ uri: profile.avatar_url }} style={styles.avatar} />
             ) : (
               <View style={[styles.avatar, { backgroundColor: colors.surfaceVariant }]} />
             )}

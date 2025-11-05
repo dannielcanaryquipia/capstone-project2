@@ -3,7 +3,6 @@ import { useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
-  Alert,
   RefreshControl,
   ScrollView,
   StyleSheet,
@@ -114,17 +113,6 @@ export default function EarningsScreen() {
     setRefreshing(true);
     await loadEarningsData();
     setRefreshing(false);
-  };
-
-  const handleWithdrawEarnings = () => {
-    Alert.alert(
-      'Withdraw Earnings',
-      'Withdraw your earnings to your bank account?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'Withdraw', onPress: () => console.log('Withdraw earnings') },
-      ]
-    );
   };
 
   const getCurrentEarnings = () => {
@@ -258,6 +246,14 @@ export default function EarningsScreen() {
     return (
       <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
         <ResponsiveView style={styles.header}>
+          <ResponsiveView style={styles.headerTop}>
+            <TouchableOpacity 
+              onPress={() => router.push('/(delivery)/dashboard' as any)}
+              style={styles.backButton}
+            >
+              <MaterialIcons name="arrow-back" size={24} color={colors.text} />
+            </TouchableOpacity>
+          </ResponsiveView>
           <ResponsiveText size="xl" weight="bold" color={colors.text}>
             My Earnings
           </ResponsiveText>
@@ -303,6 +299,14 @@ export default function EarningsScreen() {
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
       <ResponsiveView style={styles.header}>
+        <ResponsiveView style={styles.headerTop}>
+          <TouchableOpacity 
+            onPress={() => router.push('/(delivery)/dashboard' as any)}
+            style={styles.backButton}
+          >
+            <MaterialIcons name="arrow-back" size={24} color={colors.text} />
+          </TouchableOpacity>
+        </ResponsiveView>
         <ResponsiveText size="xl" weight="bold" color={colors.text}>
           My Earnings
         </ResponsiveText>
@@ -350,20 +354,6 @@ export default function EarningsScreen() {
         }
       >
         <ResponsiveView style={styles.content}>
-          {/* Debug Info */}
-          {__DEV__ && (
-            <ResponsiveView style={[styles.debugCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-              <ResponsiveText size="sm" color={colors.textSecondary}>
-                Debug Info:
-              </ResponsiveText>
-              <ResponsiveText size="xs" color={colors.textSecondary}>
-                Total Deliveries: {earningsData?.totalDeliveries || 0} | 
-                This Week: ₱{earningsData?.thisWeek?.toFixed(2) || '0.00'} | 
-                This Month: ₱{earningsData?.thisMonth?.toFixed(2) || '0.00'}
-              </ResponsiveText>
-            </ResponsiveView>
-          )}
-
           {/* Main Earnings Card */}
           <ResponsiveView style={[styles.mainEarningsCard, { backgroundColor: colors.primary }]}>
             <ResponsiveText size="lg" weight="semiBold" color={colors.background}>
@@ -372,14 +362,6 @@ export default function EarningsScreen() {
             <ResponsiveText size="xxxl" weight="bold" color={colors.background}>
               ₱{getCurrentEarnings().toFixed(2)}
             </ResponsiveText>
-            <ResponsiveView style={styles.withdrawButton}>
-              <Button
-                title="Withdraw Earnings"
-                onPress={handleWithdrawEarnings}
-                variant="secondary"
-                size="small"
-              />
-            </ResponsiveView>
           </ResponsiveView>
 
           {/* Stats Cards */}
@@ -428,6 +410,14 @@ const styles = StyleSheet.create({
     padding: 20,
     paddingBottom: 16,
   },
+  headerTop: {
+    marginBottom: 12,
+  },
+  backButton: {
+    alignSelf: 'flex-start',
+    padding: 8,
+    marginLeft: -8,
+  },
   tabsContainer: {
     paddingHorizontal: 20,
     paddingBottom: 16,
@@ -452,9 +442,6 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     marginBottom: 20,
     alignItems: 'center',
-  },
-  withdrawButton: {
-    marginTop: 16,
   },
   statsGrid: {
     flexDirection: 'row',
@@ -531,11 +518,5 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     alignItems: 'center',
     marginTop: 20,
-  },
-  debugCard: {
-    padding: 12,
-    borderRadius: 8,
-    marginBottom: 16,
-    borderWidth: 1,
   },
 });

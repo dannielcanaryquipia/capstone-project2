@@ -119,8 +119,7 @@ export default function RiderOrdersManager({
             const res = await ImagePicker.launchCameraAsync({
               mediaTypes: ImagePicker.MediaTypeOptions.Images,
               quality: 0.7,
-              allowsEditing: true,
-              aspect: [4, 3]
+              allowsEditing: false, // Removed cropping requirement - allow full image
             });
             if (!res.canceled) {
               setActionLoading(orderId);
@@ -145,8 +144,7 @@ export default function RiderOrdersManager({
             const res = await ImagePicker.launchImageLibraryAsync({
               mediaTypes: ImagePicker.MediaTypeOptions.Images,
               quality: 0.7,
-              allowsEditing: true,
-              aspect: [4, 3]
+              allowsEditing: false, // Removed cropping requirement - allow full image
             });
             if (!res.canceled) {
               setActionLoading(orderId);

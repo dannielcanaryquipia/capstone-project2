@@ -137,6 +137,7 @@ export interface OrderStats {
   total_orders: number;
   pending_orders: number;
   preparing_orders: number;
+  ready_for_pickup_orders: number;
   out_for_delivery: number;
   delivered_orders: number;
   cancelled_orders: number;

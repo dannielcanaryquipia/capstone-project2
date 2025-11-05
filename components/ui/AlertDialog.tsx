@@ -8,7 +8,7 @@ import ResponsiveView from './ResponsiveView';
 export interface AlertButton {
   text: string;
   onPress?: () => void;
-  style?: 'default' | 'cancel' | 'destructive';
+  style?: 'default' | 'cancel' | 'destructive' | 'secondary';
 }
 
 export interface AlertDialogProps {
@@ -71,6 +71,7 @@ export const AlertDialog: React.FC<AlertDialogProps> = ({
           borderColor: colors.error || '#FF4444',
         };
       case 'cancel':
+      case 'secondary':
         return {
           backgroundColor: 'transparent',
           borderColor: colors.border,
@@ -88,6 +89,7 @@ export const AlertDialog: React.FC<AlertDialogProps> = ({
       case 'destructive':
         return colors.white;
       case 'cancel':
+      case 'secondary':
         return colors.text;
       default:
         return colors.white;
@@ -146,11 +148,11 @@ export const AlertDialog: React.FC<AlertDialogProps> = ({
             <View style={styles.buttonContainer}>
               {buttons
                 .sort((a, b) => {
-                  // Sort so destructive buttons appear first, then primary/default buttons, then cancel
+                  // Sort so destructive buttons appear first, then primary/default buttons, then secondary/cancel
                   if (a.style === 'destructive' && b.style !== 'destructive') return -1;
                   if (a.style !== 'destructive' && b.style === 'destructive') return 1;
-                  if (a.style === 'default' && b.style === 'cancel') return -1;
-                  if (a.style === 'cancel' && b.style === 'default') return 1;
+                  if (a.style === 'default' && (b.style === 'cancel' || b.style === 'secondary')) return -1;
+                  if ((a.style === 'cancel' || a.style === 'secondary') && b.style === 'default') return 1;
                   return 0;
                 })
                 .map((button, index) => (
@@ -159,7 +161,7 @@ export const AlertDialog: React.FC<AlertDialogProps> = ({
                   style={[
                     styles.button,
                     getButtonStyle(button.style),
-                    button.style === 'cancel' && styles.cancelButton,
+                    (button.style === 'cancel' || button.style === 'secondary') && styles.cancelButton,
                   ]}
                   onPress={() => {
                     if (button.onPress) {

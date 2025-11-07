@@ -11,6 +11,58 @@ import {
 import { notificationService } from './api';
 
 export class OrderService {
+  // Notify admin users about order events
+  private static async notifyAdmins(
+    orderId: string,
+    payload: {
+      title: string;
+      message: string;
+      type: 'order_update' | 'payment' | 'delivery' | 'system';
+    }
+  ) {
+    try {
+      const { data: adminUsers, error } = await supabase
+        .from('profiles')
+        .select('id')
+        .in('role', ['admin', 'super_admin']);
+
+      if (error) throw error;
+
+      const adminIds = (adminUsers || []).map((admin: any) => admin.id);
+      if (!adminIds.length) return;
+
+      await notificationService.sendBulkNotification(adminIds, {
+        title: payload.title,
+        message: payload.message,
+        type: payload.type,
+        relatedId: orderId,
+      });
+    } catch (notifyErr) {
+      console.warn('Admin notification failed:', notifyErr);
+    }
+  }
+
+  private static async notifyRider(
+    riderUserId: string,
+    payload: {
+      title: string;
+      message: string;
+      type: 'order_update' | 'payment' | 'delivery' | 'system';
+      relatedId?: string;
+    }
+  ) {
+    try {
+      await notificationService.sendNotification({
+        userId: riderUserId,
+        title: payload.title,
+        message: payload.message,
+        type: payload.type,
+        relatedId: payload.relatedId,
+      });
+    } catch (notifyErr) {
+      console.warn('Rider notification failed:', notifyErr);
+    }
+  }
   // Helper function to convert app status to database status
   private static convertStatusToDb(status: string): string {
     // Database now uses lowercase values
@@ -132,6 +184,10 @@ export class OrderService {
           ),
           delivery_assignments(
             id,
+            rider_id,
+            status,
+            assigned_at,
+            picked_up_at,
             delivered_at,
             rider:riders(
               id,
@@ -303,27 +359,12 @@ export class OrderService {
         // Don't throw error for notification failure
       }
 
-      // Send notification to admin about new order
-      try {
-        // Get all admin users
-        const { data: adminUsers } = await supabase
-          .from('profiles')
-          .select('id')
-          .in('role', ['admin', 'super_admin']);
-
-        if (adminUsers && adminUsers.length > 0) {
-          const adminUserIds = adminUsers.map((admin: any) => admin.id);
-          await notificationService.sendBulkNotification(adminUserIds, {
-            title: 'New Order Received!',
-            message: `New order #${order.id.slice(-6).toUpperCase()} has been placed and needs attention.`,
-            type: 'order_update',
-            relatedId: order.id,
-          });
-        }
-      } catch (adminNotificationError) {
-        console.error('Error sending admin notification:', adminNotificationError);
-        // Don't throw error for notification failure
-      }
+      // Notify admins about the new order
+      await this.notifyAdmins(order.id, {
+        title: 'New Order Received',
+        message: `Order #${order.id.slice(-6).toUpperCase()} has been placed and needs attention.`,
+        type: 'order_update',
+      });
 
       // Return complete order
       return await this.getOrderById(order.id) as Order;
@@ -369,29 +410,143 @@ export class OrderService {
         }
       }
 
-      // Send customer notification for key transitions
-      try {
-        if (dbStatus === 'preparing' || dbStatus === 'out_for_delivery') {
-          const { data: ord } = await supabase
-            .from('orders')
-            .select('id, user_id, status, order_number')
-            .eq('id', orderId)
+      // When admin marks order as out_for_delivery, update delivery assignment
+      if (dbStatus === 'out_for_delivery') {
+        try {
+          const now = new Date().toISOString();
+          // Find the delivery assignment for this order
+          const { data: assignment, error: assignmentError } = await supabase
+            .from('delivery_assignments')
+            .select('id, rider_id, picked_up_at, assigned_at')
+            .eq('order_id', orderId)
             .single();
-          if (ord?.user_id) {
-            const isDelivery = dbStatus === 'out_for_delivery';
-            await notificationService.sendNotification({
-              userId: ord.user_id,
-              title: isDelivery ? 'Your order is on the way' : 'Your order is being prepared',
-              message: isDelivery
-                ? `Order ${ord.order_number || orderId.slice(-8)} is now out for delivery.`
-                : `Order ${ord.order_number || orderId.slice(-8)} is now being prepared by the kitchen.`,
-              type: isDelivery ? 'delivery' : 'order_update',
+
+          if (!assignmentError && assignment) {
+            // Update assignment to mark as picked up
+            const updateData: any = {
+              status: 'Picked Up',
+              picked_up_at: assignment.picked_up_at || now
+            };
+
+            // Ensure assigned_at is set if missing
+            if (!assignment.assigned_at) {
+              updateData.assigned_at = now;
+            }
+
+            const { error: updateAssignError } = await supabase
+              .from('delivery_assignments')
+              .update(updateData)
+              .eq('id', assignment.id);
+
+            if (updateAssignError) {
+              console.warn('Failed to update delivery assignment:', updateAssignError);
+            } else {
+              console.log('✅ Delivery assignment updated to Picked Up when admin marked as out_for_delivery');
+            }
+          }
+        } catch (assignmentUpdateError) {
+          console.warn('Non-fatal: failed to update delivery assignment:', assignmentUpdateError);
+        }
+
+        try {
+          const { data: assignmentInfo } = await supabase
+            .from('delivery_assignments')
+            .select('rider_id, rider:riders(user_id)')
+            .eq('order_id', orderId)
+            .single();
+
+          const riderUserId = assignmentInfo?.rider?.user_id;
+
+          if (riderUserId) {
+            await this.notifyRider(riderUserId, {
+              title: 'Order Assigned for Delivery',
+              message: `Order #${orderId.slice(-6).toUpperCase()} is ready for delivery. Please proceed.`,
+              type: 'delivery',
               relatedId: orderId,
             });
           }
+        } catch (riderNotifyError) {
+          console.warn('Failed to notify rider about delivery assignment:', riderNotifyError);
+        }
+      }
+
+      // Send customer notification for ALL status changes
+      try {
+        const { data: ord } = await supabase
+          .from('orders')
+          .select('id, user_id, status, order_number')
+          .eq('id', orderId)
+          .single();
+        
+        if (ord?.user_id) {
+          // Define notification messages for each status
+          const statusMessages: Record<string, { title: string; message: string; type: 'order_update' | 'payment' | 'delivery' | 'system' }> = {
+            'pending': {
+              title: 'Order Received',
+              message: `Your order ${ord.order_number || orderId.slice(-8)} has been received and is being processed.`,
+              type: 'order_update'
+            },
+            'preparing': {
+              title: 'Your order is being prepared',
+              message: `Order ${ord.order_number || orderId.slice(-8)} is now being prepared by the kitchen.`,
+              type: 'order_update'
+            },
+            'ready_for_pickup': {
+              title: 'Order Ready for Pickup',
+              message: `Your order ${ord.order_number || orderId.slice(-8)} is ready for pickup!`,
+              type: 'order_update'
+            },
+            'out_for_delivery': {
+              title: 'Your order is on the way',
+              message: `Order ${ord.order_number || orderId.slice(-8)} is now out for delivery.`,
+              type: 'delivery'
+            },
+            'delivered': {
+              title: 'Order Delivered',
+              message: `Your order ${ord.order_number || orderId.slice(-8)} has been delivered successfully. Enjoy your meal!`,
+              type: 'delivery'
+            },
+            'cancelled': {
+              title: 'Order Cancelled',
+              message: `Your order ${ord.order_number || orderId.slice(-8)} has been cancelled. If you have any questions, please contact us.`,
+              type: 'order_update'
+            }
+          };
+
+          const notificationConfig = statusMessages[dbStatus];
+          
+          if (notificationConfig) {
+            console.log('📧 Sending notification for order status update:', {
+              orderId,
+              userId: ord.user_id,
+              status: dbStatus,
+              title: notificationConfig.title
+            });
+            
+            await notificationService.sendNotification({
+              userId: ord.user_id,
+              title: notificationConfig.title,
+              message: notificationConfig.message,
+              type: notificationConfig.type,
+              relatedId: orderId,
+            });
+            
+            console.log('✅ Notification sent successfully');
+          } else {
+            console.log('⚠️ No notification config for status:', dbStatus);
+          }
         }
       } catch (notifyErr) {
-        console.warn('Non-fatal: failed to send status notification', notifyErr);
+        console.error('❌ Failed to send status notification:', notifyErr);
+        // Don't throw - notification failure shouldn't break order update
+      }
+
+      if (dbStatus === 'cancelled') {
+        await this.notifyAdmins(orderId, {
+          title: 'Order Cancelled',
+          message: `Order #${orderId.slice(-6).toUpperCase()} was cancelled.`,
+          type: 'order_update',
+        });
       }
     } catch (error) {
       console.error('Error updating order status:', error);
@@ -769,6 +924,12 @@ export class OrderService {
       } catch (notifyErr) {
         console.warn('Non-fatal: failed to send payment notification', notifyErr);
       }
+
+      await this.notifyAdmins(orderId, {
+        title: 'COD Payment Verified',
+        message: `COD payment for order #${orderId.slice(-6).toUpperCase()} has been verified by the rider.`,
+        type: 'payment',
+      });
     } catch (error) {
       console.error('Error verifying COD payment:', error);
       throw error;
@@ -901,7 +1062,7 @@ export class OrderService {
       }
 
       // Check if proof already exists in order
-      const { data: currentOrder } = await supabase
+      const { data : currentOrder } = await supabase
         .from('orders')
         .select('proof_of_delivery_url')
         .eq('id', orderId)
@@ -929,6 +1090,10 @@ export class OrderService {
             metadata: uploadResult.metadata 
           });
           
+          if (!uploadResult.url) {
+            throw new Error('Upload completed but no URL was returned');
+          }
+          
           proofUrl = uploadResult.url;
           proofUploaded = true;
           console.log('✅ Delivery proof uploaded successfully:', proofUrl);
@@ -939,11 +1104,14 @@ export class OrderService {
             stack: (uploadError as any).stack,
             name: (uploadError as any).name
           });
-          // Continue with existing proof if available
+          // If upload fails and no existing proof, throw error to notify UI
           if (!proofUrl) {
-            console.warn('⚠️ No proof available and upload failed, continuing without proof');
+            const errorMessage = (uploadError as any)?.message || 'Failed to upload proof of delivery';
+            throw new Error(`Proof upload failed: ${errorMessage}. Please try again.`);
           } else {
-            proofUploaded = true; // Use existing proof
+            // Use existing proof if available
+            proofUploaded = true;
+            console.warn('⚠️ Upload failed but using existing proof');
           }
         }
       } else if (proofUrl) {
@@ -1078,6 +1246,12 @@ export class OrderService {
         console.warn('Non-fatal: failed to send delivered notification', e);
       }
 
+      await this.notifyAdmins(orderId, {
+        title: 'Order Delivered',
+        message: `Order #${orderId.slice(-6).toUpperCase()} has been marked as delivered by the rider.`,
+        type: 'delivery',
+      });
+
       // Trigger real-time update for admin dashboard
       try {
         console.log('📡 Broadcasting order delivered update...', { orderId, riderId: (rider as any).id });
@@ -1168,6 +1342,12 @@ export class OrderService {
 
       // Add tracking entry
       await this.addOrderTracking(orderId, dbStatus, cancelledBy, reason);
+
+      await this.notifyAdmins(orderId, {
+        title: 'Order Cancelled',
+        message: `Order #${orderId.slice(-6).toUpperCase()} was cancelled. Reason: ${reason}.`,
+        type: 'order_update',
+      });
     } catch (error) {
       console.error('Error cancelling order:', error);
       throw error;

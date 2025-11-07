@@ -447,12 +447,59 @@ export const notificationService = {
       .select('*')
       .eq('user_id', userId)
       .order('created_at', { ascending: false })
-      .limit(limit);
-    
+      .limit(Math.max(limit, 50)); // pull a bit more to allow client-side de-dup
+
     if (error) throw error;
-    
-    
-    return data || [];
+
+    const list = (data || []);
+
+    // Normalize into important categories so UI shows concise, non-redundant items
+    const normalizeCategory = (n: any): string => {
+      const title = (n.title || '').toLowerCase();
+      const message = (n.message || '').toLowerCase();
+      const type = (n.type || '').toLowerCase();
+
+      if (title.includes('cancelled') || message.includes('cancelled')) return 'cancelled';
+      if (title.includes('payment') && (title.includes('verified') || title.includes('received') || message.includes('verified'))) return 'payment_verified';
+      if (title.includes('ready for pickup') || message.includes('ready for pickup')) return 'ready_for_pickup';
+      if (type === 'delivery' && (title.includes('on the way') || message.includes('out for delivery'))) return 'out_for_delivery';
+      if (title.includes('delivered') || message.includes('delivered')) return 'delivered';
+      if (title.includes('prepared') || message.includes('being prepared') || title.includes('preparing')) return 'preparing';
+      if (title.includes('order placed') || message.includes('placed')) return 'order_placed';
+      return 'other';
+    };
+
+    // Keep only the latest per order+category to avoid redundant spam
+    const seen: Record<string, number> = {};
+    const deduped: any[] = [];
+    for (const item of list) {
+      const category = normalizeCategory(item);
+      if (category === 'other') continue; // drop non-essential noise
+      const orderKey = `${item.related_order_id || 'no-order'}::${category}`;
+      if (!(orderKey in seen)) {
+        seen[orderKey] = 1;
+        // Minimize text to an important, concise title while keeping created_at
+        const conciseTitleMap: Record<string, string> = {
+          order_placed: 'Order placed',
+          preparing: 'Preparing your order',
+          ready_for_pickup: 'Ready for pickup',
+          out_for_delivery: 'Out for delivery',
+          delivered: 'Delivered',
+          payment_verified: 'Payment verified',
+          cancelled: 'Order cancelled',
+          other: item.title
+        };
+        deduped.push({
+          ...item,
+          title: conciseTitleMap[category] || item.title,
+          // Shorten message to the core information
+          message: item.related_order_id ? `Order ${String(item.related_order_id).slice(-8)} - ${conciseTitleMap[category] || item.title}` : (conciseTitleMap[category] || item.title),
+        });
+      }
+    }
+
+    // Return already ordered latest-first; ensure we respect limit after de-dup
+    return deduped.slice(0, limit) as Notification[];
   },
 
   // Get unread notifications count
@@ -496,6 +543,37 @@ export const notificationService = {
     type: 'order_update' | 'payment' | 'delivery' | 'system';
     relatedId?: string;
   }): Promise<Notification> => {
+    // Idempotency guard: avoid inserting duplicates for same order+type within short window
+    try {
+      const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString();
+      const { data: existing } = await supabase
+        .from('notifications')
+        .select('*')
+        .eq('user_id', notification.userId)
+        .eq('type', notification.type)
+        .eq('related_order_id', notification.relatedId || null)
+        .gte('created_at', fiveMinutesAgo)
+        .order('created_at', { ascending: false })
+        .limit(1);
+
+      if (existing && existing.length > 0) {
+        const already = existing[0] as unknown as Notification;
+        // If the title is essentially the same event, reuse it
+        const lowerNew = notification.title.toLowerCase();
+        const lowerOld = (already as any).title?.toLowerCase?.() || '';
+        if (
+          lowerNew === lowerOld ||
+          (lowerNew.includes('delivered') && lowerOld.includes('delivered')) ||
+          (lowerNew.includes('out for delivery') && lowerOld.includes('out for delivery')) ||
+          (lowerNew.includes('prepar') && lowerOld.includes('prepar')) ||
+          (lowerNew.includes('payment') && lowerOld.includes('payment'))
+        ) {
+          return already;
+        }
+      }
+    } catch (_) {
+      // Non-fatal; if the check fails, proceed to insert
+    }
     const notificationData = {
       user_id: notification.userId,
       title: notification.title,

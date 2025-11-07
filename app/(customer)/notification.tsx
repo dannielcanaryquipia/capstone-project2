@@ -1,6 +1,6 @@
 import { MaterialIcons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
-import React, { useCallback } from 'react';
+import { useFocusEffect, useRouter } from 'expo-router';
+import React, { useCallback, useRef } from 'react';
 import { ActivityIndicator, RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { EmptyState } from '../../components/ui/EmptyState';
@@ -9,6 +9,7 @@ import Layout from '../../constants/Layout';
 import { useNotificationContext } from '../../contexts/NotificationContext';
 import { useTheme } from '../../contexts/ThemeContext';
 import { Notification } from '../../lib/database.types';
+import { useAuth } from '../../hooks/useAuth';
 
 const getNotificationIcon = (type: string) => {
   switch (type) {
@@ -66,13 +67,43 @@ export default function NotificationScreen() {
   const { colors, isDark } = useTheme();
   const { confirm } = useAlert();
   const router = useRouter();
+  const { isAdmin, isDelivery } = useAuth();
+  const lastRefreshTime = useRef<number>(0);
 
+  // Helper function to determine the route based on notification type and user role
+  const getNotificationRoute = useCallback((notification: Notification): string | null => {
+    // If notification has a related order ID, route to order details
+    if (notification.related_order_id) {
+      if (isAdmin) {
+        return `/(admin)/orders/${notification.related_order_id}`;
+      } else if (isDelivery) {
+        return `/(delivery)/order/${notification.related_order_id}`;
+      } else {
+        // Customer route
+        return `/(customer)/orders/${notification.related_order_id}`;
+      }
+    }
+
+    // For other notification types, you can add more routing logic here
+    // For example:
+    // - Payment notifications might route to payment history
+    // - System notifications might not route anywhere
+    
+    return null;
+  }, [isAdmin, isDelivery]);
 
   const handleNotificationPress = useCallback(async (notification: Notification) => {
+    // Mark as read first
     if (!notification.is_read) {
       await markAsRead(notification.id);
     }
-  }, [markAsRead]);
+
+    // Navigate to the appropriate page based on notification type
+    const route = getNotificationRoute(notification);
+    if (route) {
+      router.push(route as any);
+    }
+  }, [markAsRead, getNotificationRoute, router]);
 
   const handleMarkAllAsRead = useCallback(async () => {
     if (unreadCount > 0) {
@@ -90,6 +121,25 @@ export default function NotificationScreen() {
   const handleRefresh = useCallback(async () => {
     await refresh();
   }, [refresh]);
+
+  // Refresh notifications when screen comes into focus
+  // This ensures the notification list is up-to-date when user opens the notification page
+  // Use a ref to prevent rapid successive refreshes (minimum 2 seconds between refreshes)
+  useFocusEffect(
+    useCallback(() => {
+      const now = Date.now();
+      const timeSinceLastRefresh = now - lastRefreshTime.current;
+      const MIN_REFRESH_INTERVAL = 2000; // 2 seconds
+
+      if (!isLoading && timeSinceLastRefresh >= MIN_REFRESH_INTERVAL) {
+        console.log('📱 Notification screen focused, refreshing notifications...');
+        lastRefreshTime.current = now;
+        refresh();
+      } else {
+        console.log('📱 Notification screen focused, skipping refresh (too soon or already loading)');
+      }
+    }, [refresh, isLoading])
+  );
 
 
   if (isLoading) {

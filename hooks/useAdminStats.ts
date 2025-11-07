@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
+import { useRefreshCoordinator } from '../contexts/RefreshCoordinatorContext';
 import { OrderService } from '../services/order.service';
 import { ProductService } from '../services/product.service';
 import { OrderStats } from '../types/order.types';
@@ -56,10 +57,21 @@ export const useAdminStats = () => {
   const [stats, setStats] = useState<AdminStats | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const { registerRefresh, refresh: requestRefresh } = useRefreshCoordinator();
 
-  const fetchStats = useCallback(async () => {
+  const scheduleNotificationRefresh = useCallback(() => {
+    requestRefresh(['notifications']);
+    setTimeout(() => requestRefresh(['notifications']), 800);
+    setTimeout(() => requestRefresh(['notifications']), 2000);
+  }, [requestRefresh]);
+
+  const fetchStats = useCallback(async (options?: { background?: boolean }) => {
+    const background = options?.background;
     try {
-      setIsLoading(true);
+      if (!background) {
+        setIsLoading(true);
+      }
       setError(null);
 
       // Fetch product and order stats in parallel
@@ -133,13 +145,17 @@ export const useAdminStats = () => {
       console.error('Error fetching admin stats:', err);
       setError(err.message || 'Failed to load admin statistics');
     } finally {
-      setIsLoading(false);
+      if (!background) {
+        setIsLoading(false);
+      }
     }
   }, []);
 
   useEffect(() => {
     fetchStats();
-  }, [fetchStats]);
+    const unregister = registerRefresh('admin_stats', () => fetchStats({ background: true }));
+    return unregister;
+  }, [fetchStats, registerRefresh]);
 
   // Real-time subscription for stats updates
   useEffect(() => {
@@ -157,7 +173,8 @@ export const useAdminStats = () => {
           },
           (payload) => {
             console.log('Order change detected for admin stats:', payload);
-            fetchStats();
+            fetchStats({ background: true });
+            scheduleNotificationRefresh();
           }
         ),
       supabase
@@ -171,7 +188,7 @@ export const useAdminStats = () => {
           },
           (payload) => {
             console.log('Product change detected for admin stats:', payload);
-            fetchStats();
+            fetchStats({ background: true });
           }
         ),
       supabase
@@ -185,7 +202,7 @@ export const useAdminStats = () => {
           },
           (payload) => {
             console.log('User change detected for admin stats:', payload);
-            fetchStats();
+            fetchStats({ background: true });
           }
         ),
     ];
@@ -203,13 +220,16 @@ export const useAdminStats = () => {
   }, [fetchStats]);
 
   const refresh = useCallback(() => {
-    fetchStats();
-  }, [fetchStats]);
+    setIsRefreshing(true);
+    fetchStats({ background: true }).finally(() => setIsRefreshing(false));
+    scheduleNotificationRefresh();
+  }, [fetchStats, scheduleNotificationRefresh]);
 
   return {
     stats,
     isLoading,
     error,
+    refreshing: isRefreshing,
     refresh,
   };
 };

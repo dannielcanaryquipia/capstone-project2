@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
+import { useRefreshCoordinator } from '../contexts/RefreshCoordinatorContext';
 import { authService, UpdateProfileData } from '../services/auth.service';
 import { AvailableOrder, RiderAssignment, RiderService, RiderStats } from '../services/rider.service';
 import { useAuth } from './useAuth';
@@ -163,15 +164,28 @@ export const useRiderOrders = () => {
   const [deliveredOrders, setDeliveredOrders] = useState<RiderAssignment[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const { registerRefresh, refresh: requestRefresh } = useRefreshCoordinator();
 
-  const fetchOrders = useCallback(async () => {
+  const scheduleNotificationRefresh = useCallback(() => {
+    requestRefresh(['notifications']);
+    setTimeout(() => requestRefresh(['notifications']), 800);
+    setTimeout(() => requestRefresh(['notifications']), 2000);
+  }, [requestRefresh]);
+
+  const fetchOrders = useCallback(async (options?: { background?: boolean }) => {
     if (!user?.id) {
-      setIsLoading(false);
+      if (!options?.background) {
+        setIsLoading(false);
+      }
       return;
     }
 
+    const background = options?.background ?? false;
+
     try {
-      setIsLoading(true);
+      if (!background) {
+        setIsLoading(true);
+      }
       setError(null);
 
       // Get rider ID
@@ -233,13 +247,17 @@ export const useRiderOrders = () => {
       setAvailableOrders(available);
       setRecentOrders(recent);
       setDeliveredOrders(delivered);
+
+      scheduleNotificationRefresh();
     } catch (err: any) {
       console.error('Error fetching rider orders:', err);
       setError(err.message || 'Failed to load orders');
     } finally {
-      setIsLoading(false);
+      if (!background) {
+        setIsLoading(false);
+      }
     }
-  }, [user?.id]);
+  }, [user?.id, scheduleNotificationRefresh]);
 
   const acceptOrder = useCallback(async (orderId: string) => {
     if (!user?.id) return;
@@ -323,12 +341,14 @@ export const useRiderOrders = () => {
   }, [user?.id, fetchOrders]);
 
   const refresh = useCallback(() => {
-    fetchOrders();
+    return fetchOrders({ background: true });
   }, [fetchOrders]);
 
   useEffect(() => {
     fetchOrders();
-  }, [fetchOrders]);
+    const unregister = registerRefresh('rider_orders', () => fetchOrders({ background: true }));
+    return unregister;
+  }, [fetchOrders, registerRefresh]);
 
   // Real-time subscription for order updates
   useEffect(() => {
@@ -345,7 +365,7 @@ export const useRiderOrders = () => {
         },
         (payload) => {
           console.log('Delivery assignment change detected:', payload);
-          fetchOrders();
+          fetchOrders({ background: true });
         }
       )
       .on(
@@ -357,7 +377,7 @@ export const useRiderOrders = () => {
         },
         (payload) => {
           console.log('Order change detected:', payload);
-          fetchOrders();
+          fetchOrders({ background: true });
         }
       )
       .subscribe();

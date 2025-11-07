@@ -24,6 +24,7 @@ import 'react-native-reanimated';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { AlertProvider } from '../components/ui/AlertProvider';
 import { NotificationProvider } from '../contexts/NotificationContext';
+import { RefreshCoordinatorProvider } from '../contexts/RefreshCoordinatorContext';
 import { ThemeProvider as AppThemeProvider, useTheme } from '../contexts/ThemeContext';
 import { useAuth } from '../hooks/useAuth';
 import { NotificationTriggersService } from '../services/notification-triggers.service';
@@ -188,11 +189,13 @@ function ThemedApp() {
   return (
     <PaperProvider theme={paperTheme}>
       <ThemeProvider value={navigationTheme}>
-        <NotificationProvider>
-          <AlertProvider>
-            <RootLayoutNav />
-          </AlertProvider>
-        </NotificationProvider>
+        <RefreshCoordinatorProvider>
+          <NotificationProvider>
+            <AlertProvider>
+              <RootLayoutNav />
+            </AlertProvider>
+          </NotificationProvider>
+        </RefreshCoordinatorProvider>
       </ThemeProvider>
     </PaperProvider>
   );

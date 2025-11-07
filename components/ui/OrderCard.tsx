@@ -23,12 +23,12 @@ interface OrderCardProps {
 }
 
 // Helper function to format order status for display
-const formatOrderStatus = (status: OrderStatus): string => {
+const formatOrderStatus = (status: OrderStatus, isSmallDevice: boolean = false): string => {
   const statusMap: Record<OrderStatus, string> = {
     'pending': 'Pending',
     'confirmed': 'Preparing',
     'preparing': 'Preparing',
-    'ready_for_pickup': 'Ready for Pickup',
+    'ready_for_pickup': isSmallDevice ? 'Ready' : 'Ready for Pickup',
     'out_for_delivery': 'On the Way',
     'delivered': 'Delivered',
     'cancelled': 'Cancelled'
@@ -111,7 +111,7 @@ export const OrderCard: React.FC<OrderCardProps> = ({
   const { colors } = useTheme();
   const { isTablet, isSmallDevice } = useResponsive();
   
-  const displayStatus = formatOrderStatus(order.status);
+  const displayStatus = formatOrderStatus(order.status, isSmallDevice);
   const statusColor = getStatusColor(order.status, colors);
   const statusIcon = getStatusIcon(order.status);
   const orderTime = formatOrderDate(order.created_at);
@@ -136,13 +136,23 @@ export const OrderCard: React.FC<OrderCardProps> = ({
         <ResponsiveText size="md" weight="semiBold" color={colors.text}>
           {displayOrderNumber}
         </ResponsiveText>
-        <ResponsiveView style={[styles.statusBadge, { backgroundColor: `${statusColor}20` }]}>
+        <ResponsiveView style={[
+          styles.statusBadge,
+          isSmallDevice && styles.statusBadgeSmall,
+          { backgroundColor: `${statusColor}20` }
+        ]}>
           <MaterialIcons 
             name={statusIcon} 
-            size={12} 
+            size={isSmallDevice ? 10 : 12} 
             color={statusColor} 
           />
-          <ResponsiveText size="xs" color={statusColor} weight="semiBold">
+          <ResponsiveText 
+            size="xs" 
+            color={statusColor} 
+            weight="semiBold"
+            numberOfLines={1}
+            style={styles.statusText}
+          >
             {displayStatus}
           </ResponsiveText>
         </ResponsiveView>
@@ -170,13 +180,23 @@ export const OrderCard: React.FC<OrderCardProps> = ({
           <ResponsiveText size="lg" weight="semiBold" color={colors.text}>
             {displayOrderNumber}
           </ResponsiveText>
-          <ResponsiveView style={[styles.statusBadge, { backgroundColor: `${statusColor}20` }]}>
+          <ResponsiveView style={[
+            styles.statusBadge,
+            isSmallDevice && styles.statusBadgeSmall,
+            { backgroundColor: `${statusColor}20` }
+          ]}>
             <MaterialIcons 
               name={statusIcon} 
-              size={14} 
+              size={isSmallDevice ? 12 : 14} 
               color={statusColor} 
             />
-            <ResponsiveText size="sm" color={statusColor} weight="semiBold">
+            <ResponsiveText 
+              size={isSmallDevice ? "xs" : "sm"} 
+              color={statusColor} 
+              weight="semiBold"
+              numberOfLines={1}
+              style={styles.statusText}
+            >
               {displayStatus}
             </ResponsiveText>
           </ResponsiveView>
@@ -314,13 +334,23 @@ export const OrderCard: React.FC<OrderCardProps> = ({
             >
               {productName}
             </ResponsiveText>
-            <ResponsiveView style={[styles.statusBadge, { backgroundColor: `${statusColor}20` }]}>
+            <ResponsiveView style={[
+              styles.statusBadge,
+              isSmallDevice && styles.statusBadgeSmall,
+              { backgroundColor: `${statusColor}20` }
+            ]}>
               <MaterialIcons 
                 name={statusIcon} 
-                size={14} 
+                size={isSmallDevice ? 12 : 14} 
                 color={statusColor} 
               />
-              <ResponsiveText size="xs" color={statusColor} weight="semiBold">
+              <ResponsiveText 
+                size="xs" 
+                color={statusColor} 
+                weight="semiBold"
+                numberOfLines={1}
+                style={styles.statusText}
+              >
                 {displayStatus}
               </ResponsiveText>
             </ResponsiveView>
@@ -453,10 +483,20 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     alignSelf: 'flex-start',
-    paddingHorizontal: Layout.spacing.xs,
-    paddingVertical: 2,
+    paddingHorizontal: Layout.spacing.sm,
+    paddingVertical: 4,
     borderRadius: Layout.borderRadius.sm,
     marginTop: Layout.spacing.xs,
+    maxWidth: '100%',
+    flexShrink: 1,
+  },
+  statusBadgeSmall: {
+    paddingHorizontal: Layout.spacing.xs,
+    paddingVertical: 3,
+  },
+  statusText: {
+    flexShrink: 1,
+    marginLeft: 4,
   },
   orderItems: {
     marginBottom: Layout.spacing.sm,

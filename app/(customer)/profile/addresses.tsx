@@ -3,7 +3,6 @@ import { useRouter } from 'expo-router';
 import React, { useState } from 'react';
 import {
   ActivityIndicator,
-  Alert,
   RefreshControl,
   ScrollView,
   StyleSheet,
@@ -22,6 +21,7 @@ import {
   useSetDefaultAddress
 } from '../../../hooks/useAddresses';
 import global from '../../../styles/global';
+import { useAlert } from '../../../components/ui/AlertProvider';
 
 export default function AddressesScreen() {
   const { colors } = useTheme();
@@ -30,6 +30,7 @@ export default function AddressesScreen() {
   const { deleteAddress, isLoading: isDeleting } = useDeleteAddress();
   const { setDefaultAddress, isLoading: isSettingDefault } = useSetDefaultAddress();
   const [refreshing, setRefreshing] = useState(false);
+  const { show, success, error: showError } = useAlert();
 
   const handleRefresh = async () => {
     setRefreshing(true);
@@ -46,23 +47,23 @@ export default function AddressesScreen() {
   };
 
   const handleDeleteAddress = (address: Address) => {
-    Alert.alert(
+    show(
       'Delete Address',
       `Are you sure you want to delete "${address.label}"?`,
       [
-        { text: 'Cancel', style: 'cancel' },
         {
           text: 'Delete',
           style: 'destructive',
           onPress: async () => {
             try {
               await deleteAddress(address.id);
-              Alert.alert('Success', 'Address deleted successfully');
+              success('Success', 'Address deleted successfully');
             } catch (error) {
-              Alert.alert('Error', 'Failed to delete address. Please try again.');
+              showError('Error', 'Failed to delete address. Please try again.');
             }
           },
         },
+        { text: 'Cancel', style: 'cancel' },
       ]
     );
   };
@@ -70,9 +71,9 @@ export default function AddressesScreen() {
   const handleSetDefault = async (address: Address) => {
     try {
       await setDefaultAddress(address.id);
-      Alert.alert('Success', 'Default address updated successfully');
+      success('Success', 'Default address updated successfully');
     } catch (error) {
-      Alert.alert('Error', 'Failed to set default address. Please try again.');
+      showError('Error', 'Failed to set default address. Please try again.');
     }
   };
 

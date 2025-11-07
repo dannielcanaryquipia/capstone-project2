@@ -3,8 +3,8 @@ import * as ImagePicker from 'expo-image-picker';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import {
-    ScrollView,
-    StyleSheet
+  ScrollView,
+  StyleSheet
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAlert } from '../../../components/ui/AlertProvider';
@@ -16,6 +16,8 @@ import Layout from '../../../constants/Layout';
 import { ResponsiveBorderRadius, ResponsiveSpacing } from '../../../constants/Responsive';
 import { useTheme } from '../../../contexts/ThemeContext';
 import { useAuth } from '../../../hooks/useAuth';
+import { useResponsive } from '../../../hooks/useResponsive';
+import { supabase } from '../../../lib/supabase';
 import { OrderService } from '../../../services/order.service';
 import global from '../../../styles/global';
 import { Order } from '../../../types/order.types';
@@ -26,16 +28,77 @@ export default function OrderDetailsScreen() {
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
   const { show, confirm, success, error: showError } = useAlert();
+  const { isSmallDevice } = useResponsive();
   
   const [order, setOrder] = useState<Order | null>(null);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
   const [uploadingProof, setUploadingProof] = useState(false);
+  const [riderId, setRiderId] = useState<string | null>(null);
 
   useEffect(() => {
     if (id) {
       loadOrderDetails();
     }
+  }, [id]);
+
+  // Get rider ID
+  useEffect(() => {
+    const getRiderId = async () => {
+      if (!user?.id) return;
+      try {
+        const { data: rider } = await supabase
+          .from('riders')
+          .select('id')
+          .eq('user_id', user.id)
+          .single();
+        if (rider?.id) setRiderId(rider.id);
+      } catch (e) {
+        console.error('Error getting rider ID:', e);
+      }
+    };
+    getRiderId();
+  }, [user?.id]);
+
+  // Real-time subscription for order status updates
+  useEffect(() => {
+    if (!id) return;
+
+    const channel = supabase
+      .channel(`order-${id}-details`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'orders',
+          filter: `id=eq.${id}`,
+        },
+        (payload) => {
+          console.log('Order status updated in real-time:', payload.new);
+          // Reload order details when status changes
+          loadOrderDetails();
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'delivery_assignments',
+          filter: `order_id=eq.${id}`,
+        },
+        (payload) => {
+          console.log('Delivery assignment updated:', payload);
+          // Reload order details when assignment changes
+          loadOrderDetails();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, [id]);
 
   const loadOrderDetails = async () => {
@@ -217,19 +280,28 @@ export default function OrderDetailsScreen() {
               return;
             }
 
-            if (res.assets[0]) {
+            if (res.assets[0]?.uri) {
               const uri = res.assets[0].uri;
-              // Mark as delivered with proof image
-              const result = await OrderService.markOrderDelivered(order.id, user.id, uri);
-              if (result.success) {
-                success(
-                  'Success! ✅', 
-                  result.message,
-                  [{ text: 'OK', onPress: () => router.back() }]
-                );
-              } else {
-                showError('Error', result.message);
+              console.log('📸 Image selected from camera, starting upload and delivery process...', { uri: uri.substring(0, 50) + '...' });
+              try {
+                // Mark as delivered with proof image
+                const result = await OrderService.markOrderDelivered(order.id, user.id, uri);
+                if (result.success) {
+                  success(
+                    'Success! ✅', 
+                    result.message,
+                    [{ text: 'OK', onPress: () => router.back() }]
+                  );
+                } else {
+                  showError('Error', result.message);
+                }
+              } catch (deliveryError: any) {
+                console.error('Error marking order as delivered:', deliveryError);
+                showError('Error', deliveryError.message || 'Failed to mark order as delivered. Please try again.');
               }
+            } else {
+              console.warn('No image URI found in camera result');
+              showError('Error', 'Failed to get image. Please try again.');
             }
           } finally {
             setActionLoading(false);
@@ -262,19 +334,28 @@ export default function OrderDetailsScreen() {
               return;
             }
 
-            if (res.assets[0]) {
+            if (res.assets[0]?.uri) {
               const uri = res.assets[0].uri;
-              // Mark as delivered with proof image
-              const result = await OrderService.markOrderDelivered(order.id, user.id, uri);
-              if (result.success) {
-                success(
-                  'Success! ✅', 
-                  result.message,
-                  [{ text: 'OK', onPress: () => router.back() }]
-                );
-              } else {
-                showError('Error', result.message);
+              console.log('📸 Image selected from gallery, starting upload and delivery process...', { uri: uri.substring(0, 50) + '...' });
+              try {
+                // Mark as delivered with proof image
+                const result = await OrderService.markOrderDelivered(order.id, user.id, uri);
+                if (result.success) {
+                  success(
+                    'Success! ✅', 
+                    result.message,
+                    [{ text: 'OK', onPress: () => router.back() }]
+                  );
+                } else {
+                  showError('Error', result.message);
+                }
+              } catch (deliveryError: any) {
+                console.error('Error marking order as delivered:', deliveryError);
+                showError('Error', deliveryError.message || 'Failed to mark order as delivered. Please try again.');
               }
+            } else {
+              console.warn('No image URI found in gallery selection');
+              showError('Error', 'Failed to get image. Please try again.');
             }
           } finally {
             setActionLoading(false);
@@ -365,6 +446,18 @@ export default function OrderDetailsScreen() {
     }
   };
 
+  const formatStatusText = (status: string): string => {
+    const statusMap: Record<string, string> = {
+      'pending': 'PENDING',
+      'preparing': 'PREPARING',
+      'ready_for_pickup': isSmallDevice ? 'READY' : 'READY FOR PICKUP',
+      'out_for_delivery': 'OUT FOR DELIVERY',
+      'delivered': 'DELIVERED',
+      'cancelled': 'CANCELLED',
+    };
+    return statusMap[status] || status.replace('_', ' ').toUpperCase();
+  };
+
   const getPaymentStatusColor = (paymentStatus: string) => {
     switch (paymentStatus) {
       case 'verified': return colors.success;
@@ -390,10 +483,16 @@ export default function OrderDetailsScreen() {
     const isCOD = order.payment_method?.toLowerCase() === 'cod';
     const isGCash = order.payment_method?.toLowerCase() === 'gcash';
     const paymentVerified = order.payment_status === 'verified' || (order as any).payment_verified;
+    const isReadyForPickup = order.status === 'ready_for_pickup';
     const isOutForDelivery = order.status === 'out_for_delivery';
     const isDelivered = order.status === 'delivered';
     const hasProof = !!(order as any).proof_of_delivery_url;
 
+    // Get assignment info if available
+    const deliveryAssignments = (order as any).delivery_assignments || [];
+    const assignment = deliveryAssignments[0];
+    const assignmentStatus = assignment?.status;
+    const isAssignedToMe = assignment?.rider_id === riderId;
     const buttons: React.ReactNode[] = [];
 
     // Order already delivered
@@ -421,6 +520,41 @@ export default function OrderDetailsScreen() {
             </ResponsiveText>
           </ResponsiveView>
         </ResponsiveView>
+      );
+    }
+
+    // Handle ready_for_pickup orders - show "Mark as Picked Up" button
+    // Only show if order is assigned to this rider and assignment status is "Assigned"
+    if (isReadyForPickup && assignment && isAssignedToMe && (assignmentStatus === 'Assigned' || !assignmentStatus)) {
+      return (
+        <Button
+          title="Mark as Picked Up"
+          onPress={async () => {
+            try {
+              setActionLoading(true);
+              const { data: rider } = await supabase
+                .from('riders')
+                .select('id')
+                .eq('user_id', user.id)
+                .single();
+              if (!rider || !(rider as any).id) throw new Error('Rider profile not found');
+              
+              const { RiderService } = await import('../../../services/rider.service');
+              await RiderService.markOrderPickedUp(order.id, (rider as any).id);
+              await loadOrderDetails();
+              success('Success! 📦', 'Order marked as picked up');
+            } catch (error: any) {
+              console.error('Error marking order as picked up:', error);
+              showError('Error', error.message || 'Failed to mark as picked up');
+            } finally {
+              setActionLoading(false);
+            }
+          }}
+          loading={actionLoading}
+          variant="primary"
+          size="large"
+          icon={<MaterialIcons name="local-shipping" size={20} color="white" />}
+        />
       );
     }
 
@@ -542,16 +676,18 @@ export default function OrderDetailsScreen() {
                 }]}>
                   <MaterialIcons 
                     name={getStatusIcon(order.status) as any} 
-                    size={16} 
+                    size={isSmallDevice ? 14 : 16} 
                     color={getStatusColor(order.status)} 
                   />
                 <ResponsiveView marginLeft="xs">
                   <ResponsiveText 
-                    size="sm" 
+                    size={isSmallDevice ? "xs" : "sm"} 
                     color={getStatusColor(order.status)}
                     weight="semiBold"
+                    numberOfLines={1}
+                    style={styles.statusText}
                   >
-                    {order.status.replace('_', ' ').toUpperCase()}
+                    {formatStatusText(order.status)}
                   </ResponsiveText>
                 </ResponsiveView>
                 </ResponsiveView>
@@ -739,16 +875,18 @@ export default function OrderDetailsScreen() {
               }]}>
                 <MaterialIcons 
                   name={getStatusIcon(order.status) as any} 
-                  size={16} 
+                  size={isSmallDevice ? 14 : 16} 
                   color={getStatusColor(order.status)} 
                 />
                 <ResponsiveView marginLeft="xs">
                   <ResponsiveText 
-                    size="sm" 
+                    size={isSmallDevice ? "xs" : "sm"} 
                     color={getStatusColor(order.status)}
                     weight="semiBold"
+                    numberOfLines={1}
+                    style={styles.statusText}
                   >
-                    {order.status.replace('_', ' ').toUpperCase()}
+                    {formatStatusText(order.status)}
                   </ResponsiveText>
                 </ResponsiveView>
               </ResponsiveView>
@@ -848,6 +986,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: ResponsiveSpacing.sm,
     paddingVertical: ResponsiveSpacing.xs,
     borderRadius: ResponsiveBorderRadius.sm,
+    maxWidth: '100%',
+    flexShrink: 1,
   },
   section: {
     padding: ResponsiveSpacing.lg,
@@ -878,6 +1018,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: ResponsiveSpacing.sm,
     paddingVertical: ResponsiveSpacing.xs,
     borderRadius: ResponsiveBorderRadius.sm,
+    maxWidth: '100%',
+    flexShrink: 1,
+  },
+  statusText: {
+    flexShrink: 1,
   },
   infoCard: {
     flexDirection: 'row',

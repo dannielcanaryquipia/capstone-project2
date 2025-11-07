@@ -7,11 +7,13 @@ import {
   RefreshControl,
   ScrollView,
   StyleSheet,
-  TouchableOpacity
+  TouchableOpacity,
+  View
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Layout from '../../constants/Layout';
 import { ResponsiveBorderRadius, ResponsiveSpacing } from '../../constants/Responsive';
+import { useNotificationContext } from '../../contexts/NotificationContext';
 import { useTheme } from '../../contexts/ThemeContext';
 import { useAuth } from '../../hooks/useAuth';
 import { useRiderOrders, useRiderProfile } from '../../hooks/useRiderProfile';
@@ -33,6 +35,8 @@ export default function RiderDashboard({
   const { user } = useAuth();
   const router = useRouter();
   const [refreshing, setRefreshing] = useState(false);
+  const { unreadCount, refresh: refreshNotifications } = useNotificationContext();
+  const hasUnreadNotifications = unreadCount > 0;
   
   // Use enhanced hooks
   const { 
@@ -70,10 +74,15 @@ export default function RiderDashboard({
     }
   }, [profile?.id, loading, stats]);
 
+  const handleNotificationPress = () => {
+    refreshNotifications();
+    router.push('/(delivery)/notifications' as any);
+  };
+
   const handleRefresh = async () => {
     setRefreshing(true);
     try {
-      await Promise.all([refreshProfile(), refreshOrders()]);
+      await Promise.all([refreshProfile(), refreshOrders(), refreshNotifications()]);
     } catch (error) {
       console.error('Error refreshing dashboard:', error);
     } finally {
@@ -160,12 +169,32 @@ export default function RiderDashboard({
                 {profile?.profile?.full_name || 'Rider'}
               </ResponsiveText>
             </ResponsiveView>
-            <TouchableOpacity
-              style={[styles.profileButton, { backgroundColor: colors.surface }]}
-              onPress={onNavigateToProfile || (() => router.push('/(delivery)/profile' as any))}
-            >
-              <MaterialIcons name="person" size={24} color={colors.primary} />
-            </TouchableOpacity>
+            <ResponsiveView style={styles.headerActions}>
+              <TouchableOpacity
+                style={[styles.notificationButton, { backgroundColor: colors.surface }]}
+                onPress={handleNotificationPress}
+                activeOpacity={0.8}
+              >
+                <MaterialIcons
+                  name={hasUnreadNotifications ? 'notifications-active' : 'notifications-none'}
+                  size={24}
+                  color={hasUnreadNotifications ? colors.primary : colors.textSecondary}
+                />
+                {hasUnreadNotifications && (
+                  <View style={[styles.notificationBadge, { backgroundColor: colors.error }]}>
+                    <ResponsiveText size="xs" weight="bold" color={colors.textInverse}>
+                      {unreadCount > 99 ? '99+' : unreadCount}
+                    </ResponsiveText>
+                  </View>
+                )}
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.profileButton, { backgroundColor: colors.surface }]}
+                onPress={onNavigateToProfile || (() => router.push('/(delivery)/profile' as any))}
+              >
+                <MaterialIcons name="person" size={24} color={colors.primary} />
+              </TouchableOpacity>
+            </ResponsiveView>
           </ResponsiveView>
 
           {/* Availability Toggle */}
@@ -475,6 +504,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: ResponsiveSpacing.lg,
   },
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: ResponsiveSpacing.sm,
+  },
   profileButton: {
     width: 48,
     height: 48,
@@ -482,6 +516,26 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     ...Layout.shadows.sm,
+  },
+  notificationButton: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    justifyContent: 'center',
+    alignItems: 'center',
+    ...Layout.shadows.sm,
+    position: 'relative',
+  },
+  notificationBadge: {
+    position: 'absolute',
+    top: 6,
+    right: 6,
+    minWidth: 18,
+    height: 18,
+    borderRadius: 9,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 4,
   },
   availabilityCard: {
     flexDirection: 'row',

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
+import { useRefreshCoordinator } from '../contexts/RefreshCoordinatorContext';
 import { OrderService } from '../services/order.service';
 import { Order, OrderFilters, OrderStats, OrderTracking } from '../types/order.types';
 import { useAuth } from './useAuth';
@@ -9,6 +10,13 @@ export const useOrders = (filters?: OrderFilters) => {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const { user } = useAuth();
+  const { registerRefresh, refresh: requestRefresh } = useRefreshCoordinator();
+
+  const scheduleNotificationRefresh = useCallback(() => {
+    requestRefresh(['notifications']);
+    setTimeout(() => requestRefresh(['notifications']), 800);
+    setTimeout(() => requestRefresh(['notifications']), 2000);
+  }, [requestRefresh]);
 
   const fetchOrders = useCallback(async () => {
     if (!user?.id) return;
@@ -29,6 +37,12 @@ export const useOrders = (filters?: OrderFilters) => {
   useEffect(() => {
     fetchOrders();
   }, [fetchOrders]);
+
+  // Register with refresh coordinator
+  useEffect(() => {
+    const unregister = registerRefresh('orders', fetchOrders);
+    return unregister;
+  }, [registerRefresh, fetchOrders]);
 
   // Real-time subscription for order updates
   useEffect(() => {
@@ -53,7 +67,10 @@ export const useOrders = (filters?: OrderFilters) => {
             old: payload.old
           });
           // Refetch orders when any order changes
+          // The coordinator will debounce this to prevent excessive refreshes
           fetchOrders();
+          // Also ask the refresh coordinator to refresh notifications (unread badge)
+          scheduleNotificationRefresh();
         }
       )
       .subscribe();
@@ -61,11 +78,12 @@ export const useOrders = (filters?: OrderFilters) => {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [user?.id]);
+  }, [user?.id, fetchOrders]);
 
   const refresh = useCallback(() => {
     fetchOrders();
-  }, [fetchOrders]);
+    scheduleNotificationRefresh();
+  }, [fetchOrders, scheduleNotificationRefresh]);
 
   return {
     orders,

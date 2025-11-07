@@ -1,8 +1,9 @@
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
 import { useAuth } from '../hooks/useAuth';
 import { Notification } from '../lib/database.types';
 import { supabase } from '../lib/supabase';
 import { notificationService } from '../services/api';
+import { useRefreshCoordinator } from './RefreshCoordinatorContext';
 
 interface NotificationContextType {
   notifications: Notification[];
@@ -41,8 +42,9 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({ chil
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const { user } = useAuth();
+  const { registerRefresh } = useRefreshCoordinator();
 
-  const fetchNotifications = async () => {
+  const fetchNotifications = useCallback(async () => {
     if (!user?.id) {
       console.log('NotificationContext - No user ID, skipping fetch');
       return;
@@ -75,11 +77,17 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({ chil
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [user?.id]);
 
   useEffect(() => {
     fetchNotifications();
-  }, [user?.id]);
+  }, [fetchNotifications]);
+
+  // Register with refresh coordinator
+  useEffect(() => {
+    const unregister = registerRefresh('notifications', fetchNotifications);
+    return unregister;
+  }, [registerRefresh, fetchNotifications]);
 
   // Real-time subscription for notification updates
   useEffect(() => {
@@ -109,9 +117,17 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({ chil
           
           if (payload.eventType === 'INSERT') {
             console.log('🔔 Inserting new notification:', payload.new);
+            const newNotification = payload.new as Notification;
+            
             // Add new notification to the top of the list (LIFO - newest first)
             setNotifications(prev => {
-              const newNotification = payload.new as Notification;
+              // Check if notification already exists (avoid duplicates)
+              const exists = prev.some(n => n.id === newNotification.id);
+              if (exists) {
+                console.log('🔔 Notification already exists in list, skipping duplicate');
+                return prev;
+              }
+              
               console.log('🔔 Adding notification to list. Previous count:', prev.length);
               const updatedList = [newNotification, ...prev];
               // Ensure the list remains sorted by created_at in descending order
@@ -121,11 +137,15 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({ chil
               console.log('🔔 New notification added. Total count:', sorted.length);
               return sorted;
             });
-            setUnreadCount(prev => {
-              const newCount = prev + 1;
-              console.log('🔔 Updated unread count:', newCount);
-              return newCount;
-            });
+            
+            // Only increment unread count if notification is unread
+            if (!newNotification.is_read) {
+              setUnreadCount(prev => {
+                const newCount = prev + 1;
+                console.log('🔔 Updated unread count:', newCount);
+                return newCount;
+              });
+            }
           } else if (payload.eventType === 'UPDATE') {
             console.log('🔔 Updating notification:', payload.new);
             // Update existing notification and maintain order
@@ -168,6 +188,72 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({ chil
       supabase.removeChannel(channel);
     };
   }, [user?.id]);
+
+  // Subscribe to order updates to automatically refresh notifications when orders change
+  // This ensures notifications are refreshed even if the notification INSERT event doesn't trigger properly
+  useEffect(() => {
+    if (!user?.id) {
+      console.log('NotificationContext - No user ID, skipping order update subscription');
+      return;
+    }
+
+    console.log('NotificationContext - Setting up order update subscription for user:', user.id);
+
+    const orderChannel = supabase
+      .channel(`user-orders-notifications-${user.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'orders',
+          filter: `user_id=eq.${user.id}`,
+        },
+        async (payload) => {
+          console.log('🔄 NotificationContext - Order update detected, refreshing notifications:', {
+            orderId: (payload.new as any)?.id,
+            status: (payload.new as any)?.status,
+            oldStatus: (payload.old as any)?.status,
+            paymentStatus: (payload.new as any)?.payment_status,
+            oldPaymentStatus: (payload.old as any)?.payment_status,
+          });
+          
+          // Refresh if status changed OR payment status changed (payment verification also sends notifications)
+          const statusChanged = (payload.old as any)?.status !== (payload.new as any)?.status;
+          const paymentStatusChanged = (payload.old as any)?.payment_status !== (payload.new as any)?.payment_status;
+          
+          if (statusChanged || paymentStatusChanged) {
+            console.log('🔄 Order status or payment status changed, refreshing notifications...');
+            
+            // When order is marked as delivered, we need to ensure notification is refreshed
+            // Use a retry mechanism with increasing delays to ensure notification is created in database
+            const refreshWithRetry = (attempt: number = 0) => {
+              const delays = [1000, 2000, 3000]; // Progressive delays - increased for delivered status
+              const delay = delays[attempt] || delays[delays.length - 1];
+              
+              setTimeout(() => {
+                console.log(`🔄 Executing notification refresh after order update (attempt ${attempt + 1})...`);
+                fetchNotifications();
+                
+                // For delivered status, do multiple retries to ensure notification is picked up
+                if (attempt < 2 && (payload.new as any)?.status === 'delivered') {
+                  refreshWithRetry(attempt + 1);
+                }
+              }, delay);
+            };
+            
+            // Start refresh immediately and with retries
+            refreshWithRetry(0);
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      console.log('NotificationContext - Cleaning up order update subscription');
+      supabase.removeChannel(orderChannel);
+    };
+  }, [user?.id, fetchNotifications]);
 
   const markAsRead = async (notificationId: string) => {
     try {
@@ -216,9 +302,9 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({ chil
     }
   };
 
-  const refresh = async () => {
+  const refresh = useCallback(async () => {
     await fetchNotifications();
-  };
+  }, [fetchNotifications]);
 
   const value: NotificationContextType = {
     notifications,

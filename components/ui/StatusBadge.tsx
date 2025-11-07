@@ -3,6 +3,7 @@ import React from 'react';
 import { StyleSheet } from 'react-native';
 import Layout from '../../constants/Layout';
 import { useTheme } from '../../contexts/ThemeContext';
+import { useResponsive } from '../../hooks/useResponsive';
 import { OrderStatus } from '../../types/order.types';
 import { ResponsiveText } from './ResponsiveText';
 import { ResponsiveView } from './ResponsiveView';
@@ -55,12 +56,12 @@ const getStatusIcon = (status: OrderStatus | string): keyof typeof MaterialIcons
 };
 
 // Helper function to format status text
-const formatStatusText = (status: OrderStatus | string): string => {
+const formatStatusText = (status: OrderStatus | string, isSmallDevice: boolean = false): string => {
   const statusMap: Record<string, string> = {
     'pending': 'Pending',
     'confirmed': 'Confirmed',
     'preparing': 'Preparing',
-    'ready_for_pickup': 'Ready for Pickup',
+    'ready_for_pickup': isSmallDevice ? 'Ready' : 'Ready for Pickup',
     'out_for_delivery': 'On the Way',
     'delivered': 'Delivered',
     'cancelled': 'Cancelled',
@@ -82,10 +83,11 @@ export const StatusBadge: React.FC<StatusBadgeProps> = ({
   customIcon,
 }) => {
   const { colors } = useTheme();
+  const { isSmallDevice } = useResponsive();
   
   const statusColor = customColor || getStatusColor(status, colors);
   const statusIcon = customIcon || getStatusIcon(status);
-  const statusText = formatStatusText(status);
+  const statusText = formatStatusText(status, isSmallDevice);
 
   const getSizeStyles = () => {
     switch (size) {
@@ -169,6 +171,8 @@ export const StatusBadge: React.FC<StatusBadgeProps> = ({
         size={sizeStyles.textSize}
         color={variantStyles.textColor}
         weight="semiBold"
+        numberOfLines={1}
+        style={styles.statusText}
       >
         {statusText}
       </ResponsiveText>
@@ -181,8 +185,13 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     alignSelf: 'flex-start',
+    maxWidth: '100%',
+    flexShrink: 1,
   },
   icon: {
     marginRight: Layout.spacing.xs,
+  },
+  statusText: {
+    flexShrink: 1,
   },
 });

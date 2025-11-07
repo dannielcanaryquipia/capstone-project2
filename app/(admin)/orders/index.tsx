@@ -2,7 +2,6 @@ import { MaterialIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import React, { useState } from 'react';
 import {
-    Alert,
     FlatList,
     RefreshControl,
     ScrollView,
@@ -23,6 +22,7 @@ import { useTheme } from '../../../contexts/ThemeContext';
 import { useAdminOrders } from '../../../hooks';
 import { OrderService } from '../../../services/order.service';
 import { Order, OrderStatus } from '../../../types/order.types';
+import { useAlert } from '../../../components/ui/AlertProvider';
 
 const getStatusTabs = (colors: any): TabItem[] => [
   { key: 'all', label: 'All', color: colors.textSecondary },
@@ -38,6 +38,7 @@ const getStatusTabs = (colors: any): TabItem[] => [
 export default function AdminOrdersScreen() {
   const { colors } = useTheme();
   const router = useRouter();
+  const { show, success, error: showError, confirm } = useAlert();
   const [activeTab, setActiveTab] = useState<OrderStatus | 'all'>('all');
   const [updatingOrder, setUpdatingOrder] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
@@ -74,27 +75,24 @@ export default function AdminOrdersScreen() {
   ] as TabItem[];
 
   const handleStatusUpdate = async (orderId: string, newStatus: OrderStatus) => {
-    Alert.alert(
+    show(
       'Update Order Status',
       `Are you sure you want to change this order status to ${newStatus.replace('_', ' ')}?`,
       [
-        { text: 'Cancel', style: 'cancel' },
-        { 
-          text: 'Update', 
-          onPress: async () => {
-            try {
-              setUpdatingOrder(orderId);
-              await OrderService.updateOrderStatus(orderId, newStatus, 'admin');
-              await handleRefresh(); // Refresh the list using hook
-              Alert.alert('Success', 'Order status updated successfully!');
-            } catch (error) {
-              console.error('Error updating order status:', error);
-              Alert.alert('Error', 'Failed to update order status. Please try again.');
-            } finally {
-              setUpdatingOrder(null);
-            }
+        { text: 'Update', style: 'default', onPress: async () => {
+          try {
+            setUpdatingOrder(orderId);
+            await OrderService.updateOrderStatus(orderId, newStatus, 'admin');
+            await handleRefresh();
+            success('Success', 'Order status updated successfully!');
+          } catch (error) {
+            console.error('Error updating order status:', error);
+            showError('Error', 'Failed to update order status. Please try again.');
+          } finally {
+            setUpdatingOrder(null);
           }
-        }
+        } },
+        { text: 'Cancel', style: 'cancel' },
       ]
     );
   };

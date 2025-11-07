@@ -172,7 +172,12 @@ export default function HomeScreen() {
               What would you like to order today?
             </ResponsiveText>
           </ResponsiveView>
-          <ResponsiveView flexDirection="row" alignItems="center" marginLeft="md">
+        <ResponsiveView
+          flexDirection="row"
+          alignItems="flex-start"
+          marginLeft="md"
+          style={styles.notificationWrapper}
+        >
             <TouchableOpacity 
               style={styles.notificationButton}
               onPress={() => router.push('/(customer)/notification')}
@@ -555,7 +560,8 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
+    alignItems: 'flex-start',
+    flexWrap: 'wrap',
     paddingHorizontal: 20,
     paddingTop: 15,
     paddingBottom: 10,
@@ -575,14 +581,18 @@ const styles = StyleSheet.create({
   },
   notificationButton: {
     position: 'relative',
-    zIndex: 10,
+    padding: Responsive.responsiveValue(2, 4, 6, 8),
+    marginTop: Responsive.responsiveValue(4, 6, 8, 10),
   },
   notificationIconContainer: {
     position: 'relative',
     padding: Responsive.responsiveValue(8, 10, 12, 14),
     borderRadius: Responsive.responsiveValue(20, 22, 24, 28),
     backgroundColor: 'rgba(0, 0, 0, 0.05)',
-    zIndex: 10,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: 'rgba(0, 0, 0, 0.08)',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   notificationBadge: {
     position: 'absolute',
@@ -594,12 +604,15 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     paddingHorizontal: Responsive.responsiveValue(4, 5, 6, 7),
-    zIndex: 11,
     shadowColor: '#FF6B6B',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.3,
     shadowRadius: 4,
     elevation: 4,
+  },
+  notificationWrapper: {
+    alignItems: 'flex-start',
+    justifyContent: 'center',
   },
   badgeText: {
     fontSize: Responsive.responsiveValue(8, 9, 10, 11),

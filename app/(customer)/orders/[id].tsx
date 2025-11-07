@@ -28,23 +28,43 @@ import { getDetailedCustomizationDisplay } from '../../../utils/customizationDis
 
 // Reusable components for better organization
 const OrderStatusBadge: React.FC<{ status: OrderStatus; colors: any }> = ({ status, colors }) => {
+  const { isSmallDevice } = useResponsive();
+  
   const statusConfig = useMemo(() => {
     const configs = {
       'pending': { color: colors.warning, icon: 'schedule', label: 'PENDING' },
       'confirmed': { color: colors.info, icon: 'check-circle-outline', label: 'CONFIRMED' },
       'preparing': { color: colors.primary, icon: 'restaurant', label: 'PREPARING' },
-      'ready_for_pickup': { color: colors.warning, icon: 'local-shipping', label: 'READY FOR PICKUP' },
+      'ready_for_pickup': { 
+        color: colors.warning, 
+        icon: 'local-shipping', 
+        label: isSmallDevice ? 'READY' : 'READY FOR PICKUP' 
+      },
       'out_for_delivery': { color: colors.info, icon: 'delivery-dining', label: 'ON THE WAY' },
       'delivered': { color: colors.success, icon: 'check-circle', label: 'DELIVERED' },
       'cancelled': { color: colors.error, icon: 'cancel', label: 'CANCELLED' }
     };
     return configs[status] || configs['pending'];
-  }, [status, colors]);
+  }, [status, colors, isSmallDevice]);
 
   return (
-    <ResponsiveView style={[styles.statusBadge, { backgroundColor: `${statusConfig.color}20` }]}>
-      <MaterialIcons name={statusConfig.icon as any} size={16} color={statusConfig.color} />
-      <ResponsiveText size="sm" color={statusConfig.color} weight="semiBold">
+    <ResponsiveView style={[
+      styles.statusBadge,
+      isSmallDevice && styles.statusBadgeSmall,
+      { backgroundColor: `${statusConfig.color}20` }
+    ]}>
+      <MaterialIcons 
+        name={statusConfig.icon as any} 
+        size={isSmallDevice ? 14 : 16} 
+        color={statusConfig.color} 
+      />
+      <ResponsiveText 
+        size={isSmallDevice ? "xs" : "sm"} 
+        color={statusConfig.color} 
+        weight="semiBold"
+        numberOfLines={1}
+        style={styles.statusText}
+      >
         {statusConfig.label}
       </ResponsiveText>
     </ResponsiveView>
@@ -640,6 +660,16 @@ const styles = StyleSheet.create({
     paddingHorizontal: Layout.spacing.sm,
     paddingVertical: Layout.spacing.xs,
     borderRadius: Layout.borderRadius.sm,
+    maxWidth: '100%',
+    flexShrink: 1,
+  },
+  statusBadgeSmall: {
+    paddingHorizontal: Layout.spacing.xs,
+    paddingVertical: 3,
+  },
+  statusText: {
+    flexShrink: 1,
+    marginLeft: 4,
   },
   itemsCard: {
     borderRadius: Layout.borderRadius.md,

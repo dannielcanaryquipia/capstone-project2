@@ -5,7 +5,9 @@ import {
   ActivityIndicator,
   RefreshControl,
   ScrollView,
-  StyleSheet
+  StyleSheet,
+  TouchableOpacity,
+  View
 } from 'react-native';
 import { AdminCard, AdminLayout, AdminMetricCard, AdminSection } from '../../../components/admin';
 import Button from '../../../components/ui/Button';
@@ -15,6 +17,7 @@ import Layout from '../../../constants/Layout';
 import Responsive, { responsiveValue } from '../../../constants/Responsive';
 import { Strings } from '../../../constants/Strings';
 import { useTheme } from '../../../contexts/ThemeContext';
+import { useNotificationContext } from '../../../contexts/NotificationContext';
 import { useAdminOrders, useAdminStats, useAuth } from '../../../hooks';
 
 export default function AdminDashboard() {
@@ -23,13 +26,22 @@ export default function AdminDashboard() {
   const router = useRouter();
   
   // Use hooks for data fetching
-  const { stats, isLoading: statsLoading, error: statsError, refresh: refreshStats } = useAdminStats();
-  const { orders: recentOrders, isLoading: ordersLoading, error: ordersError, refresh: refreshOrders } = useAdminOrders({ 
+  const { stats, isLoading: statsLoading, error: statsError, refresh: refreshStats, refreshing: statsRefreshing } = useAdminStats();
+  const { orders: recentOrders, isLoading: ordersLoading, error: ordersError, refresh: refreshOrders, refreshing: ordersRefreshing } = useAdminOrders({ 
     status: ['pending', 'preparing', 'ready_for_pickup', 'out_for_delivery'] 
   });
+  const { unreadCount, refresh: refreshNotifications } = useNotificationContext();
+
+  const hasUnreadNotifications = unreadCount > 0;
 
   const loading = statsLoading || ordersLoading;
   const error = statsError || ordersError;
+  const refreshing = statsRefreshing || ordersRefreshing;
+
+  const handleNotificationPress = () => {
+    refreshNotifications();
+    router.push('/(admin)/notifications' as any);
+  };
 
   // Debug: Log stats to see what we're getting
   React.useEffect(() => {
@@ -39,7 +51,7 @@ export default function AdminDashboard() {
   }, [stats]);
 
   const handleRefresh = async () => {
-    await Promise.all([refreshStats(), refreshOrders()]);
+    await Promise.all([refreshStats(), refreshOrders(), refreshNotifications()]);
   };
 
   const getStatusColor = (status: string) => {
@@ -127,13 +139,24 @@ export default function AdminDashboard() {
       subtitle={`Welcome back, ${user?.user_metadata?.full_name || 'KitchenOneAdmin'}`}
       headerActions={
         <>
-          <Button
-            title=""
-            onPress={handleRefresh}
-            variant="text"
-            icon={<MaterialIcons name="refresh" size={24} color={colors.textSecondary} />}
-            style={styles.profileButton}
-          />
+          <TouchableOpacity
+            style={[styles.notificationButton, hasUnreadNotifications && { backgroundColor: colors.primary + '15' }]}
+            activeOpacity={0.8}
+            onPress={handleNotificationPress}
+          >
+            <MaterialIcons
+              name={hasUnreadNotifications ? 'notifications-active' : 'notifications-none'}
+              size={24}
+              color={hasUnreadNotifications ? colors.primary : colors.textSecondary}
+            />
+            {hasUnreadNotifications && (
+              <View style={[styles.notificationBadge, { backgroundColor: colors.error }]}>
+                <ResponsiveText size="xs" weight="bold" color={colors.textInverse}>
+                  {unreadCount > 99 ? '99+' : unreadCount}
+                </ResponsiveText>
+              </View>
+            )}
+          </TouchableOpacity>
           <Button
             title=""
             onPress={() => router.push('/(admin)/profile' as any)}
@@ -148,7 +171,7 @@ export default function AdminDashboard() {
       <ScrollView
         style={{ flex: 1 }}
         refreshControl={
-          <RefreshControl refreshing={loading} onRefresh={handleRefresh} tintColor={colors.primary} />
+          <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={colors.primary} />
         }
         showsVerticalScrollIndicator={false}
       >
@@ -363,6 +386,25 @@ const styles = StyleSheet.create({
   },
   profileButton: {
     padding: Responsive.ResponsiveSpacing.sm,
+  },
+  notificationButton: {
+    position: 'relative',
+    padding: Responsive.ResponsiveSpacing.sm,
+    borderRadius: Responsive.ResponsiveBorderRadius.round,
+    backgroundColor: 'transparent',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  notificationBadge: {
+    position: 'absolute',
+    top: -4,
+    right: -4,
+    minWidth: responsiveValue(16, 18, 20, 22),
+    height: responsiveValue(16, 18, 20, 22),
+    borderRadius: responsiveValue(8, 9, 10, 11),
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: Responsive.ResponsiveSpacing.xs,
   },
   metricsContainer: {
     flexDirection: 'row',

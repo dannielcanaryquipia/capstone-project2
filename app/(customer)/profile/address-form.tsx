@@ -2,7 +2,6 @@ import { MaterialIcons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import {
-    Alert,
     ScrollView,
     StyleSheet,
     TextInput,
@@ -23,12 +22,14 @@ import {
     useUpdateAddress
 } from '../../../hooks/useAddresses';
 import global from '../../../styles/global';
+import { useAlert } from '../../../components/ui/AlertProvider';
 
 export default function AddressFormScreen() {
   const { colors } = useTheme();
   const router = useRouter();
   const { addressId } = useLocalSearchParams<{ addressId?: string }>();
   const isEditing = !!addressId;
+  const { error: showError, success, show } = useAlert();
   
   const { address, isLoading: loadingAddress } = useAddress(addressId || '');
   const { createAddress, isLoading: isCreating } = useCreateAddress();
@@ -61,7 +62,7 @@ export default function AddressFormScreen() {
   const handleSave = async () => {
     // Validate form
     if (!validateAddress(formData)) {
-      Alert.alert('Validation Error', 'Please fix the errors before saving.');
+      showError('Validation Error', 'Please fix the errors before saving.');
       return;
     }
 
@@ -72,25 +73,25 @@ export default function AddressFormScreen() {
           ...formData,
         };
         await updateAddress(updateData);
-        Alert.alert('Success', 'Address updated successfully');
+        success('Success', 'Address updated successfully');
       } else {
         await createAddress(formData);
-        Alert.alert('Success', 'Address added successfully');
+        success('Success', 'Address added successfully');
       }
       router.back();
     } catch (error) {
-      Alert.alert('Error', 'Failed to save address. Please try again.');
+      showError('Error', 'Failed to save address. Please try again.');
     }
   };
 
   const handleCancel = () => {
     if (formData.label || formData.full_address) {
-      Alert.alert(
+      show(
         'Discard Changes',
         'Are you sure you want to discard your changes?',
         [
-          { text: 'Keep Editing', style: 'cancel' },
           { text: 'Discard', style: 'destructive', onPress: () => router.back() },
+          { text: 'Keep Editing', style: 'cancel' },
         ]
       );
     } else {

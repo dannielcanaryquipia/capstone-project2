@@ -148,40 +148,49 @@ export default function EarningsScreen() {
     </ResponsiveView>
   );
 
-  const renderWeeklyBreakdown = () => (
-    <ResponsiveView style={[styles.sectionCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-      <ResponsiveView marginBottom="md">
-        <ResponsiveText size="lg" weight="semiBold" color={colors.text}>
-          This Week's Breakdown
-        </ResponsiveText>
+  const renderWeeklyBreakdown = () => {
+    const weeklyBreakdown = earningsData?.weeklyBreakdown || [];
+    const maxEarnings = Math.max(...weeklyBreakdown.map(day => day.earnings), 1);
+    const maxBarHeight = 80; // Maximum bar height in pixels
+
+    return (
+      <ResponsiveView style={[styles.sectionCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+        <ResponsiveView marginBottom="md">
+          <ResponsiveText size="lg" weight="semiBold" color={colors.text}>
+            This Week's Breakdown
+          </ResponsiveText>
+        </ResponsiveView>
+        <ResponsiveView style={styles.weeklyChart}>
+          {weeklyBreakdown.map((day, index) => {
+            const barHeight = maxEarnings > 0 ? (day.earnings / maxEarnings) * maxBarHeight : 0;
+            return (
+              <ResponsiveView key={index} style={styles.dayColumn}>
+                <ResponsiveView style={styles.barContainer}>
+                  <View 
+                    style={[
+                      styles.bar, 
+                      { 
+                        height: barHeight,
+                        backgroundColor: colors.primary 
+                      }
+                    ]} 
+                  />
+                </ResponsiveView>
+                <ResponsiveView marginTop="xs">
+                  <ResponsiveText size="xs" color={colors.textSecondary}>
+                    {day.day}
+                  </ResponsiveText>
+                </ResponsiveView>
+                <ResponsiveText size="xs" color={colors.text} weight="semiBold">
+                  ₱{day.earnings.toFixed(0)}
+                </ResponsiveText>
+              </ResponsiveView>
+            );
+          })}
+        </ResponsiveView>
       </ResponsiveView>
-      <ResponsiveView style={styles.weeklyChart}>
-        {earningsData?.weeklyBreakdown.map((day, index) => (
-          <ResponsiveView key={index} style={styles.dayColumn}>
-            <ResponsiveView 
-              style={[
-                styles.bar, 
-                { 
-                  height: (day.earnings / 65) * 100, // Scale to max 65
-                  backgroundColor: colors.primary 
-                }
-              ]} 
-            >
-              <View />
-            </ResponsiveView>
-            <ResponsiveView marginTop="xs">
-              <ResponsiveText size="xs" color={colors.textSecondary}>
-                {day.day}
-              </ResponsiveText>
-            </ResponsiveView>
-            <ResponsiveText size="xs" color={colors.text} weight="semiBold">
-              ₱{day.earnings.toFixed(0)}
-            </ResponsiveText>
-          </ResponsiveView>
-        ))}
-      </ResponsiveView>
-    </ResponsiveView>
-  );
+    );
+  };
 
   const renderRecentDeliveries = () => (
     <ResponsiveView style={[styles.sectionCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
@@ -479,16 +488,25 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'flex-end',
     height: 120,
+    paddingHorizontal: 4,
   },
   dayColumn: {
     flex: 1,
     alignItems: 'center',
+    justifyContent: 'flex-end',
     marginHorizontal: 2,
   },
-  bar: {
+  barContainer: {
     width: '100%',
-    borderRadius: 4,
+    height: 80,
+    justifyContent: 'flex-end',
+    alignItems: 'center',
     marginBottom: 8,
+  },
+  bar: {
+    width: '80%',
+    minHeight: 2,
+    borderRadius: 4,
   },
   deliveriesList: {
     gap: 12,

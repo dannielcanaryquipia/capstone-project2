@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
+import { useRefreshCoordinator } from '../contexts/RefreshCoordinatorContext';
 import { OrderService } from '../services/order.service';
 import { Order, OrderFilters } from '../types/order.types';
 
@@ -8,10 +9,20 @@ export const useAdminOrders = (filters?: OrderFilters) => {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
+  const { registerRefresh, refresh: requestRefresh } = useRefreshCoordinator();
 
-  const fetchOrders = useCallback(async () => {
+  const scheduleNotificationRefresh = useCallback(() => {
+    requestRefresh(['notifications']);
+    setTimeout(() => requestRefresh(['notifications']), 800);
+    setTimeout(() => requestRefresh(['notifications']), 2000);
+  }, [requestRefresh]);
+
+  const fetchOrders = useCallback(async (options?: { background?: boolean }) => {
+    const background = options?.background;
     try {
-      setIsLoading(true);
+      if (!background) {
+        setIsLoading(true);
+      }
       setError(null);
       const data = await OrderService.getAdminOrders(filters);
       setOrders(data);
@@ -19,19 +30,24 @@ export const useAdminOrders = (filters?: OrderFilters) => {
       console.error('Error fetching admin orders:', err);
       setError(err.message || 'Failed to load orders');
     } finally {
-      setIsLoading(false);
+      if (!background) {
+        setIsLoading(false);
+      }
     }
   }, [JSON.stringify(filters)]);
 
   const refresh = useCallback(async () => {
     setRefreshing(true);
-    await fetchOrders();
+    await fetchOrders({ background: true });
+    scheduleNotificationRefresh();
     setRefreshing(false);
-  }, [fetchOrders]);
+  }, [fetchOrders, scheduleNotificationRefresh]);
 
   useEffect(() => {
     fetchOrders();
-  }, [fetchOrders]);
+    const unregister = registerRefresh('admin_orders', () => fetchOrders({ background: true }));
+    return unregister;
+  }, [fetchOrders, registerRefresh]);
 
   // Real-time subscription for all order updates
   useEffect(() => {
@@ -47,7 +63,8 @@ export const useAdminOrders = (filters?: OrderFilters) => {
         (payload) => {
           console.log('Admin order change received:', payload);
           // Refetch orders when any order changes
-          fetchOrders();
+          fetchOrders({ background: true });
+          scheduleNotificationRefresh();
         }
       )
       .subscribe();
@@ -55,7 +72,7 @@ export const useAdminOrders = (filters?: OrderFilters) => {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [fetchOrders]);
+  }, [fetchOrders, scheduleNotificationRefresh]);
 
   return {
     orders,

@@ -91,6 +91,9 @@ export interface Address {
 // Order Status Type
 export type OrderStatus = 'pending' | 'confirmed' | 'preparing' | 'ready_for_pickup' | 'out_for_delivery' | 'delivered' | 'cancelled';
 
+// Order Fulfillment Type
+export type OrderFulfillmentType = 'delivery' | 'pickup';
+
 // Payment Status Type
 export type PaymentStatus = 'pending' | 'verified' | 'failed' | 'refunded';
 
@@ -107,9 +110,10 @@ export type PaymentMethod = 'cod' | 'gcash' | 'card';
 export interface Order {
   id: string;
   user_id: string;
-  delivery_address_id: string;
+  delivery_address_id: string | null;
   total_amount: number;
   status: OrderStatus;
+  fulfillment_type: OrderFulfillmentType;
   payment_method?: string;
   payment_status: PaymentStatus;
   order_notes?: string;
@@ -125,6 +129,12 @@ export interface Order {
   order_items?: OrderItem[];
   delivery_assignment?: DeliveryAssignment;
   payment_transactions?: PaymentTransaction[];
+  pickup_ready_at?: string;
+  picked_up_at?: string;
+  pickup_verified_at?: string;
+  pickup_verified_by?: string;
+  pickup_location_snapshot?: string;
+  pickup_notes?: string;
   // Rider delivery information
   delivered_by_rider?: {
     id: string;
@@ -230,7 +240,8 @@ export interface AddressForm {
 }
 
 export interface CheckoutForm {
-  delivery_address_id: string;
+  delivery_address_id?: string | null;
+  fulfillment_type: OrderFulfillmentType;
   payment_method: PaymentMethod;
   order_notes?: string;
   proof_of_payment_url?: string;

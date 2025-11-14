@@ -21,6 +21,7 @@ export interface ProductCardProps {
   priceColor?: string;
   width?: number;
   height?: number;
+  isUnavailable?: boolean;
 }
 
 export const ProductCard: React.FC<ProductCardProps> = ({
@@ -38,6 +39,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({
   priceColor,
   width,
   height,
+  isUnavailable = false,
 }) => {
   const { colors } = useTheme();
   const isHorizontal = variant === 'horizontal';
@@ -63,7 +65,8 @@ export const ProductCard: React.FC<ProductCardProps> = ({
     <TouchableOpacity 
       style={cardStyle}
       onPress={onPress}
-      activeOpacity={0.8}
+      activeOpacity={isUnavailable ? 1 : 0.8}
+      disabled={isUnavailable}
     >
       <ResponsiveView style={styles.imageContainer}>
         <Image 
@@ -147,6 +150,14 @@ export const ProductCard: React.FC<ProductCardProps> = ({
           </ResponsiveText>
         </ResponsiveView>
       </ResponsiveView>
+
+      {isUnavailable && (
+        <View style={styles.unavailableOverlay} pointerEvents="none">
+          <ResponsiveText size="md" weight="bold" color="#FFFFFF">
+            Out of stock
+          </ResponsiveText>
+        </View>
+      )}
     </TouchableOpacity>
   );
 };
@@ -184,6 +195,16 @@ const styles = StyleSheet.create({
   content: {
     flex: 1,
     justifyContent: 'space-between',
+  },
+  unavailableOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.55)',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   loadingContainer: {
     position: 'absolute',

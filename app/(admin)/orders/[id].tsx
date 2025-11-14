@@ -33,6 +33,7 @@ interface OrderDetail {
   delivery_address_id: string;
   total_amount: number;
   status: OrderStatus;
+  fulfillment_type?: 'delivery' | 'pickup';
   payment_method?: string;
   payment_status?: string;
   order_notes?: string;
@@ -46,17 +47,20 @@ interface OrderDetail {
   payment_verified?: boolean;
   payment_verified_at?: string;
   payment_verified_by?: string;
+  pickup_location_snapshot?: string;
+  pickup_notes?: string;
+  picked_up_at?: string;
   customer: {
     id: string;
     full_name: string;
     phone_number?: string;
     username: string;
   };
-  delivery_address: {
+  delivery_address?: {
     id: string;
     full_address: string;
     label?: string;
-  };
+  } | null;
   order_items: Array<{
     id: string;
     product: {
@@ -92,7 +96,7 @@ export default function OrderDetailScreen() {
   const { colors } = useTheme();
   const { confirmDestructive, success, error: showError } = useAlert();
   const router = useRouter();
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const { id, from } = useLocalSearchParams<{ id: string; from?: string }>();
   const [loading, setLoading] = useState(true);
   const [updating, setUpdating] = useState(false);
   const [order, setOrder] = useState<OrderDetail | null>(null);
@@ -370,7 +374,18 @@ export default function OrderDetailScreen() {
     >
       {/* Header */}
       <ResponsiveView style={[styles.header, { backgroundColor: colors.surface }]}>
-        <TouchableOpacity onPress={() => router.replace('/(admin)/orders')} style={styles.backButton}>
+        <TouchableOpacity 
+          onPress={() => {
+            // If we came from notifications, navigate back to notifications
+            // Otherwise, navigate to orders page (since router.back() doesn't work correctly with Tabs layout)
+            if (from === 'notifications') {
+              router.push('/(admin)/notifications' as any);
+            } else {
+              router.replace('/(admin)/orders');
+            }
+          }} 
+          style={styles.backButton}
+        >
           <MaterialIcons name="arrow-back" size={responsiveValue(20, 24, 28, 32)} color={colors.text} />
         </TouchableOpacity>
         <ResponsiveText size="lg" weight="semiBold" color={colors.text}>
@@ -420,29 +435,86 @@ export default function OrderDetailScreen() {
           </ResponsiveView>
         </ResponsiveView>
 
-        {/* Delivery Address */}
+        {/* Receive Options / Fulfillment Type */}
         <ResponsiveView style={[styles.section, { backgroundColor: colors.surface }]}>
           <ResponsiveView marginBottom="md">
             <ResponsiveText size="lg" weight="semiBold" color={colors.text}>
-              Delivery Address
+              Receive Options
             </ResponsiveText>
           </ResponsiveView>
           
-          <ResponsiveView style={styles.infoRow}>
-            <MaterialIcons name="location-on" size={responsiveValue(16, 18, 20, 22)} color={colors.error} />
-            <ResponsiveView marginLeft="sm" flex={1}>
-              <ResponsiveText size="md" color={colors.text}>
-                {order.delivery_address.full_address}
-              </ResponsiveText>
-              {order.delivery_address.label && (
+          {/* Fulfillment Type Badge */}
+          <ResponsiveView
+            style={[
+              styles.fulfillmentBadge,
+              {
+                backgroundColor: (order as any).fulfillment_type === 'pickup' 
+                  ? colors.primary + '20' 
+                  : colors.secondary + '20',
+                borderColor: (order as any).fulfillment_type === 'pickup'
+                  ? colors.primary
+                  : colors.secondary,
+              }
+            ]}
+            marginBottom="md"
+          >
+            <MaterialIcons
+              name={(order as any).fulfillment_type === 'pickup' ? 'store' : 'local-shipping'}
+              size={responsiveValue(18, 20, 22, 24)}
+              color={(order as any).fulfillment_type === 'pickup' ? colors.primary : colors.secondary}
+            />
+            <ResponsiveText
+              size="md"
+              weight="semiBold"
+              color={(order as any).fulfillment_type === 'pickup' ? colors.primary : colors.secondary}
+              style={styles.fulfillmentBadgeText}
+            >
+              {(order as any).fulfillment_type === 'pickup' ? 'To Be Picked Up' : 'For Delivery'}
+            </ResponsiveText>
+          </ResponsiveView>
+
+          {/* Delivery Address (only for delivery orders) */}
+          {(order as any).fulfillment_type === 'delivery' && order.delivery_address && (
+            <ResponsiveView style={styles.infoRow}>
+              <MaterialIcons name="location-on" size={responsiveValue(16, 18, 20, 22)} color={colors.error} />
+              <ResponsiveView marginLeft="sm" flex={1}>
+                <ResponsiveText size="md" color={colors.text}>
+                  {order.delivery_address.full_address}
+                </ResponsiveText>
+                {order.delivery_address.label && (
+                  <ResponsiveView marginTop="xs">
+                    <ResponsiveText size="sm" color={colors.textSecondary}>
+                      {order.delivery_address.label}
+                    </ResponsiveText>
+                  </ResponsiveView>
+                )}
+              </ResponsiveView>
+            </ResponsiveView>
+          )}
+
+          {/* Pickup Location (only for pickup orders) */}
+          {(order as any).fulfillment_type === 'pickup' && (
+            <ResponsiveView style={styles.infoRow}>
+              <MaterialIcons name="store" size={responsiveValue(16, 18, 20, 22)} color={colors.primary} />
+              <ResponsiveView marginLeft="sm" flex={1}>
+                <ResponsiveText size="md" color={colors.text} weight="semiBold">
+                  Kitchen One Main Branch
+                </ResponsiveText>
                 <ResponsiveView marginTop="xs">
                   <ResponsiveText size="sm" color={colors.textSecondary}>
-                    {order.delivery_address.label}
+                    {(order as any).pickup_location_snapshot || 'San Vicente, Bulan, Sorsogon'}
                   </ResponsiveText>
                 </ResponsiveView>
-              )}
+                {(order as any).pickup_notes && (
+                  <ResponsiveView marginTop="xs">
+                    <ResponsiveText size="sm" color={colors.textSecondary} style={{ fontStyle: 'italic' }}>
+                      Note: {(order as any).pickup_notes}
+                    </ResponsiveText>
+                  </ResponsiveView>
+                )}
+              </ResponsiveView>
             </ResponsiveView>
-          </ResponsiveView>
+          )}
         </ResponsiveView>
 
         {/* Order Items */}
@@ -817,7 +889,7 @@ export default function OrderDetailScreen() {
       {nextStatus && (
         <ResponsiveView style={[styles.actionContainer, { backgroundColor: colors.surface }]}>
           <Button
-            title={`Mark as ${nextStatus.replace('_', ' ')}`}
+            title={`Mark as ${nextStatus.replace(/_/g, ' ').split(' ').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ')}`}
             onPress={() => handleStatusUpdate(nextStatus)}
             variant="primary"
             loading={updating}
@@ -1107,5 +1179,15 @@ const styles = StyleSheet.create({
     width: '100%',
     height: 160,
     borderRadius: ResponsiveBorderRadius.md,
+  },
+  fulfillmentBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: ResponsiveSpacing.md,
+    borderRadius: ResponsiveBorderRadius.md,
+    borderWidth: 2,
+  },
+  fulfillmentBadgeText: {
+    marginLeft: ResponsiveSpacing.sm,
   },
 });

@@ -52,6 +52,11 @@ export default function MenuScreen() {
   ];
 
 
+  const availableProducts = useMemo(
+    () => (products || []).filter((product: Product) => product.is_available !== false),
+    [products]
+  );
+
   // Memoized category lookup for better performance
   const categoryLookup = useMemo(() => {
     const lookup = new Map();
@@ -66,11 +71,11 @@ export default function MenuScreen() {
 
   // Helper function to get product count for a category (memoized)
   const getCategoryProductCount = useCallback((categoryId: string) => {
-    if (categoryId === 'all') return products.length;
+    if (categoryId === 'all') return availableProducts.length;
     const categoryName = categoryLookup.get(categoryId);
     const normTarget = normalizeCategoryName(categoryName);
-    return products.filter(p => normalizeCategoryName(p.category?.name) === normTarget).length;
-  }, [products, categoryLookup, normalizeCategoryName]);
+    return availableProducts.filter(p => normalizeCategoryName(p.category?.name) === normTarget).length;
+  }, [availableProducts, categoryLookup, normalizeCategoryName]);
 
   // Set initial category and search based on route parameters (only once)
   useEffect(() => {
@@ -110,7 +115,7 @@ export default function MenuScreen() {
   // Enhanced search and filtering logic
   const filteredItems = useMemo(() => {
     // Early return if no products
-    if (!products || products.length === 0) {
+    if (!availableProducts || availableProducts.length === 0) {
       return [];
     }
     
@@ -119,7 +124,7 @@ export default function MenuScreen() {
     const searchLower = searchQuery.trim().toLowerCase();
     
     
-    return products.filter((product: Product) => {
+    return availableProducts.filter((product: Product) => {
       // If no search query, show all products in category
       if (!searchLower) {
         if (selectedCategory === 'all') return true;
@@ -143,7 +148,7 @@ export default function MenuScreen() {
       const finalMatch = categoryMatch && matchesSearch;
       return finalMatch;
     });
-  }, [products, selectedCategory, searchQuery, categoryLookup, normalizeCategoryName]);
+  }, [availableProducts, selectedCategory, searchQuery, categoryLookup, normalizeCategoryName]);
 
   // Optimized category selection handler
   const handleCategorySelect = useCallback((categoryId: string) => {
@@ -196,13 +201,15 @@ export default function MenuScreen() {
         backgroundColor={colors.card}
         textColor={colors.text}
         priceColor={colors.themedPrice}
-        onPress={() => router.push({
-          pathname: '/(customer)/product/[id]',
-          params: { id: item.id }
-        } as any)}
+        onPress={() =>
+          router.push({
+            pathname: '/(customer)/product/[id]',
+            params: { id: item.id }
+          } as any)
+        }
       />
     );
-  }, [colors, router]);
+  }, [colors.card, colors.text, colors.themedPrice, router]);
 
   return (
     <ResponsiveView style={[styles.container, { backgroundColor: colors.background }]}>

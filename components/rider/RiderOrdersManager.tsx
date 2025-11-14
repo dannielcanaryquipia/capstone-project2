@@ -349,47 +349,86 @@ export default function RiderOrdersManager({
           {showAvailableOrders && availableOrders.length > 0 && (
             <ResponsiveView style={styles.section}>
               <ResponsiveView style={styles.sectionHeader}>
-                <ResponsiveText size="lg" weight="semiBold" color={colors.text}>
-                  Available Orders
-                </ResponsiveText>
+                <ResponsiveView flexDirection="row" alignItems="center">
+                  <ResponsiveText size="lg" weight="semiBold" color={colors.text}>
+                    Available Orders
+                  </ResponsiveText>
+                  {availableOrders.some(order => {
+                    const orderDate = new Date(order.created_at);
+                    const now = new Date();
+                    const minutesAgo = (now.getTime() - orderDate.getTime()) / (1000 * 60);
+                    return minutesAgo <= 10;
+                  }) && (
+                    <ResponsiveView 
+                      style={[styles.newIndicator, { backgroundColor: colors.primary }]}
+                      marginLeft="xs"
+                    >
+                      <MaterialIcons name="fiber-new" size={16} color={colors.textInverse} />
+                    </ResponsiveView>
+                  )}
+                </ResponsiveView>
                 <ResponsiveText size="sm" color={colors.textSecondary}>
                   {availableOrders.length} orders
                 </ResponsiveText>
               </ResponsiveView>
               <ResponsiveView style={styles.ordersList}>
-                {availableOrders.map((order) => (
-                  <TouchableOpacity
-                    key={order.id}
-                    style={[styles.orderCard, { backgroundColor: colors.surface }]}
-                    onPress={() => router.push(`/(delivery)/order/${order.id}` as any)}
-                  >
-                    <ResponsiveView style={styles.orderHeader}>
-                      <ResponsiveText size="md" weight="semiBold" color={colors.text}>
-                        {order.order_number || `#${order.id.slice(-6).toUpperCase()}`}
-                      </ResponsiveText>
-                      <ResponsiveView style={[styles.statusBadge, { backgroundColor: colors.info + '20' }]}>
-                        <MaterialIcons name="schedule" size={16} color={colors.info} />
-                        <ResponsiveView marginLeft="xs">
-                          <ResponsiveText size="xs" color={colors.info} weight="medium">
-                            AVAILABLE
+                {availableOrders.map((order) => {
+                  // Check if order is new (created in last 10 minutes)
+                  const orderDate = new Date(order.created_at);
+                  const now = new Date();
+                  const minutesAgo = (now.getTime() - orderDate.getTime()) / (1000 * 60);
+                  const isNewOrder = minutesAgo <= 10;
+                  
+                  return (
+                    <TouchableOpacity
+                      key={order.id}
+                      style={[
+                        styles.orderCard, 
+                        { backgroundColor: colors.surface },
+                        isNewOrder && { borderWidth: 2, borderColor: colors.primary }
+                      ]}
+                      onPress={() => router.push(`/(delivery)/order/${order.id}` as any)}
+                    >
+                      <ResponsiveView style={styles.orderHeader}>
+                        <ResponsiveView flexDirection="row" alignItems="center" flex={1}>
+                          <ResponsiveText size="md" weight="semiBold" color={colors.text}>
+                            {order.order_number || `#${order.id.slice(-6).toUpperCase()}`}
                           </ResponsiveText>
+                          {isNewOrder && (
+                            <ResponsiveView 
+                              style={[styles.newBadge, { backgroundColor: colors.primary }]}
+                              marginLeft="xs"
+                            >
+                              <ResponsiveText size="xs" color={colors.textInverse} weight="bold">
+                                NEW
+                              </ResponsiveText>
+                            </ResponsiveView>
+                          )}
+                        </ResponsiveView>
+                        <ResponsiveView style={[styles.statusBadge, { backgroundColor: colors.info + '20' }]}>
+                          <MaterialIcons name="schedule" size={16} color={colors.info} />
+                          <ResponsiveView marginLeft="xs">
+                            <ResponsiveText size="xs" color={colors.info} weight="medium">
+                              AVAILABLE
+                            </ResponsiveText>
+                          </ResponsiveView>
                         </ResponsiveView>
                       </ResponsiveView>
-                    </ResponsiveView>
-                    <ResponsiveText size="sm" color={colors.textSecondary}>
-                      {order.customer?.full_name || 'Customer'}
-                    </ResponsiveText>
-                    <ResponsiveText size="sm" color={colors.textSecondary}>
-                      ₱{order.total_amount?.toFixed(2) || '0.00'}
-                    </ResponsiveText>
-                    <ResponsiveText size="xs" color={colors.textSecondary}>
-                      {formatDate(order.created_at)}
-                    </ResponsiveText>
-                    <ResponsiveView marginTop="sm">
-                      {getOrderActions(order)}
-                    </ResponsiveView>
-                  </TouchableOpacity>
-                ))}
+                      <ResponsiveText size="sm" color={colors.textSecondary}>
+                        {order.customer?.full_name || 'Customer'}
+                      </ResponsiveText>
+                      <ResponsiveText size="sm" color={colors.textSecondary}>
+                        ₱{order.total_amount?.toFixed(2) || '0.00'}
+                      </ResponsiveText>
+                      <ResponsiveText size="xs" color={colors.textSecondary}>
+                        {formatDate(order.created_at)}
+                      </ResponsiveText>
+                      <ResponsiveView marginTop="sm">
+                        {getOrderActions(order)}
+                      </ResponsiveView>
+                    </TouchableOpacity>
+                  );
+                })}
               </ResponsiveView>
             </ResponsiveView>
           )}
@@ -611,6 +650,18 @@ const styles = StyleSheet.create({
     paddingHorizontal: ResponsiveSpacing.sm,
     paddingVertical: ResponsiveSpacing.xs,
     borderRadius: ResponsiveBorderRadius.sm,
+  },
+  newBadge: {
+    paddingHorizontal: ResponsiveSpacing.xs,
+    paddingVertical: 2,
+    borderRadius: ResponsiveBorderRadius.xs,
+  },
+  newIndicator: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   infoCard: {
     flexDirection: 'row',

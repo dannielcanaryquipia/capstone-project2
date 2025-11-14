@@ -1,0 +1,422 @@
+{
+    "diagram": {
+      "type": "plantuml",
+      "skinparam": [
+        "classAttributeIconSize 0",
+        "hide circle",
+        "hide empty members"
+      ],
+      "enums": [
+        {
+          "name": "OrderStatus",
+          "literals": [
+            "pending",
+            "preparing",
+            "ready_for_pickup",
+            "out_for_delivery",
+            "delivered",
+            "cancelled"
+          ]
+        },
+        {
+          "name": "PaymentStatus",
+          "literals": [
+            "pending",
+            "verified",
+            "paid",
+            "unpaid",
+            "failed"
+          ]
+        },
+        {
+          "name": "DeliveryStatus",
+          "literals": [
+            "Assigned",
+            "Picked_Up",
+            "Delivered"
+          ]
+        }
+      ],
+      "packages": [
+        {
+          "name": "Identity",
+          "classes": [
+            {
+              "name": "auth_users",
+              "attributes": [
+                "+id: int",
+                "+email: text",
+                "+created_at: timestamptz"
+              ]
+            },
+            {
+              "name": "profiles",
+              "attributes": [
+                "+id: int",
+                "+username: text",
+                "+full_name: text",
+                "+phone_number: text",
+                "+role: text",
+                "+avatar_url: text",
+                "+preferences: jsonb",
+                "+email_verified: boolean",
+                "+phone_verified: boolean",
+                "+last_login: timestamptz",
+                "+created_at: timestamptz"
+              ]
+            },
+            {
+              "name": "addresses",
+              "attributes": [
+                "+id: int",
+                "+user_id: int",
+                "+label: text",
+                "+full_address: text",
+                "+is_default: boolean",
+                "+created_at: timestamptz"
+              ]
+            },
+            {
+              "name": "user_preferences",
+              "attributes": [
+                "+id: int",
+                "+user_id: int",
+                "+preference_key: text",
+                "+preference_value: jsonb",
+                "+created_at: timestamptz",
+                "+updated_at: timestamptz"
+              ]
+            },
+            {
+              "name": "user_interactions",
+              "attributes": [
+                "+id: int",
+                "+user_id: int",
+                "+product_id: int",
+                "+interaction_type: text",
+                "+session_id: text",
+                "+metadata: jsonb",
+                "+created_at: timestamptz"
+              ]
+            }
+          ]
+        },
+        {
+          "name": "Catalog & Inventory",
+          "classes": [
+            {
+              "name": "categories",
+              "attributes": [
+                "+id: int",
+                "+name: text",
+                "+description: text",
+                "+created_at: timestamptz"
+              ]
+            },
+            {
+              "name": "products",
+              "attributes": [
+                "+id: int",
+                "+name: text",
+                "+description: text",
+                "+category_id: int",
+                "+base_price: numeric",
+                "+image_url: text",
+                "+gallery_image_urls: text[]",
+                "+is_available: boolean",
+                "+is_recommended: boolean",
+                "+is_featured: boolean",
+                "+preparation_time_minutes: int",
+                "+created_at: timestamptz",
+                "+updated_at: timestamptz"
+              ]
+            },
+            {
+              "name": "product_stock",
+              "attributes": [
+                "+id: int",
+                "+product_id: int",
+                "+quantity: int",
+                "+last_updated_at: timestamptz"
+              ]
+            },
+            {
+              "name": "inventory_transactions",
+              "attributes": [
+                "+id: int",
+                "+product_id: int",
+                "+transaction_type: text",
+                "+quantity: int",
+                "+reason: text",
+                "+performed_by: int",
+                "+created_at: timestamptz"
+              ]
+            },
+            {
+              "name": "crusts",
+              "attributes": [
+                "+id: int",
+                "+name: text"
+              ]
+            },
+            {
+              "name": "slices",
+              "attributes": [
+                "+id: int",
+                "+name: varchar",
+                "+description: text",
+                "+is_active: boolean",
+                "+created_at: timestamptz",
+                "+updated_at: timestamptz"
+              ]
+            },
+            {
+              "name": "pizza_options",
+              "attributes": [
+                "+id: int",
+                "+product_id: int",
+                "+crust_id: int",
+                "+size: text",
+                "+price: numeric"
+              ]
+            },
+            {
+              "name": "toppings",
+              "attributes": [
+                "+id: int",
+                "+name: text"
+              ]
+            },
+            {
+              "name": "pizza_topping_options",
+              "attributes": [
+                "+id: int",
+                "+pizza_option_id: int",
+                "+topping_id: int"
+              ]
+            },
+            {
+              "name": "saved_products",
+              "attributes": [
+                "+id: int",
+                "+user_id: int",
+                "+product_id: int",
+                "+created_at: timestamptz"
+              ]
+            },
+            {
+              "name": "product_co_occurrences",
+              "attributes": [
+                "+id: int",
+                "+product_a_id: int",
+                "+product_b_id: int",
+                "+co_occurrence_count: int",
+                "+last_updated: timestamptz"
+              ]
+            }
+          ]
+        },
+        {
+          "name": "Ordering",
+          "classes": [
+            {
+              "name": "orders",
+              "attributes": [
+                "+id: int",
+                "+user_id: int",
+                "+delivery_address_id: int",
+                "+order_number: varchar",
+                "+total_amount: numeric",
+                "+payment_method: text",
+                "+payment_status: PaymentStatus",
+                "+status: OrderStatus",
+                "+order_notes: text",
+                "+customer_notes: text",
+                "+admin_notes: text",
+                "+proof_of_payment_url: text",
+                "+proof_of_delivery_url: text",
+                "+estimated_delivery_time: timestamptz",
+                "+actual_delivery_time: timestamptz",
+                "+payment_verified: boolean",
+                "+payment_verified_at: timestamptz",
+                "+payment_verified_by: int",
+                "+created_at: timestamptz",
+                "+updated_at: timestamptz"
+              ]
+            },
+            {
+              "name": "order_items",
+              "attributes": [
+                "+id: int",
+                "+order_id: int",
+                "+product_id: int",
+                "+pizza_option_id: int",
+                "+slice_id: int",
+                "+quantity: int",
+                "+unit_price: numeric",
+                "+customization_details: jsonb",
+                "+selected_size: text",
+                "+created_at: timestamptz"
+              ]
+            },
+            {
+              "name": "order_item_toppings",
+              "attributes": [
+                "+id: int",
+                "+order_item_id: int",
+                "+topping_id: int"
+              ]
+            },
+            {
+              "name": "order_notes",
+              "attributes": [
+                "+id: int",
+                "+order_id: int",
+                "+note: text",
+                "+added_by: int",
+                "+note_type: text",
+                "+created_at: timestamptz"
+              ]
+            },
+            {
+              "name": "order_status_history",
+              "attributes": [
+                "+id: int",
+                "+order_id: int",
+                "+status: text",
+                "+changed_by: int",
+                "+notes: text",
+                "+created_at: timestamptz"
+              ]
+            }
+          ]
+        },
+        {
+          "name": "Payments & Proofs",
+          "classes": [
+            {
+              "name": "payment_transactions",
+              "attributes": [
+                "+id: int",
+                "+order_id: int",
+                "+amount: numeric",
+                "+payment_method: text",
+                "+transaction_reference: text",
+                "+proof_of_payment_url: text",
+                "+qr_code_url: text",
+                "+qr_code_data: text",
+                "+qr_code_expires_at: timestamptz",
+                "+status: PaymentStatus",
+                "+verified_by: int",
+                "+verified_at: timestamptz",
+                "+created_at: timestamptz",
+                "+updated_at: timestamptz"
+              ]
+            },
+            {
+              "name": "image_metadata",
+              "attributes": [
+                "+id: int",
+                "+order_id: int",
+                "+type: text",
+                "+url: text",
+                "+thumbnail_url: text",
+                "+uploaded_by: int",
+                "+uploaded_at: timestamptz",
+                "+metadata: jsonb",
+                "+verified: boolean",
+                "+verified_by: int",
+                "+verified_at: timestamptz",
+                "+created_at: timestamptz",
+                "+updated_at: timestamptz"
+              ]
+            }
+          ]
+        },
+        {
+          "name": "Delivery & Engagement",
+          "classes": [
+            {
+              "name": "riders",
+              "attributes": [
+                "+id: int",
+                "+user_id: int",
+                "+vehicle_number: text",
+                "+is_available: boolean",
+                "+current_location: jsonb",
+                "+created_at: timestamptz",
+                "+updated_at: timestamptz"
+              ]
+            },
+            {
+              "name": "delivery_assignments",
+              "attributes": [
+                "+id: int",
+                "+order_id: int",
+                "+rider_id: int",
+                "+assigned_at: timestamptz",
+                "+picked_up_at: timestamptz",
+                "+delivered_at: timestamptz",
+                "+status: DeliveryStatus",
+                "+notes: text"
+              ]
+            },
+            {
+              "name": "notifications",
+              "attributes": [
+                "+id: int",
+                "+user_id: int",
+                "+title: text",
+                "+message: text",
+                "+type: text",
+                "+is_read: boolean",
+                "+related_order_id: int",
+                "+created_at: timestamptz"
+              ]
+            }
+          ]
+        }
+      ],
+      "relationships": [
+        { "from": "auth_users", "to": "profiles", "cardinality": "\"1\" -- \"1\"", "label": "owns >" },
+        { "from": "profiles", "to": "addresses", "cardinality": "\"1\" -- \"0..*\"", "label": "has >" },
+        { "from": "profiles", "to": "user_preferences", "cardinality": "\"1\" -- \"0..*\"", "label": "sets >" },
+        { "from": "profiles", "to": "user_interactions", "cardinality": "\"1\" -- \"0..*\"", "label": "triggers >" },
+        { "from": "categories", "to": "products", "cardinality": "\"1\" o-- \"*\"", "label": "categorises >" },
+        { "from": "products", "to": "product_stock", "cardinality": "\"1\" -- \"0..1\"", "label": "tracks >" },
+        { "from": "products", "to": "inventory_transactions", "cardinality": "\"1\" -- \"0..*\"", "label": "adjusts >" },
+        { "from": "products", "to": "pizza_options", "cardinality": "\"1\" -- \"0..*\"", "label": "config >" },
+        { "from": "pizza_options", "to": "crusts", "cardinality": "\"1\" -- \"1\"" },
+        { "from": "pizza_options", "to": "pizza_topping_options", "cardinality": "\"1\" -- \"0..*\"" },
+        { "from": "pizza_topping_options", "to": "toppings", "cardinality": "\"*\" -- \"1\"" },
+        { "from": "slices", "to": "pizza_options", "cardinality": "\"1\" -- \"0..*\"", "label": "optional >" },
+        { "from": "profiles", "to": "saved_products", "cardinality": "\"1\" -- \"*\"" },
+        { "from": "saved_products", "to": "products", "cardinality": "\"*\" -- \"1\"" },
+        { "from": "products", "to": "product_co_occurrences", "cardinality": "\"*\" -- \"*\"", "label": "pairs >" },
+        { "from": "inventory_transactions", "to": "profiles", "cardinality": "\"*\" -- \"1\"", "label": "performed_by >" },
+        { "from": "user_interactions", "to": "products", "cardinality": "\"*\" -- \"1\"", "label": "references >" },
+        { "from": "profiles", "to": "orders", "cardinality": "\"1\" -- \"0..*\"", "label": "places >" },
+        { "from": "orders", "to": "addresses", "cardinality": "\"*\" -- \"1\"", "label": "ships_to >" },
+        { "from": "orders", "to": "order_items", "cardinality": "\"1\" -- \"*\"", "label": "contains >" },
+        { "from": "order_items", "to": "products", "cardinality": "\"*\" -- \"1\"" },
+        { "from": "order_items", "to": "pizza_options", "cardinality": "\"0..1\" -- \"1\"" },
+        { "from": "order_items", "to": "slices", "cardinality": "\"0..1\" -- \"1\"" },
+        { "from": "order_items", "to": "order_item_toppings", "cardinality": "\"1\" -- \"*\"" },
+        { "from": "order_item_toppings", "to": "toppings", "cardinality": "\"*\" -- \"1\"" },
+        { "from": "orders", "to": "order_notes", "cardinality": "\"1\" -- \"*\"" },
+        { "from": "order_notes", "to": "profiles", "cardinality": "\"*\" -- \"1\"", "label": "added_by >" },
+        { "from": "orders", "to": "order_status_history", "cardinality": "\"1\" -- \"*\"" },
+        { "from": "order_status_history", "to": "profiles", "cardinality": "\"*\" -- \"1\"", "label": "changed_by >" },
+        { "from": "orders", "to": "payment_transactions", "cardinality": "\"1\" -- \"0..*\"", "label": "settlement >" },
+        { "from": "payment_transactions", "to": "profiles", "cardinality": "\"*\" -- \"0..1\"", "label": "verified_by >" },
+        { "from": "orders", "to": "image_metadata", "cardinality": "\"1\" -- \"0..*\"x", "label": "proofs >" },
+        { "from": "image_metadata", "to": "profiles", "cardinality": "\"*\" -- \"1\"", "label": "uploaded_by >" },
+        { "from": "image_metadata", "to": "profiles", "cardinality": "\"*\" -- \"0..1\"", "label": "verified_by >" },
+        { "from": "profiles", "to": "riders", "cardinality": "\"1\" -- \"0..1\"", "label": "rider_profile >" },
+        { "from": "delivery_assignments", "to": "orders", "cardinality": "\"*\" -- \"1\"", "label": "fulfills >" },
+        { "from": "delivery_assignments", "to": "riders", "cardinality": "\"*\" -- \"0..1\"", "label": "assigned_to >" },
+        { "from": "notifications", "to": "profiles", "cardinality": "\"*\" -- \"1\"", "label": "receiver >" },
+        { "from": "notifications", "to": "orders", "cardinality": "\"*\" -- \"0..1\"", "label": "related_to >" }
+      ]
+    }
+  }

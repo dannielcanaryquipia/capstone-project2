@@ -234,14 +234,21 @@ export const useCreateOrder = () => {
 
   const createOrder = useCallback(async (orderData: {
     items: any[];
-    delivery_address_id: string;
+    fulfillment_type: 'delivery' | 'pickup';
+    delivery_address_id?: string | null;
     payment_method: string;
     delivery_instructions?: string;
     notes?: string;
     processing_fee?: number;
+    pickup_location_snapshot?: string | null;
+    pickup_notes?: string | null;
   }) => {
     if (!orderData.items.length) {
       throw new Error('Order must contain at least one item');
+    }
+
+    if (orderData.fulfillment_type === 'delivery' && !orderData.delivery_address_id) {
+      throw new Error('Please select a delivery address.');
     }
 
     try {
@@ -255,6 +262,9 @@ export const useCreateOrder = () => {
       const order = await OrderService.createOrder({
         user_id: user.id,
         ...orderData,
+        delivery_address_id: orderData.fulfillment_type === 'pickup'
+          ? null
+          : orderData.delivery_address_id,
       });
 
       return order;

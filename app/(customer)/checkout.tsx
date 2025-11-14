@@ -1,9 +1,12 @@
+import { MaterialIcons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import {
+  GestureResponderEvent,
   ScrollView,
-  StyleSheet
+  StyleSheet,
+  TouchableOpacity
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Address, AddressCard } from '../../components/ui/AddressCard';
@@ -17,6 +20,7 @@ import { ErrorState } from '../../components/ui/ErrorState';
 import { GCashPaymentModal } from '../../components/ui/GCashPaymentModal';
 import { OrderSummary, OrderSummaryCard } from '../../components/ui/OrderSummaryCard';
 import { PaymentMethod, PaymentMethodCard } from '../../components/ui/PaymentMethodCard';
+import { PaymentProcessingOverlay } from '../../components/ui/PaymentProcessingOverlay';
 import { ResponsiveText } from '../../components/ui/ResponsiveText';
 import { ResponsiveView } from '../../components/ui/ResponsiveView';
 import TextAreaForm from '../../components/ui/TextAreaForm';
@@ -58,7 +62,7 @@ const paymentMethods: PaymentMethod[] = [
 
 export default function CheckoutScreen() {
   const { colors } = useTheme();
-  const { success, confirm, error: showError } = useAlert();
+  const { success, confirm, info, error: showError } = useAlert();
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { getSelectedItems, selectedSubtotal, clearCart, resetDeliveryFee } = useCart();
@@ -90,8 +94,34 @@ export default function CheckoutScreen() {
   const [lastPaymentError, setLastPaymentError] = useState<string | null>(null);
   const [gcashModalVisible, setGcashModalVisible] = useState(false);
   const [proofUri, setProofUri] = useState<string | null>(null);
+  const [fulfillmentType, setFulfillmentType] = useState<'delivery' | 'pickup'>('delivery');
   const [gcashReadyForOrder, setGcashReadyForOrder] = useState(false); // Track when GCash proof is uploaded
+  const [showPaymentProcessing, setShowPaymentProcessing] = useState(false); // Show loading overlay during GCash processing
   const gcashQrImage = require('../../assets/gcash_qr.jpg'); // use lowercase extension for Metro
+  const pickupLocationSnapshot = 'Kitchen One - Main Branch\nSan Vicente, Bulan, Sorsogon';
+
+  const fulfillmentOptions: Array<{
+    id: 'delivery' | 'pickup';
+    title: string;
+    description: string;
+    infoTitle: string;
+    infoMessage: string;
+  }> = [
+    {
+      id: 'delivery',
+      title: 'For Delivery',
+      description: 'Have a Kitchen One rider bring the order to your selected address.',
+      infoTitle: 'For Delivery',
+      infoMessage: 'The rider will deliver your product with ease. Please ensure someone is available to receive the order.',
+    },
+    {
+      id: 'pickup',
+      title: 'To Be Picked Up',
+      description: 'Pick up your order directly at the Kitchen One branch once it is ready.',
+      infoTitle: 'To Be Picked Up',
+      infoMessage: 'The product will be picked up by the customer at the Kitchen One address. Bring your payment receipt or order number for faster verification.',
+    },
+  ];
   // Calculate processing fee based on selected payment method
   const selectedPaymentMethodData = paymentMethods.find(method => method.id === selectedPaymentMethod);
   const processingFee = selectedPaymentMethodData?.processingFee || 0;
@@ -121,6 +151,21 @@ export default function CheckoutScreen() {
       setSelectedAddress(defaultAddress);
     }
   }, [uiAddresses, selectedAddress]);
+
+  const handleFulfillmentInfo = (optionId: 'delivery' | 'pickup') => {
+    const option = fulfillmentOptions.find(opt => opt.id === optionId);
+    if (!option) return;
+    info(option.infoTitle, option.infoMessage);
+  };
+
+  const handleFulfillmentChange = (optionId: 'delivery' | 'pickup') => {
+    setFulfillmentType(optionId);
+  };
+
+  const handleFulfillmentInfoPress = (optionId: 'delivery' | 'pickup') => (event: GestureResponderEvent) => {
+    event.stopPropagation();
+    handleFulfillmentInfo(optionId);
+  };
 
   const handlePlaceOrder = () => {
     // Special handling for GCash payment
@@ -168,7 +213,7 @@ export default function CheckoutScreen() {
       return;
     }
 
-    if (!selectedAddress) {
+    if (fulfillmentType === 'delivery' && !selectedAddress) {
       setCheckoutError('Please select a delivery address.');
       return;
     }
@@ -185,6 +230,12 @@ export default function CheckoutScreen() {
       return;
     }
 
+    // Show loading overlay for GCash payment processing
+    const isGCashPayment = selectedPaymentMethod === 'gcash';
+    if (isGCashPayment) {
+      setShowPaymentProcessing(true);
+    }
+
     try {
       // Process payment based on method
       let paymentResult = null;
@@ -195,6 +246,7 @@ export default function CheckoutScreen() {
       } else if (selectedPaymentMethod === 'gcash') {
         // GCash offline flow: require proof upload and show QR modal first
         if (!proofUri) {
+          setShowPaymentProcessing(false);
           setGcashModalVisible(true);
           return; // wait for user to upload then press Place Order again
         }
@@ -216,10 +268,12 @@ export default function CheckoutScreen() {
           toppings: item.toppings,
           customization_details: item.customization_details,
         })),
-        delivery_address_id: selectedAddress.id,
+        fulfillment_type: fulfillmentType,
+        delivery_address_id: fulfillmentType === 'delivery' ? selectedAddress?.id : null,
         payment_method: selectedPaymentMethod,
         processing_fee: processingFee,
         notes: orderNotes,
+        pickup_location_snapshot: fulfillmentType === 'pickup' ? pickupLocationSnapshot : null,
       };
 
       const order = await createOrder(orderData);
@@ -258,6 +312,11 @@ export default function CheckoutScreen() {
             name: e?.name
           });
           
+          // Hide loading overlay on error
+          if (isGCashPayment) {
+            setShowPaymentProcessing(false);
+          }
+          
           // Show error to user - don't proceed silently
           // Log detailed error for debugging
           const errorMessage = e?.message || 'Failed to upload payment proof. Please try uploading the image again or contact support.';
@@ -280,6 +339,11 @@ export default function CheckoutScreen() {
         }
       }
       
+      // Hide loading overlay before showing success
+      if (isGCashPayment) {
+        setShowPaymentProcessing(false);
+      }
+      
       // Clear cart after successful order
       clearCart();
       
@@ -291,7 +355,9 @@ export default function CheckoutScreen() {
         'Order Placed Successfully!',
         isOnlinePayment 
           ? `Your order ${order.order_number} has been placed with ${paymentMethodName}. Admin will verify your receipt shortly.`
-          : `Your order ${order.order_number} has been placed and will be processed shortly. Please prepare cash payment upon delivery.`,
+          : fulfillmentType === 'pickup'
+            ? `Your pickup order ${order.order_number} has been placed. We will notify you once it is ready for collection at Kitchen One.`
+            : `Your order ${order.order_number} has been placed and will be processed shortly. Please prepare cash payment upon delivery.`,
         [
           {
             text: 'View Order',
@@ -306,6 +372,10 @@ export default function CheckoutScreen() {
       );
     } catch (error: any) {
       console.error('Error placing order:', error);
+      // Hide loading overlay on error
+      if (isGCashPayment) {
+        setShowPaymentProcessing(false);
+      }
       setCheckoutError(error.message || 'Failed to place order. Please try again.');
     }
   };
@@ -444,51 +514,148 @@ export default function CheckoutScreen() {
                    </ResponsiveView>
                  )}
 
-            {/* Delivery Address */}
+            {/* Fulfillment Method */}
             <ResponsiveView marginBottom="lg">
               <CheckoutSection
-                title="Delivery Address"
-                subtitle="Select where you want your order delivered"
+                title="Receive Options"
+                subtitle="Choose how you want to receive your order"
                 required
-                loading={addressesLoading}
-                error={addressesError ? 'Failed to load addresses' : undefined}
               >
-                {addressesLoading ? (
-                  <CheckoutLoadingState message="Loading addresses..." />
-                ) : uiAddresses.length > 0 ? (
-                  <ResponsiveView 
-                    style={[
-                      styles.addressesList,
-                      Responsive.isTablet && styles.addressesGrid
-                    ]}
-                  >
-                    {uiAddresses.map((address) => (
-                      <ResponsiveView 
-                        key={address.id}
-                        style={Responsive.isTablet ? styles.gridItem : undefined}
+                <ResponsiveView
+                  style={[
+                    styles.fulfillmentOptions,
+                    Responsive.isTablet && styles.fulfillmentOptionsGrid
+                  ]}
+                >
+                  {fulfillmentOptions.map(option => {
+                    const isSelected = fulfillmentType === option.id;
+                    return (
+                      <TouchableOpacity
+                        key={option.id}
+                        style={[
+                          styles.fulfillmentOptionCard,
+                          {
+                            borderColor: isSelected ? colors.primary : colors.border,
+                            backgroundColor: isSelected ? colors.surface : colors.surfaceVariant,
+                          }
+                        ]}
+                        activeOpacity={0.92}
+                        onPress={() => handleFulfillmentChange(option.id)}
                       >
-                        <AddressCard
-                          address={address}
-                          selected={selectedAddress?.id === address.id}
-                          onSelect={handleAddressSelect}
-                          onEdit={handleAddressEdit}
-                          showEditButton
-                        />
-                      </ResponsiveView>
-                    ))}
-                  </ResponsiveView>
-                ) : (
-                  <EmptyState
-                    icon="location-off"
-                    title="No addresses found"
-                    description="Please add an address to continue with checkout"
-                    actionTitle="Add Address"
-                    onActionPress={() => router.push('/profile/addresses')}
-                    showAction
-                  />
-                )}
+                        <ResponsiveView
+                          flexDirection="row"
+                          alignItems="center"
+                          justifyContent="space-between"
+                        >
+                          <ResponsiveText
+                            size="md"
+                            weight="semiBold"
+                            color={isSelected ? colors.primary : colors.text}
+                          >
+                            {option.title}
+                          </ResponsiveText>
+                          <TouchableOpacity
+                            style={styles.fulfillmentInfoButton}
+                            onPress={handleFulfillmentInfoPress(option.id)}
+                            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                          >
+                            <MaterialIcons
+                              name="help-outline"
+                              size={20}
+                              color={isSelected ? colors.primary : colors.textSecondary}
+                            />
+                          </TouchableOpacity>
+                        </ResponsiveView>
+                        <ResponsiveText
+                          size="sm"
+                          color={colors.textSecondary}
+                          style={styles.fulfillmentDescription}
+                        >
+                          {option.description}
+                        </ResponsiveText>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </ResponsiveView>
               </CheckoutSection>
             </ResponsiveView>
+
+            {/* Delivery Address / Pickup Details */}
+            {fulfillmentType === 'delivery' ? (
+              <ResponsiveView marginBottom="lg">
+                <CheckoutSection
+                  title="Delivery Address"
+                  subtitle="Select where you want your order delivered"
+                  required
+                  loading={addressesLoading}
+                  error={addressesError ? 'Failed to load addresses' : undefined}
+                >
+                  {addressesLoading ? (
+                    <CheckoutLoadingState message="Loading addresses..." />
+                  ) : uiAddresses.length > 0 ? (
+                    <ResponsiveView 
+                      style={[
+                        styles.addressesList,
+                        Responsive.isTablet && styles.addressesGrid
+                      ]}
+                    >
+                      {uiAddresses.map((address) => (
+                        <ResponsiveView 
+                          key={address.id}
+                          style={Responsive.isTablet ? styles.gridItem : undefined}
+                        >
+                          <AddressCard
+                            address={address}
+                            selected={selectedAddress?.id === address.id}
+                            onSelect={handleAddressSelect}
+                            onEdit={handleAddressEdit}
+                            showEditButton
+                          />
+                        </ResponsiveView>
+                      ))}
+                    </ResponsiveView>
+                  ) : (
+                    <EmptyState
+                      icon="location-off"
+                      title="No addresses found"
+                      description="Please add an address to continue with checkout"
+                      actionTitle="Add Address"
+                      onActionPress={() => router.push('/profile/addresses')}
+                      showAction
+                    />
+                  )}
+                </CheckoutSection>
+              </ResponsiveView>
+            ) : (
+              <ResponsiveView marginBottom="lg">
+                <CheckoutSection
+                  title="Pickup Details"
+                  subtitle="Collect your order at Kitchen One once it is ready"
+                  required
+                >
+                  <ResponsiveView
+                    style={[
+                      styles.pickupInfoCard,
+                      { borderColor: colors.border, backgroundColor: colors.surfaceVariant }
+                    ]}
+                  >
+                    <ResponsiveText weight="semiBold" size="md">
+                      Kitchen One Main Branch
+                    </ResponsiveText>
+                    <ResponsiveText
+                      size="sm"
+                      color={colors.textSecondary}
+                      style={styles.pickupInfoText}
+                    >
+                      {pickupLocationSnapshot}
+                    </ResponsiveText>
+                    <ResponsiveText size="sm" color={colors.textSecondary}>
+                      Show your order number and any payment confirmation to our staff when you arrive.
+                    </ResponsiveText>
+                  </ResponsiveView>
+                </CheckoutSection>
+              </ResponsiveView>
+            )}
 
             {/* Payment Method */}
             <ResponsiveView marginBottom="lg">
@@ -603,7 +770,12 @@ export default function CheckoutScreen() {
               fullWidth
               size="large"
               loading={isCreatingOrder}
-              disabled={!isValid || !selectedAddress || isCreatingOrder || paymentProcessing}
+              disabled={
+                !isValid ||
+                (fulfillmentType === 'delivery' && !selectedAddress) ||
+                isCreatingOrder ||
+                paymentProcessing
+              }
             />
             <GCashPaymentModal
               visible={gcashModalVisible}
@@ -641,11 +813,22 @@ export default function CheckoutScreen() {
               fullWidth
               size="large"
               loading={isCreatingOrder}
-              disabled={!isValid || !selectedAddress || isCreatingOrder || paymentProcessing}
+              disabled={
+                !isValid ||
+                (fulfillmentType === 'delivery' && !selectedAddress) ||
+                isCreatingOrder ||
+                paymentProcessing
+              }
             />
           </ResponsiveView>
         )}
       </ResponsiveView>
+      
+      {/* Payment Processing Overlay - Shows during GCash payment processing */}
+      <PaymentProcessingOverlay 
+        visible={showPaymentProcessing}
+        message="Payment processing Please wait for a while"
+      />
     </ResponsiveView>
   );
 }
@@ -660,6 +843,26 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     paddingBottom: Responsive.responsiveValue(20, 24, 28, 32),
+  },
+  fulfillmentOptions: {
+    gap: Responsive.ResponsiveSpacing.sm,
+  },
+  fulfillmentOptionsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+  },
+  fulfillmentOptionCard: {
+    borderWidth: 1,
+    borderRadius: Responsive.ResponsiveSpacing.sm,
+    padding: Responsive.ResponsiveSpacing.md,
+    width: Responsive.isTablet ? '48%' : '100%',
+  },
+  fulfillmentDescription: {
+    marginTop: Responsive.ResponsiveSpacing.xs,
+  },
+  fulfillmentInfoButton: {
+    marginLeft: Responsive.ResponsiveSpacing.xs,
   },
   addressesList: {
     gap: Responsive.ResponsiveSpacing.sm,
@@ -688,5 +891,14 @@ const styles = StyleSheet.create({
   stickyFooter: {
     borderTopWidth: 1,
     // backgroundColor and borderTopColor are now set dynamically via props
+  },
+  pickupInfoCard: {
+    borderWidth: 1,
+    borderRadius: Responsive.ResponsiveSpacing.sm,
+    padding: Responsive.ResponsiveSpacing.md,
+    gap: Responsive.ResponsiveSpacing.xs,
+  },
+  pickupInfoText: {
+    marginVertical: Responsive.ResponsiveSpacing.xs,
   },
 });

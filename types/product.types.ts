@@ -41,7 +41,8 @@ export interface ProductStock {
   product_id: string;
   quantity: number;
   low_stock_threshold?: number;
-  last_updated: string;
+  last_updated?: string;
+  last_updated_at?: string;
 }
 
 export interface ProductVariant {

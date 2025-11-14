@@ -21,6 +21,8 @@ export type PaymentMethod =
   | 'credit_card'
   | 'paypal';
 
+export type FulfillmentType = 'delivery' | 'pickup';
+
 export interface OrderItem {
   id: string;
   product_id: string;
@@ -68,6 +70,7 @@ export interface Order {
   user_id: string;
   order_number: string;
   status: OrderStatus;
+  fulfillment_type: FulfillmentType;
   payment_status: PaymentStatus;
   payment_method: PaymentMethod;
   
@@ -80,10 +83,16 @@ export interface Order {
   total_amount: number;
   
   // Delivery information
-  delivery_address: DeliveryAddress;
+  delivery_address: DeliveryAddress | null;
   delivery_instructions?: string;
   estimated_delivery_time?: string;
   actual_delivery_time?: string;
+  pickup_ready_at?: string;
+  picked_up_at?: string;
+  pickup_verified_at?: string;
+  pickup_verified_by?: string;
+  pickup_location_snapshot?: string;
+  pickup_notes?: string;
 
   // Related user (admin queries may join profiles)
   user?: {

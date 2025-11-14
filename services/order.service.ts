@@ -1,5 +1,6 @@
 import { supabase } from '../lib/supabase';
 import {
+  FulfillmentType,
   Order,
   OrderFilters,
   OrderItem,
@@ -290,13 +291,26 @@ export class OrderService {
   static async createOrder(orderData: {
     user_id: string;
     items: Omit<OrderItem, 'id'>[];
-    delivery_address_id: string;
+    fulfillment_type: FulfillmentType;
+    delivery_address_id?: string | null;
     payment_method: string;
     delivery_instructions?: string;
     notes?: string;
     processing_fee?: number;
+    pickup_location_snapshot?: string | null;
+    pickup_notes?: string | null;
   }): Promise<Order> {
     try {
+      const isPickup = orderData.fulfillment_type === 'pickup';
+
+      if (!orderData.items.length) {
+        throw new Error('Order must contain at least one item');
+      }
+
+      if (!isPickup && !orderData.delivery_address_id) {
+        throw new Error('Delivery orders require a delivery address');
+      }
+
       // Calculate totals
       const subtotal = orderData.items.reduce((sum, item) => sum + item.total_price, 0);
       const processing_fee = orderData.processing_fee || 0; // Use processing fee from checkout
@@ -309,10 +323,13 @@ export class OrderService {
         user_id: orderData.user_id,
         status: 'pending',
         payment_status: 'pending',
+          fulfillment_type: orderData.fulfillment_type,
           payment_method: orderData.payment_method,
           total_amount,
-          delivery_address_id: orderData.delivery_address_id,
+          delivery_address_id: isPickup ? null : orderData.delivery_address_id,
           order_notes: orderData.notes,
+          pickup_location_snapshot: isPickup ? (orderData.pickup_location_snapshot || null) : null,
+          pickup_notes: isPickup ? (orderData.pickup_notes || null) : null,
         })
         .select()
         .single();
@@ -350,7 +367,9 @@ export class OrderService {
         await notificationService.sendNotification({
           userId: orderData.user_id,
           title: 'Order Placed Successfully!',
-          message: `Your order has been placed and is being processed. Order #${order.id.slice(-6).toUpperCase()}`,
+          message: orderData.fulfillment_type === 'pickup'
+            ? `Your pickup order has been placed. We'll notify you when it's ready. Order #${order.id.slice(-6).toUpperCase()}`
+            : `Your order has been placed and is being processed. Order #${order.id.slice(-6).toUpperCase()}`,
           type: 'order_update',
           relatedId: order.id,
         });
@@ -407,6 +426,92 @@ export class OrderService {
           await AutoAssignmentService.onOrderStatusUpdate(orderId, dbStatus);
         } catch (assignmentError) {
           console.warn('Auto-assignment failed:', assignmentError);
+        }
+
+        // Notify all available riders about the new order
+        try {
+          const { data: order } = await supabase
+            .from('orders')
+            .select('id, order_number, total_amount, status')
+            .eq('id', orderId)
+            .single();
+
+          if (order) {
+            // Get all available riders
+            const { data: availableRiders } = await supabase
+              .from('riders')
+              .select('user_id')
+              .eq('is_available', true);
+
+            // Check if order is already assigned
+            const { data: assignment } = await supabase
+              .from('delivery_assignments')
+              .select('rider_id')
+              .eq('order_id', orderId)
+              .not('rider_id', 'is', null)
+              .single();
+
+            // Only notify if order is not already assigned
+            if (availableRiders && availableRiders.length > 0 && !assignment) {
+              const riderUserIds = availableRiders.map((rider: any) => rider.user_id);
+              const orderNumber = order.order_number || orderId.slice(-6).toUpperCase();
+              
+              await notificationService.sendBulkNotification(riderUserIds, {
+                title: 'New Order Available! 🚚',
+                message: `Order #${orderNumber} is now available for pickup. Amount: ₱${order.total_amount?.toFixed(2) || '0.00'}`,
+                type: 'delivery',
+                relatedId: orderId,
+              });
+
+              console.log(`✅ Notified ${riderUserIds.length} available riders about new order ${orderId}`);
+            }
+          }
+        } catch (notifyError) {
+          console.warn('Failed to notify riders about new order:', notifyError);
+        }
+      }
+
+      // Also notify riders when order becomes preparing (if payment is verified)
+      if (dbStatus === 'preparing') {
+        try {
+          const { data: order } = await supabase
+            .from('orders')
+            .select('id, order_number, total_amount, status, payment_verified, payment_method')
+            .eq('id', orderId)
+            .single();
+
+          if (order && (order.payment_verified || order.payment_method === 'cod')) {
+            // Get all available riders
+            const { data: availableRiders } = await supabase
+              .from('riders')
+              .select('user_id')
+              .eq('is_available', true);
+
+            // Check if order is already assigned
+            const { data: assignment } = await supabase
+              .from('delivery_assignments')
+              .select('rider_id')
+              .eq('order_id', orderId)
+              .not('rider_id', 'is', null)
+              .single();
+
+            // Only notify if order is not already assigned
+            if (availableRiders && availableRiders.length > 0 && !assignment) {
+              const riderUserIds = availableRiders.map((rider: any) => rider.user_id);
+              const orderNumber = order.order_number || orderId.slice(-6).toUpperCase();
+              
+              await notificationService.sendBulkNotification(riderUserIds, {
+                title: 'New Order Coming Soon! 📦',
+                message: `Order #${orderNumber} is being prepared and will be available soon. Amount: ₱${order.total_amount?.toFixed(2) || '0.00'}`,
+                type: 'delivery',
+                relatedId: orderId,
+              });
+
+              console.log(`✅ Notified ${riderUserIds.length} available riders about preparing order ${orderId}`);
+            }
+          }
+        } catch (notifyError) {
+          console.warn('Failed to notify riders about preparing order:', notifyError);
         }
       }
 

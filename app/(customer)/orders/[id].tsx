@@ -525,21 +525,63 @@ export default function OrderDetailScreen() {
           </ResponsiveView>
         </ResponsiveView>
 
-        {/* Delivery Information */}
+        {/* Receive Options / Fulfillment Type */}
         <ResponsiveView padding="lg">
           <ResponsiveView marginBottom="md">
             <ResponsiveText size="lg" weight="semiBold" color={colors.text}>
-              Delivery Information
+              Receive Options
             </ResponsiveText>
           </ResponsiveView>
           
           <ResponsiveView style={[styles.deliveryCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-            <InfoRow
-              icon="location-on"
-              title={order.delivery_address?.label || 'Delivery Address'}
-              value={order.delivery_address?.full_address || 'No address provided'}
-              colors={colors}
-            />
+            <ResponsiveView
+              style={[
+                styles.fulfillmentBadge,
+                {
+                  backgroundColor: (order as any).fulfillment_type === 'pickup' 
+                    ? colors.primary + '20' 
+                    : colors.secondary + '20',
+                  borderColor: (order as any).fulfillment_type === 'pickup'
+                    ? colors.primary
+                    : colors.secondary,
+                }
+              ]}
+              marginBottom="md"
+            >
+              <MaterialIcons
+                name={(order as any).fulfillment_type === 'pickup' ? 'store' : 'local-shipping'}
+                size={20}
+                color={(order as any).fulfillment_type === 'pickup' ? colors.primary : colors.secondary}
+              />
+              <ResponsiveText
+                size="md"
+                weight="semiBold"
+                color={(order as any).fulfillment_type === 'pickup' ? colors.primary : colors.secondary}
+                style={styles.fulfillmentBadgeText}
+              >
+                {(order as any).fulfillment_type === 'pickup' ? 'To Be Picked Up' : 'For Delivery'}
+              </ResponsiveText>
+            </ResponsiveView>
+
+            {/* Delivery Address (only for delivery orders) */}
+            {(order as any).fulfillment_type === 'delivery' && (
+              <InfoRow
+                icon="location-on"
+                title={order.delivery_address?.label || 'Delivery Address'}
+                value={order.delivery_address?.full_address || 'No address provided'}
+                colors={colors}
+              />
+            )}
+
+            {/* Pickup Location (only for pickup orders) */}
+            {(order as any).fulfillment_type === 'pickup' && (
+              <InfoRow
+                icon="store"
+                title="Pickup Location"
+                value={(order as any).pickup_location_snapshot || 'Kitchen One - Main Branch\nSan Vicente, Bulan, Sorsogon'}
+                colors={colors}
+              />
+            )}
             
             <InfoRow
               icon="payment"
@@ -557,8 +599,8 @@ export default function OrderDetailScreen() {
               />
             )}
 
-            {/* Rider Delivery Information */}
-            {order.status === 'delivered' && (order as any).delivered_by_rider && (order as any).delivered_at && (
+            {/* Rider Delivery Information (only for delivery orders) */}
+            {(order as any).fulfillment_type === 'delivery' && order.status === 'delivered' && (order as any).delivered_by_rider && (order as any).delivered_at && (
               <>
                 <InfoRow
                   icon="delivery-dining"
@@ -574,6 +616,16 @@ export default function OrderDetailScreen() {
                   colors={colors}
                 />
               </>
+            )}
+
+            {/* Pickup Information (only for pickup orders) */}
+            {(order as any).fulfillment_type === 'pickup' && (order as any).picked_up_at && (
+              <InfoRow
+                icon="schedule"
+                title="Picked up at"
+                value={formatOrderDate((order as any).picked_up_at)}
+                colors={colors}
+              />
             )}
           </ResponsiveView>
         </ResponsiveView>
@@ -760,5 +812,15 @@ const styles = StyleSheet.create({
     padding: Layout.spacing.sm,
     borderRadius: Layout.borderRadius.sm,
     borderLeftWidth: 3,
+  },
+  fulfillmentBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: Layout.spacing.md,
+    borderRadius: Layout.borderRadius.md,
+    borderWidth: 2,
+  },
+  fulfillmentBadgeText: {
+    marginLeft: Layout.spacing.sm,
   },
 });

@@ -364,20 +364,53 @@ export const useRiderOrders = () => {
           table: 'delivery_assignments',
         },
         (payload) => {
-          console.log('Delivery assignment change detected:', payload);
+          console.log('📦 Delivery assignment change detected:', payload.eventType);
           fetchOrders({ background: true });
         }
       )
       .on(
         'postgres_changes',
         {
-          event: '*',
+          event: 'UPDATE',
           schema: 'public',
           table: 'orders',
         },
         (payload) => {
-          console.log('Order change detected:', payload);
-          fetchOrders({ background: true });
+          const oldOrder = payload.old as any;
+          const newOrder = payload.new as any;
+          const statusChanged = oldOrder?.status !== newOrder?.status;
+          const status = newOrder?.status?.toLowerCase();
+          
+          // Only refresh if status changed to something relevant for riders
+          if (statusChanged && (status === 'ready_for_pickup' || status === 'preparing' || status === 'out_for_delivery' || status === 'delivered')) {
+            console.log('📦 Order status changed to rider-relevant status:', {
+              orderId: newOrder.id,
+              oldStatus: oldOrder?.status,
+              newStatus: newOrder?.status
+            });
+            fetchOrders({ background: true });
+          }
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'orders',
+        },
+        (payload) => {
+          const newOrder = payload.new as any;
+          const status = newOrder?.status?.toLowerCase();
+          
+          // If a new order is created with ready_for_pickup or preparing status, refresh
+          if (status === 'ready_for_pickup' || status === 'preparing') {
+            console.log('📦 New order created with rider-relevant status:', {
+              orderId: newOrder.id,
+              status: newOrder?.status
+            });
+            fetchOrders({ background: true });
+          }
         }
       )
       .subscribe();

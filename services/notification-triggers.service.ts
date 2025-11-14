@@ -74,6 +74,61 @@ export class NotificationTriggersService {
       type: 'order_update',
       relatedId: order.id,
     });
+
+    // Notify all available riders when order becomes ready_for_pickup or preparing
+    const newStatus = (order.status || '').toLowerCase();
+    const isAvailableForRiders = newStatus === 'ready_for_pickup' || newStatus === 'preparing';
+    const wasNotAvailable = oldStatus !== 'ready_for_pickup' && oldStatus !== 'preparing';
+    
+    if (isAvailableForRiders && wasNotAvailable) {
+      await this.notifyAvailableRiders(order);
+    }
+  }
+
+  // Notify all available riders about a new order
+  private static async notifyAvailableRiders(order: Order) {
+    try {
+      // Get all available riders
+      const { data: availableRiders, error } = await supabase
+        .from('riders')
+        .select('user_id')
+        .eq('is_available', true);
+
+      if (error) {
+        console.error('Error fetching available riders:', error);
+        return;
+      }
+
+      if (!availableRiders || availableRiders.length === 0) {
+        console.log('No available riders to notify');
+        return;
+      }
+
+      // Check if order is already assigned
+      const { data: assignment } = await supabase
+        .from('delivery_assignments')
+        .select('rider_id')
+        .eq('order_id', order.id)
+        .not('rider_id', 'is', null)
+        .single();
+
+      // Only notify if order is not already assigned
+      if (!assignment) {
+        const riderUserIds = availableRiders.map((rider: any) => rider.user_id);
+        const orderNumber = order.order_number || order.id.slice(-6).toUpperCase();
+        
+        await notificationService.sendBulkNotification(riderUserIds, {
+          title: 'New Order Available! 🚚',
+          message: `Order #${orderNumber} is now available for pickup. Amount: ₱${order.total_amount?.toFixed(2) || '0.00'}`,
+          type: 'delivery',
+          relatedId: order.id,
+        });
+
+        console.log(`✅ Notified ${riderUserIds.length} available riders about new order ${order.id}`);
+      }
+    } catch (error) {
+      console.error('Error notifying available riders:', error);
+    }
   }
 
   // Trigger payment status notifications

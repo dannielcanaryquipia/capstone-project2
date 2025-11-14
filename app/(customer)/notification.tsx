@@ -3,13 +3,13 @@ import { useFocusEffect, useRouter } from 'expo-router';
 import React, { useCallback, useRef } from 'react';
 import { ActivityIndicator, RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { EmptyState } from '../../components/ui/EmptyState';
 import { useAlert } from '../../components/ui/AlertProvider';
+import { EmptyState } from '../../components/ui/EmptyState';
 import Layout from '../../constants/Layout';
 import { useNotificationContext } from '../../contexts/NotificationContext';
 import { useTheme } from '../../contexts/ThemeContext';
-import { Notification } from '../../lib/database.types';
 import { useAuth } from '../../hooks/useAuth';
+import { Notification } from '../../lib/database.types';
 
 const getNotificationIcon = (type: string) => {
   switch (type) {
@@ -75,7 +75,8 @@ export default function NotificationScreen() {
     // If notification has a related order ID, route to order details
     if (notification.related_order_id) {
       if (isAdmin) {
-        return `/(admin)/orders/${notification.related_order_id}`;
+        // Pass 'from' parameter for admin to handle back navigation correctly
+        return `/(admin)/orders/${notification.related_order_id}?from=notifications`;
       } else if (isDelivery) {
         return `/(delivery)/order/${notification.related_order_id}`;
       } else {

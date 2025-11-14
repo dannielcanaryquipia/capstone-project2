@@ -55,6 +55,10 @@ export default function ProductScreen() {
   // Fetch real product data from backend
   const { productDetail, isLoading, error } = useProductDetail(id as string);
   const product = productDetail || mockProductData;
+  const stockQuantity = typeof (product as any)?.stock?.quantity === 'number'
+    ? (product as any).stock.quantity
+    : null;
+  const isOutOfStock = !product.is_available || (stockQuantity !== null && stockQuantity <= 0);
 
   // AI Recommendations
   const { getCategoryRecommendations } = useRecommendations();
@@ -197,6 +201,14 @@ export default function ProductScreen() {
   const addToCart = () => {
     if (!product || product.id === 'loading') return;
 
+    if (isOutOfStock) {
+      info(
+        'Out of Stock',
+        'This product is currently unavailable.'
+      );
+      return;
+    }
+
     try {
       // Convert ProductDetail to Product type for cart
       const productForCart = {
@@ -258,6 +270,14 @@ export default function ProductScreen() {
 
   const handleBuyNow = () => {
     if (!product || product.id === 'loading') return;
+
+    if (isOutOfStock) {
+      info(
+        'Out of Stock',
+        'This product is currently unavailable.'
+      );
+      return;
+    }
 
     // Show confirmation alert
     confirm(
@@ -384,6 +404,32 @@ export default function ProductScreen() {
           <Text style={[styles.description, { color: colors.textSecondary }]}>
             {product.description}
           </Text>
+
+          {isOutOfStock ? (
+            <View
+              style={[
+                styles.stockAlert,
+                { backgroundColor: `${colors.error}12`, borderColor: colors.error },
+              ]}
+            >
+              <MaterialIcons name="error-outline" size={20} color={colors.error} />
+              <Text style={[styles.stockAlertText, { color: colors.error }]}>
+                Currently out of stock. Please check back soon.
+              </Text>
+            </View>
+          ) : stockQuantity !== null ? (
+            <View
+              style={[
+                styles.stockAlert,
+                { backgroundColor: `${colors.success}12`, borderColor: colors.success },
+              ]}
+            >
+              <MaterialIcons name="inventory" size={20} color={colors.success} />
+              <Text style={[styles.stockAlertText, { color: colors.success }]}>
+                {stockQuantity} {stockQuantity === 1 ? 'unit' : 'units'} left
+              </Text>
+            </View>
+          ) : null}
 
           {/* Size Selection (from product_options) - Only for Pizza */}
           {isPizzaCategory && availableSizes.length > 0 && (
@@ -538,14 +584,14 @@ export default function ProductScreen() {
             onPress={decreaseQuantity} 
             style={[
               styles.quantityButton,
-              quantity <= 1 && { opacity: 0.5 }
+              (quantity <= 1 || isOutOfStock) && { opacity: 0.4 }
             ]}
-            disabled={quantity <= 1}
+            disabled={isOutOfStock || quantity <= 1}
           >
             <MaterialIcons 
               name="remove" 
               size={20} 
-              color={quantity <= 1 ? colors.textSecondary : colors.primary} 
+              color={quantity <= 1 || isOutOfStock ? colors.textSecondary : colors.primary} 
             />
           </TouchableOpacity>
           <Text style={[styles.quantityText, { color: colors.text }]}>{quantity}</Text>
@@ -553,21 +599,25 @@ export default function ProductScreen() {
             onPress={increaseQuantity} 
             style={[
               styles.quantityButton,
-              quantity >= 10 && { opacity: 0.5 }
+              (quantity >= 10 || isOutOfStock) && { opacity: 0.4 }
             ]}
-            disabled={quantity >= 10}
+            disabled={isOutOfStock || quantity >= 10}
           >
             <MaterialIcons
               name="add"
               size={20}
-              color={quantity >= 10 ? colors.textSecondary : colors.primary} 
+              color={quantity >= 10 || isOutOfStock ? colors.textSecondary : colors.primary} 
             />
           </TouchableOpacity>
         </View>
         <View style={styles.buttonContainer}>
         <TouchableOpacity
-          style={[styles.addToCartButton, { backgroundColor: colors.primary }]}
+          style={[
+            styles.addToCartButton,
+            { backgroundColor: colors.primary, opacity: isOutOfStock ? 0.5 : 1 },
+          ]}
           onPress={addToCart}
+          disabled={isOutOfStock}
         >
             <MaterialIcons name="shopping-cart" size={24} color={colors.black} />
         </TouchableOpacity>
@@ -575,6 +625,7 @@ export default function ProductScreen() {
             onPress={handleBuyNow}
             style={styles.buyNowButton}
             size="md"
+            disabled={isOutOfStock}
           />
       </View>
     </View>
@@ -677,6 +728,22 @@ const styles = StyleSheet.create({
     fontSize: 14,
     lineHeight: 22,
     marginBottom: 20,
+  },
+  stockAlert: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    borderRadius: 14,
+    borderWidth: 1,
+    marginBottom: 20,
+  },
+  stockAlertText: {
+    flex: 1,
+    fontSize: 14,
+    lineHeight: 20,
+    fontFamily: Layout.fontFamily.semiBold,
   },
   section: {
     marginBottom: 20,

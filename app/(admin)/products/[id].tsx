@@ -3,7 +3,6 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
-  Alert,
   Image,
   ScrollView,
   StyleSheet,
@@ -13,6 +12,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Button from '../../../components/ui/Button';
+import { useAlert } from '../../../components/ui/AlertProvider';
 import { ResponsiveText } from '../../../components/ui/ResponsiveText';
 import { ResponsiveView } from '../../../components/ui/ResponsiveView';
 import Layout from '../../../constants/Layout';
@@ -20,6 +20,7 @@ import { ResponsiveBorderRadius, ResponsiveSpacing, responsiveValue } from '../.
 import { Strings } from '../../../constants/Strings';
 import { useTheme } from '../../../contexts/ThemeContext';
 import { useProductCategories } from '../../../hooks';
+import { useAuth } from '../../../hooks/useAuth';
 import { ProductService } from '../../../services/product.service';
 import global from '../../../styles/global';
 import { Product } from '../../../types/product.types';
@@ -37,12 +38,18 @@ interface ProductFormData {
 
 export default function EditProductScreen() {
   const { colors } = useTheme();
+  const { user } = useAuth();
+  const { success, error: showError, confirm, confirmDestructive } = useAlert();
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [product, setProduct] = useState<Product | null>(null);
-  
+  const [stockQuantity, setStockQuantity] = useState<string>('0');
+  const [lowStockThreshold, setLowStockThreshold] = useState<string>('10');
+  const [stockSaving, setStockSaving] = useState(false);
+  const [stockNote, setStockNote] = useState('');
+
   const [formData, setFormData] = useState<ProductFormData>({
     name: '',
     description: '',
@@ -80,10 +87,20 @@ export default function EditProductScreen() {
           is_available: productData.is_available,
           is_recommended: productData.is_recommended,
         });
+        setStockQuantity(
+          productData.stock?.quantity !== undefined
+            ? productData.stock.quantity.toString()
+            : '0'
+        );
+        setLowStockThreshold(
+          productData.stock?.low_stock_threshold !== undefined
+            ? productData.stock.low_stock_threshold.toString()
+            : '10'
+        );
       }
     } catch (error) {
       console.error('Error loading product:', error);
-      Alert.alert('Error', 'Failed to load product details');
+      showError('Error', 'Failed to load product details');
       router.replace('/(admin)/products' as any);
     } finally {
       setLoading(false);
@@ -104,21 +121,63 @@ export default function EditProductScreen() {
     }));
   };
 
+  const handleSaveStock = async () => {
+    if (!id || id === 'new') return;
+
+    const quantityValue = parseInt(stockQuantity, 10);
+    const thresholdValue = parseInt(lowStockThreshold, 10);
+
+    if (Number.isNaN(quantityValue) || quantityValue < 0) {
+      showError('Validation Error', 'Stock quantity must be a non-negative whole number.');
+      return;
+    }
+
+    if (Number.isNaN(thresholdValue) || thresholdValue < 0) {
+      showError('Validation Error', 'Low stock threshold must be a non-negative whole number.');
+      return;
+    }
+
+    if (!user?.id) {
+      showError('Not Signed In', 'You must be logged in to adjust inventory.');
+      return;
+    }
+
+    setStockSaving(true);
+    try {
+      await ProductService.updateProductStock(id, {
+        quantity: quantityValue,
+        low_stock_threshold: thresholdValue,
+      }, {
+        performedBy: user.id,
+        reason: stockNote.trim() || undefined,
+      });
+
+      await loadProduct();
+      setStockNote('');
+      success('Stock Updated', 'Inventory levels have been updated successfully.');
+    } catch (error) {
+      console.error('Error updating product stock:', error);
+      showError('Error', 'Failed to update stock. Please try again.');
+    } finally {
+      setStockSaving(false);
+    }
+  };
+
   const validateForm = (): boolean => {
     if (!formData.name.trim()) {
-      Alert.alert('Validation Error', 'Product name is required');
+      showError('Validation Error', 'Product name is required');
       return false;
     }
     if (!formData.description.trim()) {
-      Alert.alert('Validation Error', 'Product description is required');
+      showError('Validation Error', 'Product description is required');
       return false;
     }
     if (!formData.base_price || parseFloat(formData.base_price) < 0) {
-      Alert.alert('Validation Error', 'Valid base price is required');
+      showError('Validation Error', 'Valid base price is required');
       return false;
     }
     if (!formData.category_id) {
-      Alert.alert('Validation Error', 'Please select a category');
+      showError('Validation Error', 'Please select a category');
       return false;
     }
     return true;
@@ -142,25 +201,25 @@ export default function EditProductScreen() {
       };
 
       await ProductService.updateProduct(id, productData);
-      Alert.alert('Success', 'Product updated successfully!', [
+      success('Product Updated', 'Product has been updated successfully!', [
         { text: 'OK', onPress: () => router.replace('/(admin)/products' as any) }
       ]);
     } catch (error) {
       console.error('Error updating product:', error);
-      Alert.alert('Error', 'Failed to update product. Please try again.');
+      showError('Error', 'Failed to update product. Please try again.');
     } finally {
       setSaving(false);
     }
   };
 
   const handleCancel = () => {
-    Alert.alert(
+    confirmDestructive(
       'Discard Changes',
       'Are you sure you want to discard your changes?',
-      [
-        { text: 'Keep Editing', style: 'cancel' },
-        { text: 'Discard', style: 'destructive', onPress: () => router.replace('/(admin)/products' as any) }
-      ]
+      () => router.replace('/(admin)/products' as any),
+      undefined,
+      'Discard',
+      'Keep Editing'
     );
   };
 
@@ -396,6 +455,99 @@ export default function EditProductScreen() {
             </ResponsiveView>
           </ResponsiveView>
 
+          {/* Inventory Management */}
+          <ResponsiveView marginBottom="lg">
+            <ResponsiveText size="md" weight="medium" color={colors.text}>
+              Inventory
+            </ResponsiveText>
+            <ResponsiveText size="sm" color={colors.textSecondary} marginTop="xs">
+              Set the current stock count (customers see “Out of stock” when this hits zero). The low stock threshold controls when warnings appear.
+            </ResponsiveText>
+
+            <ResponsiveView style={styles.stockRow} marginTop="md">
+              <ResponsiveView style={styles.stockField}>
+                <ResponsiveText size="sm" weight="semiBold" color={colors.textSecondary} marginBottom="xs">
+                  Stock Quantity
+                </ResponsiveText>
+                <TextInput
+                  value={stockQuantity}
+                  onChangeText={setStockQuantity}
+                  keyboardType="number-pad"
+                  placeholder="0"
+                  placeholderTextColor={colors.textSecondary}
+                  style={[
+                    styles.input,
+                    {
+                      backgroundColor: colors.background,
+                      color: colors.text,
+                      borderColor: colors.border,
+                    },
+                  ]}
+                />
+              </ResponsiveView>
+              <ResponsiveView style={styles.stockField}>
+                <ResponsiveText size="sm" weight="semiBold" color={colors.textSecondary} marginBottom="xs">
+                  Low Stock Threshold
+                </ResponsiveText>
+                <TextInput
+                  value={lowStockThreshold}
+                  onChangeText={setLowStockThreshold}
+                  keyboardType="number-pad"
+                  placeholder="10"
+                  placeholderTextColor={colors.textSecondary}
+                  style={[
+                    styles.input,
+                    {
+                      backgroundColor: colors.background,
+                      color: colors.text,
+                      borderColor: colors.border,
+                    },
+                  ]}
+                />
+              </ResponsiveView>
+            </ResponsiveView>
+
+            <ResponsiveView marginTop="xs">
+              <ResponsiveText size="xs" color={colors.textSecondary}>
+                Last updated:{' '}
+                {product?.stock?.last_updated
+                  ? new Date(product.stock.last_updated).toLocaleString()
+                  : 'Never'}
+              </ResponsiveText>
+            </ResponsiveView>
+
+            <ResponsiveView marginTop="md">
+              <ResponsiveText size="sm" weight="semiBold" color={colors.textSecondary} marginBottom="xs">
+                Notes (optional)
+              </ResponsiveText>
+              <TextInput
+                value={stockNote}
+                onChangeText={setStockNote}
+                placeholder="Reason for adjustment"
+                placeholderTextColor={colors.textSecondary}
+                style={[
+                  styles.input,
+                  {
+                    backgroundColor: colors.background,
+                    color: colors.text,
+                    borderColor: colors.border,
+                  },
+                ]}
+              />
+            </ResponsiveView>
+
+            <ResponsiveView marginTop="md">
+              <Button
+                title={stockSaving ? 'Saving...' : 'Save Inventory'}
+                onPress={handleSaveStock}
+                disabled={stockSaving}
+                loading={stockSaving}
+                variant="outline"
+                iconLeft={stockSaving ? undefined : 'inventory'}
+              />
+            </ResponsiveView>
+          </ResponsiveView>
+
           {/* Available for Order Toggle */}
           <ResponsiveView style={styles.toggleContainer} marginBottom="md">
             <ResponsiveView style={styles.toggleInfo}>
@@ -557,6 +709,13 @@ const styles = StyleSheet.create({
   actionContainer: {
     padding: ResponsiveSpacing.lg,
     ...Layout.shadows.sm,
+  },
+  stockRow: {
+    flexDirection: 'row',
+    gap: ResponsiveSpacing.md,
+  },
+  stockField: {
+    flex: 1,
   },
   imageContainer: {
     borderRadius: ResponsiveBorderRadius.lg,

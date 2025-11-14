@@ -1,0 +1,76 @@
+feat: Add order fulfillment system, payment processing, stock automation, and notification triggers
+
+## New Features Added (A)
+
+- Order Fulfillment Type System (delivery/pickup)
+  - Added pickup and delivery fulfillment options
+  - Pickup location tracking and verification
+  - Database migration: supabase/migrations/20241113_add_order_fulfillment_type.sql
+
+- Payment Processing Overlay Component
+  - components/ui/PaymentProcessingOverlay.tsx - Loading overlay for payment processing
+
+- Product Stock Automation Triggers
+  - database/product_stock_triggers.sql - Automatic stock decrement and availability sync
+
+- Notification Triggers Service
+  - services/notification-triggers.service.ts - Real-time order, payment, and delivery notifications
+
+## Modified Files (M)
+
+### Admin Pages
+- app/(admin)/orders/[id].tsx - Added fulfillment type display, pickup location info, pickup notes
+- app/(admin)/products/[id].tsx - Enhanced stock management, low stock threshold, inventory tracking
+
+### Customer Pages
+- app/(customer)/checkout.tsx - Added fulfillment type selection, PaymentProcessingOverlay integration, enhanced GCash flow
+- app/(customer)/menu/index.tsx - Code cleanup and optimization
+- app/(customer)/notification.tsx - UI improvements
+- app/(customer)/orders/[id].tsx - Added fulfillment type display, pickup tracking support
+- app/(customer)/product/[id].tsx - Improved stock availability indicators, enhanced product details
+
+### Components
+- components/rider/RiderDashboard.tsx - Enhanced dashboard, improved statistics, better availability toggle
+- components/rider/RiderOrdersManager.tsx - Better order management, fulfillment type support
+- components/ui/ProductCard.tsx - Enhanced stock availability indicators
+
+### Services
+- services/order.service.ts - Added fulfillment type support, pickup order handling, enhanced notifications
+- services/product.service.ts - Comprehensive stock management, low stock threshold, inventory logging
+- services/product-detail.service.ts - Improved product detail fetching, better stock handling
+- services/notification-triggers.service.ts - Real-time notification triggers for orders, payments, deliveries
+
+### Hooks
+- hooks/useOrders.ts - Added fulfillment type support, better order creation
+- hooks/useRiderProfile.ts - Enhanced profile management, better availability toggle, improved stats
+
+### Types
+- types/order.types.ts - Added FulfillmentType, pickup-related fields (pickup_ready_at, picked_up_at, etc.)
+- types/product.types.ts - Added low stock threshold to ProductStock
+
+### Database & Config
+- lib/database.types.ts - Updated types for fulfillment fields and pickup columns
+- package.json - Dependency updates
+- package-lock.json - Lock file updates
+
+## Key Improvements
+
+- Order Management: Dual fulfillment system (delivery + pickup), pickup tracking, enhanced workflow
+- Stock Management: Automated stock decrement, availability sync, low stock threshold, transaction logging
+- Notifications: Real-time order/payment/delivery notifications, rider alerts, low stock alerts
+- User Experience: Payment processing overlay, better fulfillment selection, enhanced tracking
+- Rider Experience: Enhanced dashboard, better order management, improved statistics
+
+## Statistics
+
+- 21 files modified
+- 4 files added
+- +1,447 lines added
+- -208 lines removed
+- Net: +1,239 lines
+
+## Migration Required
+
+- Run supabase/migrations/20241113_add_order_fulfillment_type.sql
+- Run database/product_stock_triggers.sql
+

@@ -1,7 +1,28 @@
 import { supabase } from '../lib/supabase';
-import { Product, ProductCategory, ProductFilters, ProductStats } from '../types/product.types';
+import { Product, ProductCategory, ProductFilters, ProductStats, ProductStock } from '../types/product.types';
 
 export class ProductService {
+  private static normalizeStock(stock: any, productId: string): ProductStock | undefined {
+    if (!stock) return undefined;
+    const stockEntry = Array.isArray(stock) ? stock[0] : stock;
+    if (!stockEntry) return undefined;
+    const lastUpdatedValue = stockEntry.last_updated ?? stockEntry.last_updated_at;
+
+    const normalized: ProductStock = {
+      id: stockEntry.id,
+      product_id: productId,
+      quantity: stockEntry.quantity ?? 0,
+      low_stock_threshold: stockEntry.low_stock_threshold ?? undefined,
+      last_updated: lastUpdatedValue ?? new Date().toISOString(),
+    };
+
+    if (lastUpdatedValue) {
+      normalized.last_updated_at = lastUpdatedValue;
+    }
+
+    return normalized;
+  }
+
   // Lightweight list for admin screens (no pizza options/crust join)
   static async getProductsLite(
     filters?: ProductFilters,
@@ -19,10 +40,18 @@ export class ProductService {
           description,
           base_price,
           image_url,
+          gallery_image_urls,
           category_id,
           is_available,
           is_recommended,
           created_at,
+          updated_at,
+          stock:product_stock!left(
+            id,
+            quantity,
+            low_stock_threshold,
+            last_updated:last_updated_at
+          ),
           categories:categories(name)
         `)
         .order('created_at', { ascending: false })
@@ -77,10 +106,11 @@ export class ProductService {
           }
         }
         
-        return { 
-          ...p, 
+        return {
+          ...p,
           price: p.base_price,
-          category: categoryData
+          category: categoryData,
+          stock: this.normalizeStock(p.stock, p.id)
         };
       });
       return products as Product[];
@@ -95,7 +125,25 @@ export class ProductService {
       let query = supabase
         .from('products')
         .select(`
-          *,
+          id,
+          name,
+          description,
+          base_price,
+          image_url,
+          gallery_image_urls,
+          category_id,
+          is_available,
+          is_recommended,
+          is_featured,
+          preparation_time_minutes,
+          created_at,
+          updated_at,
+          stock:product_stock!left(
+            id,
+            quantity,
+            low_stock_threshold,
+            last_updated:last_updated_at
+          ),
           category:categories(name, description),
           pizza_options:pizza_options(
             id,
@@ -151,6 +199,7 @@ export class ProductService {
       // Map pizza options with crust information
       const productsWithCrusts = (data || []).map((product: any) => ({
         ...product,
+        stock: this.normalizeStock(product.stock, product.id),
         pizza_options: (product.pizza_options || []).map((option: any) => {
           const crust: any = crustMap.get(option.crust_id);
           return {
@@ -176,7 +225,25 @@ export class ProductService {
       const { data, error } = await supabase
         .from('products')
         .select(`
-          *,
+          id,
+          name,
+          description,
+          base_price,
+          image_url,
+          gallery_image_urls,
+          category_id,
+          is_available,
+          is_recommended,
+          is_featured,
+          preparation_time_minutes,
+          created_at,
+          updated_at,
+          stock:product_stock!left(
+            id,
+            quantity,
+            low_stock_threshold,
+            last_updated:last_updated_at
+          ),
           category:categories(name, description),
           pizza_options:pizza_options(
             id,
@@ -203,9 +270,11 @@ export class ProductService {
       const crustMap = new Map<string, any>((crusts || []).map((crust: any) => [crust.id, crust]));
 
       // Map pizza options with crust information
+      const productRecord: any = data;
       const productWithCrusts = {
-        ...(data as any),
-        pizza_options: ((data as any).pizza_options || []).map((option: any) => {
+        ...productRecord,
+        stock: this.normalizeStock(productRecord.stock, productRecord.id),
+        pizza_options: (productRecord.pizza_options || []).map((option: any) => {
           const crust: any = crustMap.get(option.crust_id);
           return {
             ...option,
@@ -251,7 +320,6 @@ export class ProductService {
           is_available: productData.is_available ?? true,
           is_recommended: productData.is_recommended ?? false,
           preparation_time_minutes: productData.preparation_time,
-          allergens: productData.allergens,
         } as any)
         .select()
         .single();
@@ -271,18 +339,162 @@ export class ProductService {
     updates: Partial<Product>
   ): Promise<Product> {
     try {
+      // Filter out fields that don't exist in the database schema
+      // and map field names to match database columns
+      const { 
+        allergens, 
+        nutritional_info, 
+        preparation_time,
+        price,
+        ...restUpdates 
+      } = updates as any;
+      
+      // Map field names to database column names
+      const dbUpdates: any = {
+        ...restUpdates,
+        updated_at: new Date().toISOString(),
+      };
+      
+      // Map preparation_time to preparation_time_minutes
+      if (preparation_time !== undefined) {
+        dbUpdates.preparation_time_minutes = preparation_time;
+      }
+      
+      // Map price to base_price
+      if (price !== undefined) {
+        dbUpdates.base_price = price;
+      }
+      
       const { error } = await (supabase as any)
         .from('products')
-        .update({
-          ...updates,
-          updated_at: new Date().toISOString(),
-        })
+        .update(dbUpdates)
         .eq('id', productId);
 
       if (error) throw error;
       return await this.getProductById(productId) as Product;
     } catch (error) {
       console.error('Error updating product:', error);
+      throw error;
+    }
+  }
+
+  static async updateProductStock(
+    productId: string,
+    updates: {
+      quantity?: number;
+      low_stock_threshold?: number;
+    },
+    options?: {
+      performedBy?: string;
+      reason?: string;
+    }
+  ): Promise<ProductStock> {
+    try {
+      if (
+        updates.quantity !== undefined &&
+        (Number.isNaN(updates.quantity) || updates.quantity < 0)
+      ) {
+        throw new Error('Quantity must be a non-negative number');
+      }
+
+      if (
+        updates.low_stock_threshold !== undefined &&
+        (Number.isNaN(updates.low_stock_threshold) || updates.low_stock_threshold < 0)
+      ) {
+        throw new Error('Low stock threshold must be a non-negative number');
+      }
+
+      let previousQuantity: number | null = null;
+
+      if (updates.quantity !== undefined) {
+        const { data: existingStock, error: existingError } = await supabase
+          .from('product_stock')
+          .select('quantity')
+          .eq('product_id', productId)
+          .maybeSingle();
+
+        if (existingError) {
+          console.warn('Error fetching current stock before update:', existingError);
+        } else {
+          const existingStockData = existingStock as any;
+          if (existingStockData && typeof existingStockData.quantity === 'number') {
+            previousQuantity = existingStockData.quantity;
+          }
+        }
+      }
+
+      const payload: Record<string, any> = {
+        product_id: productId,
+        last_updated_at: new Date().toISOString(),
+      };
+
+      if (updates.quantity !== undefined) {
+        payload.quantity = updates.quantity;
+      }
+
+      if (updates.low_stock_threshold !== undefined) {
+        payload.low_stock_threshold = updates.low_stock_threshold;
+      }
+
+      const { data, error } = await supabase
+        .from('product_stock')
+        .upsert(
+          payload as any,
+          {
+            onConflict: 'product_id',
+            ignoreDuplicates: false,
+          }
+        )
+        .select(
+          `
+            id,
+            product_id,
+            quantity,
+            low_stock_threshold,
+            last_updated:last_updated_at
+          `
+        )
+        .single();
+
+      if (error) throw error;
+      if (!data) throw new Error('Failed to update product stock');
+
+      const normalized = this.normalizeStock(data as any, productId);
+      if (!normalized) throw new Error('Failed to normalize product stock');
+
+      if (options?.performedBy && updates.quantity !== undefined) {
+        const newQuantity = updates.quantity;
+        const quantityDelta =
+          previousQuantity === null ? newQuantity : newQuantity - previousQuantity;
+
+        if (quantityDelta !== 0) {
+          const transactionType =
+            quantityDelta > 0 ? 'IN' : quantityDelta < 0 ? 'OUT' : 'ADJUSTMENT';
+
+          try {
+            const { error: logError } = await (supabase
+              .from('inventory_transactions') as any).insert([
+              {
+                product_id: productId,
+                transaction_type: transactionType,
+                quantity: Math.abs(quantityDelta),
+                reason: options.reason ?? 'Manual stock adjustment',
+                performed_by: options.performedBy,
+              },
+            ]);
+
+            if (logError) {
+              console.warn('Error logging inventory transaction:', logError);
+            }
+          } catch (logException) {
+            console.warn('Unexpected error logging inventory transaction:', logException);
+          }
+        }
+      }
+
+      return normalized;
+    } catch (error) {
+      console.error('Error updating product stock:', error);
       throw error;
     }
   }
@@ -711,11 +923,52 @@ export class ProductService {
     }
   }
 
-  // Get low stock products (placeholder - no stock tracking in current schema)
+  // Get low stock products
   static async getLowStockProducts(): Promise<Product[]> {
     try {
-      // Return empty array since stock tracking is not implemented
-      return [];
+      const LOW_STOCK_THRESHOLD = 10;
+
+      const { data, error } = await supabase
+        .from('products')
+        .select(`
+          id,
+          name,
+          description,
+          base_price,
+          image_url,
+          gallery_image_urls,
+          category_id,
+          is_available,
+          is_recommended,
+          is_featured,
+          preparation_time_minutes,
+          created_at,
+          updated_at,
+          stock:product_stock!inner(
+            id,
+            quantity,
+            low_stock_threshold,
+            last_updated:last_updated_at
+          ),
+          category:categories(name, description),
+          pizza_options:pizza_options(
+            id,
+            size,
+            price,
+            crust_id
+          )
+        `)
+        .lte('product_stock.quantity', LOW_STOCK_THRESHOLD)
+        .order('product_stock.quantity', { ascending: true });
+
+      if (error) throw error;
+
+      const productsWithStock = (data || []).map((product: any) => ({
+        ...product,
+        stock: this.normalizeStock(product.stock, product.id),
+      }));
+
+      return productsWithStock;
     } catch (error) {
       console.error('Error fetching low stock products:', error);
       throw error;
@@ -728,7 +981,25 @@ export class ProductService {
       const { data, error } = await supabase
         .from('products')
         .select(`
-          *,
+          id,
+          name,
+          description,
+          base_price,
+          image_url,
+          gallery_image_urls,
+          category_id,
+          is_available,
+          is_recommended,
+          is_featured,
+          preparation_time_minutes,
+          created_at,
+          updated_at,
+          stock:product_stock!left(
+            id,
+            quantity,
+            low_stock_threshold,
+            last_updated:last_updated_at
+          ),
           category:categories(name, description),
           pizza_options:pizza_options(
             id,
@@ -757,6 +1028,7 @@ export class ProductService {
       // Map pizza options with crust information
       const productsWithCrusts = (data || []).map((product: any) => ({
         ...product,
+        stock: this.normalizeStock(product.stock, product.id),
         pizza_options: (product.pizza_options || []).map((option: any) => {
           const crust: any = crustMap.get(option.crust_id);
           return {

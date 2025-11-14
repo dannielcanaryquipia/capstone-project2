@@ -1,4 +1,5 @@
 import { supabase } from '../lib/supabase';
+import { ProductStock } from '../types/product.types';
 
 export interface PizzaOption {
   id: string;
@@ -21,19 +22,34 @@ export interface ProductDetail {
   is_recommended: boolean;
   is_featured: boolean;
   preparation_time_minutes: number;
-  allergens: string[];
-  nutritional_info: any;
+  allergens?: string[];
+  nutritional_info?: any;
   category: {
     id: string;
     name: string;
     description: string;
   };
   pizza_options: PizzaOption[];
+  stock?: ProductStock;
   created_at: string;
   updated_at: string;
 }
 
 export class ProductDetailService {
+  private static normalizeStock(stock: any, productId: string): ProductStock | undefined {
+    if (!stock) return undefined;
+    const stockEntry = Array.isArray(stock) ? stock[0] : stock;
+    if (!stockEntry) return undefined;
+    return {
+      id: stockEntry.id,
+      product_id: productId,
+      quantity: stockEntry.quantity ?? 0,
+      low_stock_threshold: stockEntry.low_stock_threshold ?? undefined,
+      last_updated: stockEntry.last_updated ?? stockEntry.last_updated_at ?? new Date().toISOString(),
+      last_updated_at: stockEntry.last_updated_at,
+    };
+  }
+
   // Get detailed product information with pizza options and toppings
   static async getProductDetail(productId: string): Promise<ProductDetail | null> {
     try {
@@ -42,6 +58,12 @@ export class ProductDetailService {
         .from('products')
         .select(`
           *,
+          stock:product_stock(
+            id,
+            quantity,
+            low_stock_threshold,
+            last_updated:last_updated_at
+          ),
           category:categories(name, description)
         `)
         .eq('id', productId)
@@ -100,8 +122,11 @@ export class ProductDetailService {
         })
       );
 
+      const productRecord: any = product;
+
       return {
-        ...(product as any),
+        ...productRecord,
+        stock: this.normalizeStock(productRecord.stock, productRecord.id),
         pizza_options: pizzaOptionsWithToppings
       };
     } catch (error) {

@@ -228,10 +228,6 @@ export default function AdminProfile() {
     );
   };
 
-  const handleChangePassword = () => {
-    info('Coming Soon', 'Password change feature will be available soon.');
-  };
-
   const formatMemberSince = (createdAt: string) => {
     const date = new Date(createdAt);
     return date.toLocaleDateString('en-US', { 
@@ -251,6 +247,21 @@ export default function AdminProfile() {
       }
     } catch (error) {
       showError('Error', 'Failed to open website. Please try again.');
+    }
+  };
+
+  // Function to open Kitchen One Facebook page
+  const openFacebookPage = async () => {
+    const url = 'https://www.facebook.com/profile.php?id=100076165180445'; // Kitchen One Facebook page
+    try {
+      const supported = await Linking.canOpenURL(url);
+      if (supported) {
+        await Linking.openURL(url);
+      } else {
+        showError('Error', 'Cannot open Facebook page. Please check your internet connection.');
+      }
+    } catch (error) {
+      showError('Error', 'Failed to open Facebook page. Please try again.');
     }
   };
 
@@ -298,21 +309,9 @@ export default function AdminProfile() {
     {
       id: 'settings',
       title: Strings.settings,
-      subtitle: 'App preferences and notifications',
+      subtitle: 'App preferences',
       icon: 'settings',
-      onPress: () => {
-        info('Settings', 'Admin settings coming soon!');
-      },
-      showChevron: true,
-    },
-    {
-      id: 'help',
-      title: 'Help & Support',
-      subtitle: 'Get help and contact support',
-      icon: 'help-outline',
-      onPress: () => {
-        info('Help & Support', 'Admin support coming soon!');
-      },
+      onPress: () => router.push('/(admin)/profile/settings'),
       showChevron: true,
     },
     {
@@ -328,6 +327,11 @@ export default function AdminProfile() {
             {
               text: 'Visit Website',
               onPress: openWebsite,
+              style: 'default'
+            },
+            {
+              text: 'Visit Facebook Page',
+              onPress: openFacebookPage,
               style: 'default'
             },
             {
@@ -673,18 +677,6 @@ export default function AdminProfile() {
                 </TouchableOpacity>
               ))}
             </ResponsiveView>
-          </ResponsiveView>
-
-          {/* Password Change Button */}
-          <ResponsiveView style={styles.section}>
-            <Button
-              title="Change Password"
-              onPress={handleChangePassword}
-              variant="outline"
-              size="large"
-              fullWidth
-              icon={<MaterialIcons name="lock" size={20} color={colors.primary} />}
-            />
           </ResponsiveView>
 
           {/* Sign Out Button */}

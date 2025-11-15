@@ -20,6 +20,7 @@ import { ResponsiveBorderRadius, ResponsiveSpacing, responsiveValue } from '../.
 import { Strings } from '../../../constants/Strings';
 import { useTheme } from '../../../contexts/ThemeContext';
 import { useAuth } from '../../../hooks';
+import { supabase } from '../../../lib/supabase';
 import { User, UserFilters, UserService } from '../../../services/user.service';
 
 const roleTabs = ['All', 'Customer', 'Admin', 'Delivery Staff'];
@@ -96,6 +97,36 @@ export default function AdminUsersScreen() {
     loadUsers();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab, activeSearchQuery]);
+
+  // Real-time subscription for user updates
+  useEffect(() => {
+    console.log('Setting up real-time subscription for user management');
+    
+    const channel = supabase
+      .channel('admin-users-changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'profiles',
+        },
+        (payload) => {
+          console.log('User change detected in admin users page:', payload);
+          // Refresh users list when any profile changes
+          loadUsers();
+        }
+      )
+      .subscribe((status) => {
+        console.log('User management subscription status:', status);
+      });
+
+    return () => {
+      console.log('Cleaning up real-time subscription for user management');
+      supabase.removeChannel(channel);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Empty dependency array - loadUsers is stable and we want subscription to persist
 
   const handleRefresh = async () => {
     setRefreshing(true);
@@ -183,24 +214,29 @@ export default function AdminUsersScreen() {
     }
   };
 
-  const handleDeleteUser = async (userId: string, userName: string) => {
-    const deleteUser = async () => {
+  const handleBlockUser = async (userId: string, userName: string, isBlocked: boolean) => {
+    const blockUser = async () => {
       try {
-        await UserService.deleteUser(userId);
+        if (isBlocked) {
+          await UserService.unblockUser(userId);
+          success('User Unblocked', `${userName} has been successfully unblocked.`);
+        } else {
+          await UserService.blockUser(userId);
+          success('User Blocked', `${userName} has been successfully blocked.`);
+        }
         await loadUsers();
-        success('User Deleted', `${userName} has been successfully deleted.`);
       } catch (err) {
-        console.error('Error deleting user:', err);
-        error('Delete Failed', 'Failed to delete user. Please try again.');
+        console.error('Error blocking/unblocking user:', err);
+        error('Action Failed', `Failed to ${isBlocked ? 'unblock' : 'block'} user. Please try again.`);
       }
     };
 
     confirmDestructive(
-      'Delete User',
-      `Are you sure you want to permanently delete ${userName}? This action cannot be undone.`,
-      deleteUser,
+      isBlocked ? 'Unblock User' : 'Block User',
+      `Are you sure you want to ${isBlocked ? 'unblock' : 'block'} ${userName}? ${isBlocked ? 'They will be able to access the system again.' : 'They will be prevented from accessing the system.'}`,
+      blockUser,
       undefined,
-      'Delete',
+      isBlocked ? 'Unblock' : 'Block',
       'Cancel'
     );
   };
@@ -234,6 +270,7 @@ export default function AdminUsersScreen() {
   const renderUserItem = ({ item }: { item: User }) => {
     // Check if current user is trying to edit themselves
     const isCurrentUser = currentUser?.id === item.id;
+    const isBlocked = item.is_blocked || false;
     
     const actionMenuItems: DropdownMenuItem[] = isCurrentUser ? [
       {
@@ -251,11 +288,11 @@ export default function AdminUsersScreen() {
         onPress: () => handleChangeRole(item.id, item.role, item.full_name),
       },
       {
-        id: 'delete-user',
-        title: 'Delete User',
-        icon: 'delete',
-        destructive: true,
-        onPress: () => handleDeleteUser(item.id, item.full_name),
+        id: isBlocked ? 'unblock-user' : 'block-user',
+        title: isBlocked ? 'Unblock User' : 'Block User',
+        icon: isBlocked ? 'lock-open' : 'block',
+        destructive: !isBlocked,
+        onPress: () => handleBlockUser(item.id, item.full_name, isBlocked),
       },
     ];
 
@@ -273,7 +310,8 @@ export default function AdminUsersScreen() {
         variant="outlined"
         style={[
           styles.userCard,
-          isCurrentUser && [styles.currentUserCard, { borderColor: colors.primary }]
+          isCurrentUser && [styles.currentUserCard, { borderColor: colors.primary }],
+          isBlocked && [styles.blockedUserCard, { borderColor: colors.error, opacity: 0.7 }]
         ]}
         showActionMenu={true}
         actionMenuItems={actionMenuItems}
@@ -296,6 +334,25 @@ export default function AdminUsersScreen() {
               </ResponsiveText>
             </ResponsiveView>
           </ResponsiveView>
+          
+          {isBlocked && (
+            <ResponsiveView style={[styles.blockedBadge, { backgroundColor: colors.error + '20' }]}>
+              <MaterialIcons 
+                name="block" 
+                size={responsiveValue(12, 14, 16, 18)} 
+                color={colors.error} 
+              />
+              <ResponsiveView marginLeft="xs">
+                <ResponsiveText 
+                  size="xs" 
+                  color={colors.error}
+                  weight="semiBold"
+                >
+                  BLOCKED
+                </ResponsiveText>
+              </ResponsiveView>
+            </ResponsiveView>
+          )}
           
           {isCurrentUser && (
             <ResponsiveView style={[styles.currentUserBadge, { backgroundColor: colors.primary + '20' }]}>
@@ -543,6 +600,9 @@ const styles = StyleSheet.create({
     opacity: 0.8,
     borderWidth: 2,
   },
+  blockedUserCard: {
+    borderWidth: 2,
+  },
   userMeta: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -557,6 +617,13 @@ const styles = StyleSheet.create({
     borderRadius: ResponsiveBorderRadius.sm,
   },
   currentUserBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: ResponsiveSpacing.sm,
+    paddingVertical: ResponsiveSpacing.xs,
+    borderRadius: ResponsiveBorderRadius.sm,
+  },
+  blockedBadge: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: ResponsiveSpacing.sm,

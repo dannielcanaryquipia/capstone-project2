@@ -159,6 +159,10 @@ export default function CreateProductScreen() {
       showError('Validation Error', 'Valid base price is required');
       return false;
     }
+    if (!formData.image_url.trim()) {
+      showError('Validation Error', 'Product image is required');
+      return false;
+    }
     if (categoryMode === 'select' && !formData.category_id) {
       showError('Validation Error', 'Please select a category');
       return false;
@@ -207,7 +211,7 @@ export default function CreateProductScreen() {
         description: formData.description.trim(),
         price: parseFloat(formData.base_price),
         preparation_time: parseInt(formData.preparation_time_minutes),
-        image_url: formData.image_url.trim() || undefined,
+        image_url: formData.image_url.trim(),
         category_id: categoryId,
         is_available: formData.is_available,
         is_recommended: formData.is_recommended,
@@ -373,7 +377,7 @@ export default function CreateProductScreen() {
           <ResponsiveView marginBottom="md">
             <ResponsiveView marginBottom="sm">
               <ResponsiveText size="md" weight="medium" color={colors.text}>
-                Product Image
+                Product Image *
               </ResponsiveText>
             </ResponsiveView>
             

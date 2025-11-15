@@ -7,6 +7,7 @@ import {
     FlatList,
     RefreshControl,
     StyleSheet,
+    TextInput,
     TouchableOpacity
 } from 'react-native';
 import { AdminCard, AdminLayout, AdminSection } from '../../../components/admin';
@@ -28,7 +29,8 @@ export default function AdminProductsScreen() {
   const { confirm, confirmDestructive, success, error: showError } = useAlert();
   const router = useRouter();
   const [activeCategory, setActiveCategory] = useState<string>('all');
-  const [searchQuery, setSearchQuery] = useState('');
+  const [searchInput, setSearchInput] = useState(''); // What user is typing
+  const [searchQuery, setSearchQuery] = useState(''); // Actual search query used for filtering
   const [refreshing, setRefreshing] = useState(false);
 
   // Use the improved hooks with real-time updates
@@ -66,6 +68,24 @@ export default function AdminProductsScreen() {
     setRefreshing(true);
     await Promise.all([refreshProducts(), refreshCategories()]);
     setRefreshing(false);
+  };
+
+  const handleSearchChange = (text: string) => {
+    setSearchInput(text); // Only update the input, don't trigger search
+    
+    // If the input is cleared (empty), reset the search query
+    if (text.trim() === '') {
+      setSearchQuery('');
+    }
+  };
+
+  const handleSearchSubmit = () => {
+    setSearchQuery(searchInput.trim()); // Trigger search when Enter is pressed
+  };
+
+  const handleClearSearch = () => {
+    setSearchInput('');
+    setSearchQuery(''); // Clear both input and search query
   };
 
   const handleToggleAvailability = async (productId: string, currentStatus: boolean, productName: string) => {
@@ -276,6 +296,70 @@ export default function AdminProductsScreen() {
       }
       backgroundColor={colors.background}
     >
+      {/* Search Bar */}
+      <ResponsiveView flexDirection="row" alignItems="center" paddingHorizontal="lg" marginBottom="md">
+        <ResponsiveView 
+          flex={1}
+          flexDirection="row" 
+          alignItems="center" 
+          backgroundColor={colors.surface}
+          borderRadius="md"
+          paddingHorizontal="md"
+          height={responsiveValue(40, 44, 48, 52)}
+          style={[styles.searchBarShadow, { borderColor: colors.border, borderWidth: 1 }]}
+        >
+          <MaterialIcons 
+            name="search" 
+            size={responsiveValue(20, 22, 24, 26)} 
+            color={colors.textSecondary}
+            style={{ marginRight: ResponsiveSpacing.sm }}
+          />
+          <TextInput
+            style={[
+              styles.searchInput, 
+              { 
+                color: colors.text,
+                fontSize: responsiveValue(14, 16, 18, 20)
+              }
+            ]}
+            placeholder="Search products by name"
+            placeholderTextColor={colors.textSecondary}
+            value={searchInput}
+            onChangeText={handleSearchChange}
+            onSubmitEditing={handleSearchSubmit}
+            autoCapitalize="none"
+            autoCorrect={false}
+            returnKeyType="search"
+          />
+          {searchInput.length > 0 && searchInput.trim() !== searchQuery && (
+            <TouchableOpacity 
+              onPress={handleSearchSubmit}
+              style={styles.searchButton}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            >
+              <MaterialIcons 
+                name="search" 
+                size={responsiveValue(18, 20, 22, 24)} 
+                color={colors.primary} 
+              />
+            </TouchableOpacity>
+          )}
+          {(searchInput.length > 0 || searchQuery.length > 0) && (
+            <TouchableOpacity 
+              onPress={handleClearSearch}
+              style={styles.clearButton}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            >
+              <MaterialIcons 
+                name="clear" 
+                size={responsiveValue(18, 20, 22, 24)} 
+                color={colors.textSecondary} 
+              />
+            </TouchableOpacity>
+          )}
+        </ResponsiveView>
+      </ResponsiveView>
+
       {/* Category Filter */}
       <ResponsiveView marginBottom="sm">
         <FlatList
@@ -345,9 +429,13 @@ export default function AdminProductsScreen() {
             </ResponsiveView>
             <ResponsiveView marginTop="sm">
               <ResponsiveText size="md" color={colors.textSecondary} style={{ textAlign: 'center' }}>
-                {activeCategory === 'all' 
-                  ? 'No products have been added yet.'
-                  : `No products found in this category.`
+                {searchQuery 
+                  ? activeCategory === 'all'
+                    ? `No products found matching "${searchQuery}".`
+                    : `No products found matching "${searchQuery}" in this category.`
+                  : activeCategory === 'all' 
+                    ? 'No products have been added yet.'
+                    : `No products found in this category.`
                 }
               </ResponsiveText>
             </ResponsiveView>
@@ -464,5 +552,24 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.2,
     shadowRadius: 3,
     elevation: 0,
+  },
+  searchBarShadow: {
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  searchInput: {
+    flex: 1,
+    height: '100%',
+  },
+  clearButton: {
+    padding: ResponsiveSpacing.xs,
+    marginLeft: ResponsiveSpacing.xs,
+  },
+  searchButton: {
+    padding: ResponsiveSpacing.xs,
+    marginLeft: ResponsiveSpacing.xs,
   },
 });

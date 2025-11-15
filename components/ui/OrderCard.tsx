@@ -121,11 +121,19 @@ export const OrderCard: React.FC<OrderCardProps> = ({
   const displayOrderNumber = (order as any).order_number || (order.id ? order.id.slice(-8) : '');
   
   // Get the first item's image or use a default
+  // Priority: product.image_url > product_image (from customization) > placeholder
   const firstItem = order.items?.[0];
-  const orderImage = firstItem?.product?.image_url || firstItem?.product_image || 'https://via.placeholder.com/200x150';
+  const orderImage = firstItem?.product?.image_url 
+    || firstItem?.product_image 
+    || (firstItem as any)?.customization_details?.product_image
+    || 'https://via.placeholder.com/200x150';
   
   // Get product name from the first item or use a default
-  const productName = firstItem?.product?.name || firstItem?.product_name || 'Product';
+  // Priority: product.name > product_name > customization_details.product_name > 'Product'
+  const productName = firstItem?.product?.name 
+    || firstItem?.product_name 
+    || (firstItem as any)?.customization_details?.product_name
+    || 'Product';
 
   const renderCompact = () => (
     <TouchableOpacity 
@@ -133,9 +141,11 @@ export const OrderCard: React.FC<OrderCardProps> = ({
       onPress={onPress}
     >
       <ResponsiveView style={styles.compactHeader}>
-        <ResponsiveText size="md" weight="semiBold" color={colors.text}>
-          {displayOrderNumber}
-        </ResponsiveText>
+        <ResponsiveView style={styles.compactHeaderLeft}>
+          <ResponsiveText size="md" weight="semiBold" color={colors.text}>
+            {displayOrderNumber} • {productName}
+          </ResponsiveText>
+        </ResponsiveView>
         <ResponsiveView style={[
           styles.statusBadge,
           isSmallDevice && styles.statusBadgeSmall,
@@ -175,10 +185,14 @@ export const OrderCard: React.FC<OrderCardProps> = ({
       onPress={onPress}
     >
       <ResponsiveView style={styles.detailedHeader}>
-        <Image source={{ uri: orderImage }} style={styles.orderImage} />
+        <Image 
+          source={{ uri: orderImage }} 
+          style={styles.orderImage}
+          resizeMode="cover"
+        />
         <ResponsiveView style={styles.detailedInfo}>
-          <ResponsiveText size="lg" weight="semiBold" color={colors.text}>
-            {displayOrderNumber}
+          <ResponsiveText size="lg" weight="semiBold" color={colors.text} numberOfLines={2}>
+            {displayOrderNumber} • {productName}
           </ResponsiveText>
           <ResponsiveView style={[
             styles.statusBadge,
@@ -200,9 +214,6 @@ export const OrderCard: React.FC<OrderCardProps> = ({
               {displayStatus}
             </ResponsiveText>
           </ResponsiveView>
-          <ResponsiveText size="sm" color={colors.textSecondary} numberOfLines={2}>
-            {productName}
-          </ResponsiveText>
         </ResponsiveView>
         <MaterialIcons name="keyboard-arrow-right" size={24} color={colors.textSecondary} />
       </ResponsiveView>
@@ -216,11 +227,43 @@ export const OrderCard: React.FC<OrderCardProps> = ({
         </ResponsiveView>
       )}
 
+      {/* Fulfillment Type Badge */}
+      {(order as any).fulfillment_type && (
+        <ResponsiveView style={[
+          styles.fulfillmentBadge,
+          {
+            backgroundColor: (order as any).fulfillment_type === 'pickup' 
+              ? colors.primary + '20' 
+              : colors.secondary + '20',
+            borderColor: (order as any).fulfillment_type === 'pickup'
+              ? colors.primary
+              : colors.secondary,
+          }
+        ]}>
+          <MaterialIcons
+            name={(order as any).fulfillment_type === 'pickup' ? 'store' : 'local-shipping'}
+            size={14}
+            color={(order as any).fulfillment_type === 'pickup' ? colors.primary : colors.secondary}
+          />
+          <ResponsiveText
+            size="xs"
+            weight="semiBold"
+            color={(order as any).fulfillment_type === 'pickup' ? colors.primary : colors.secondary}
+            style={styles.fulfillmentBadgeText}
+          >
+            {(order as any).fulfillment_type === 'pickup' ? 'To Be Picked Up' : 'For Delivery'}
+          </ResponsiveText>
+        </ResponsiveView>
+      )}
+
       {showDeliveryInfo && (
         <ResponsiveView style={styles.deliveryInfo}>
           <MaterialIcons name="location-on" size={16} color={colors.textSecondary} />
           <ResponsiveText size="sm" color={colors.textSecondary} numberOfLines={2}>
-            {order.delivery_address?.full_address || 'No address provided'}
+            {(order as any).fulfillment_type === 'pickup' 
+              ? ((order as any).pickup_location_snapshot || 'Kitchen One - Main Branch')
+              : (order.delivery_address?.full_address || 'No address provided')
+            }
           </ResponsiveText>
         </ResponsiveView>
       )}
@@ -316,7 +359,8 @@ export const OrderCard: React.FC<OrderCardProps> = ({
               styles.restaurantImage,
               isTablet && styles.restaurantImageTablet,
               isSmallDevice && styles.restaurantImageMobile
-            ]} 
+            ]}
+            resizeMode="cover"
           />
           <ResponsiveView style={styles.orderInfo}>
             <ResponsiveText 
@@ -354,6 +398,35 @@ export const OrderCard: React.FC<OrderCardProps> = ({
                 {displayStatus}
               </ResponsiveText>
             </ResponsiveView>
+            {/* Fulfillment Type Badge */}
+            {(order as any).fulfillment_type && (
+              <ResponsiveView style={[
+                styles.fulfillmentBadge,
+                styles.fulfillmentBadgeInline,
+                {
+                  backgroundColor: (order as any).fulfillment_type === 'pickup' 
+                    ? colors.primary + '20' 
+                    : colors.secondary + '20',
+                  borderColor: (order as any).fulfillment_type === 'pickup'
+                    ? colors.primary
+                    : colors.secondary,
+                }
+              ]}>
+                <MaterialIcons
+                  name={(order as any).fulfillment_type === 'pickup' ? 'store' : 'local-shipping'}
+                  size={12}
+                  color={(order as any).fulfillment_type === 'pickup' ? colors.primary : colors.secondary}
+                />
+                <ResponsiveText
+                  size="xs"
+                  weight="semiBold"
+                  color={(order as any).fulfillment_type === 'pickup' ? colors.primary : colors.secondary}
+                  style={styles.fulfillmentBadgeText}
+                >
+                  {(order as any).fulfillment_type === 'pickup' ? 'Pickup' : 'Delivery'}
+                </ResponsiveText>
+              </ResponsiveView>
+            )}
           </ResponsiveView>
         </ResponsiveView>
         <MaterialIcons name="keyboard-arrow-right" size={24} color={colors.textSecondary} />
@@ -549,6 +622,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: Layout.spacing.xs,
   },
+  compactHeaderLeft: {
+    flex: 1,
+    marginRight: Layout.spacing.sm,
+  },
   compactFooter: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -585,5 +662,22 @@ const styles = StyleSheet.create({
     paddingVertical: Layout.spacing.sm,
     borderRadius: Layout.borderRadius.sm,
     alignItems: 'center',
+  },
+  fulfillmentBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    paddingHorizontal: Layout.spacing.sm,
+    paddingVertical: 4,
+    borderRadius: Layout.borderRadius.sm,
+    marginTop: Layout.spacing.xs,
+    borderWidth: 1,
+  },
+  fulfillmentBadgeInline: {
+    marginTop: Layout.spacing.xs,
+    marginLeft: Layout.spacing.xs,
+  },
+  fulfillmentBadgeText: {
+    marginLeft: 4,
   },
 });

@@ -136,6 +136,7 @@ export class AdminAssignmentService {
   }
 
   // Get unassigned orders
+  // IMPORTANT: Only returns delivery orders, NOT pickup orders
   static async getUnassignedOrders(): Promise<any[]> {
     try {
       const { data: orders, error } = await supabase
@@ -150,10 +151,12 @@ export class AdminAssignmentService {
           payment_method,
           payment_status,
           payment_verified,
+          fulfillment_type,
           delivery_address:addresses(full_address, label),
           customer:profiles!orders_user_id_fkey(full_name, phone_number)
         `)
         .in('status', ['ready_for_pickup', 'preparing'])
+        .eq('fulfillment_type', 'delivery') // Only delivery orders, NOT pickup orders
         .eq('payment_verified', true)
         .order('created_at', { ascending: true });
 
@@ -169,7 +172,10 @@ export class AdminAssignmentService {
 
       const assignedOrderIds = new Set(assignments?.map(a => a.order_id) || []);
       
-      return (orders || []).filter(order => !assignedOrderIds.has(order.id));
+      // Filter out assigned orders and ensure only delivery orders
+      return (orders || []).filter(order => 
+        !assignedOrderIds.has(order.id) && order.fulfillment_type === 'delivery'
+      );
     } catch (error) {
       console.error('Error getting unassigned orders:', error);
       return [];

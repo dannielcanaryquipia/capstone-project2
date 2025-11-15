@@ -1,4 +1,4 @@
-import { Tabs } from 'expo-router';
+import { Stack } from 'expo-router';
 import { useTheme } from '../../contexts/ThemeContext';
 import { useAuth } from '../../hooks/useAuth';
 
@@ -7,13 +7,13 @@ export default function DeliveryLayout() {
   const { colors } = useTheme();
 
   return (
-    <Tabs screenOptions={{
-      headerShown: false,
-      tabBarStyle: { display: 'none' },
-    }}>
-      <Tabs.Screen name="dashboard" options={{ href: null }} />
-      <Tabs.Screen name="orders" options={{ href: null }} />
-      <Tabs.Screen name="profile" options={{ href: null }} />
-    </Tabs>
+    <Stack screenOptions={{ headerShown: false }}>
+      <Stack.Screen name="dashboard" />
+      <Stack.Screen name="orders" />
+      <Stack.Screen name="profile" />
+      <Stack.Screen name="settings" />
+      <Stack.Screen name="help-support" />
+      <Stack.Screen name="terms-privacy" />
+    </Stack>
   );
 }

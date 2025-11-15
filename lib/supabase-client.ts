@@ -1,3 +1,4 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { createClient, RealtimeChannel } from '@supabase/supabase-js';
 import { Database } from '../types/database.types';
 import Constants from 'expo-constants';
@@ -10,12 +11,40 @@ if (!supabaseUrl || !supabaseAnonKey) {
   throw new Error('Missing Supabase URL or Anon Key. Please check your environment variables.');
 }
 
+// Create AsyncStorage adapter for Supabase session persistence
+const AsyncStorageAdapter = {
+  getItem: async (key: string) => {
+    try {
+      return await AsyncStorage.getItem(key);
+    } catch (error) {
+      console.warn('Error getting item from AsyncStorage:', error);
+      return null;
+    }
+  },
+  setItem: async (key: string, value: string) => {
+    try {
+      await AsyncStorage.setItem(key, value);
+    } catch (error) {
+      console.warn('Error setting item in AsyncStorage:', error);
+    }
+  },
+  removeItem: async (key: string) => {
+    try {
+      await AsyncStorage.removeItem(key);
+    } catch (error) {
+      console.warn('Error removing item from AsyncStorage:', error);
+    }
+  },
+};
+
 // Create a single supabase client for interacting with your database
 export const supabase = createClient<Database>(supabaseUrl, supabaseAnonKey, {
   auth: {
     persistSession: true,
     autoRefreshToken: true,
     detectSessionInUrl: true,
+    storage: AsyncStorageAdapter,
+    storageKey: 'supabase.auth.token',
   },
   db: {
     schema: 'public',

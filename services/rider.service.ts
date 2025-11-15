@@ -128,10 +128,12 @@ export class RiderService {
   }
 
   // Get available orders for assignment
+  // IMPORTANT: Only returns delivery orders, NOT pickup orders
   static async getAvailableOrders(): Promise<AvailableOrder[]> {
     try {
-      console.log('RiderService.getAvailableOrders: Starting query');
+      console.log('RiderService.getAvailableOrders: Starting query - ONLY DELIVERY ORDERS');
       
+      // First, get all orders that match status and fulfillment type
       const { data: orders, error } = await supabase
         .from('orders')
         .select(`
@@ -144,6 +146,7 @@ export class RiderService {
           payment_method,
           payment_status,
           payment_verified,
+          fulfillment_type,
           delivery_address:addresses(full_address, label),
           customer:profiles!orders_user_id_fkey(full_name, phone_number),
           items:order_items(
@@ -153,15 +156,61 @@ export class RiderService {
           )
         `)
         .in('status', ['ready_for_pickup', 'preparing'])
-        .or('payment_verified.eq.true,and(payment_method.eq.cod,payment_status.eq.pending)')
+        .eq('fulfillment_type', 'delivery') // CRITICAL: Only delivery orders, NOT pickup orders
         .order('created_at', { ascending: true });
 
-      console.log('RiderService.getAvailableOrders: Query result:', { orders, error });
+      console.log('RiderService.getAvailableOrders: Query result (before payment filter):', { 
+        totalOrders: orders?.length || 0,
+        orders: orders?.map((o: any) => ({
+          id: o.id,
+          fulfillment_type: o.fulfillment_type,
+          payment_method: o.payment_method,
+          payment_verified: o.payment_verified,
+          payment_status: o.payment_status
+        })),
+        error 
+      });
 
       if (error) throw error;
 
+      // Filter by payment verification status
+      // GCash orders: must be verified
+      // COD orders: can be pending (will be verified on delivery)
+      const paymentFilteredOrders = (orders || []).filter((order: any) => {
+        const isGCash = order.payment_method?.toLowerCase() === 'gcash';
+        const isCOD = order.payment_method?.toLowerCase() === 'cod';
+        
+        // Only include delivery orders (double-check)
+        if (order.fulfillment_type !== 'delivery') {
+          console.warn('⚠️ Found pickup order in results, filtering out:', order.id);
+          return false;
+        }
+        
+        // GCash orders must be verified
+        if (isGCash) {
+          return order.payment_verified === true;
+        }
+        
+        // COD orders can be pending
+        if (isCOD) {
+          return order.payment_status?.toLowerCase() === 'pending' || order.payment_verified === true;
+        }
+        
+        // Other payment methods must be verified
+        return order.payment_verified === true;
+      });
+
+      console.log('RiderService.getAvailableOrders: After payment filter:', {
+        filteredCount: paymentFilteredOrders.length
+      });
+
       // Check which orders are already assigned
-      const orderIds = orders?.map((o: any) => o.id) || [];
+      const orderIds = paymentFilteredOrders.map((o: any) => o.id);
+      if (orderIds.length === 0) {
+        console.log('RiderService.getAvailableOrders: No orders after filtering');
+        return [];
+      }
+
       const { data: assignments } = await supabase
         .from('delivery_assignments')
         .select('order_id')
@@ -170,7 +219,28 @@ export class RiderService {
 
       const assignedOrderIds = new Set(assignments?.map((a: any) => a.order_id) || []);
       
-      return (orders || []).filter((order: any) => !assignedOrderIds.has(order.id));
+      // Filter out assigned orders and ensure only delivery orders (triple-check)
+      const finalOrders = paymentFilteredOrders.filter((order: any) => {
+        const isAssigned = assignedOrderIds.has(order.id);
+        const isDelivery = order.fulfillment_type === 'delivery';
+        
+        if (!isDelivery) {
+          console.warn('⚠️ Found pickup order in final filter, removing:', order.id);
+        }
+        
+        return !isAssigned && isDelivery;
+      });
+
+      console.log('RiderService.getAvailableOrders: Final result:', {
+        availableCount: finalOrders.length,
+        orders: finalOrders.map((o: any) => ({
+          id: o.id,
+          fulfillment_type: o.fulfillment_type,
+          order_number: o.order_number
+        }))
+      });
+      
+      return finalOrders;
     } catch (error) {
       console.error('Error fetching available orders:', error);
       throw error;
@@ -178,6 +248,7 @@ export class RiderService {
   }
 
   // Get rider's assigned orders (all orders assigned to this rider)
+  // IMPORTANT: Only returns delivery orders, NOT pickup orders
   // Includes orders with status ready_for_pickup, out_for_delivery, and delivered
   static async getRiderOrders(riderId: string): Promise<RiderAssignment[]> {
     try {
@@ -189,6 +260,7 @@ export class RiderService {
           *,
           order:orders(
             *,
+            fulfillment_type,
             delivery_address:addresses(*),
             customer:profiles!orders_user_id_fkey(full_name, phone_number),
             items:order_items(
@@ -204,9 +276,10 @@ export class RiderService {
 
       if (error) throw error;
       
-      // Return all assigned orders, which includes ready_for_pickup, out_for_delivery, delivered, etc.
-      // No filtering needed - all assignments are included regardless of order status
-      return assignments || [];
+      // Filter out pickup orders - riders should only see delivery orders
+      return (assignments || []).filter((assignment: any) => 
+        assignment.order?.fulfillment_type === 'delivery'
+      );
     } catch (error) {
       console.error('Error fetching rider orders:', error);
       throw error;
@@ -214,6 +287,7 @@ export class RiderService {
   }
 
   // Get rider's active orders (assigned but not delivered yet)
+  // IMPORTANT: Only returns delivery orders, NOT pickup orders
   static async getRiderActiveOrders(riderId: string): Promise<RiderAssignment[]> {
     try {
       console.log('RiderService.getRiderActiveOrders: Fetching active orders for rider:', riderId);
@@ -224,6 +298,7 @@ export class RiderService {
           *,
           order:orders(
             *,
+            fulfillment_type,
             delivery_address:addresses(*),
             customer:profiles!orders_user_id_fkey(full_name, phone_number),
             items:order_items(
@@ -239,7 +314,11 @@ export class RiderService {
       console.log('RiderService.getRiderActiveOrders: Query result:', { assignments, error });
 
       if (error) throw error;
-      return assignments || [];
+      
+      // Filter out pickup orders - riders should only see delivery orders
+      return (assignments || []).filter((assignment: any) => 
+        assignment.order?.fulfillment_type === 'delivery'
+      );
     } catch (error) {
       console.error('Error fetching rider active orders:', error);
       throw error;
@@ -247,6 +326,7 @@ export class RiderService {
   }
 
   // Get recent orders (last 7 days)
+  // IMPORTANT: Only returns delivery orders, NOT pickup orders
   // Includes orders with status ready_for_pickup, out_for_delivery, and delivered
   static async getRecentOrders(riderId: string): Promise<RiderAssignment[]> {
     try {
@@ -261,6 +341,7 @@ export class RiderService {
           *,
           order:orders(
             *,
+            fulfillment_type,
             delivery_address:addresses(*),
             customer:profiles!orders_user_id_fkey(full_name, phone_number),
             items:order_items(
@@ -277,7 +358,12 @@ export class RiderService {
       // Filter by date: include orders with assigned_at >= 7 days ago, 
       // OR orders without assigned_at but with picked_up_at or delivered_at in last 7 days
       // Explicitly include ready_for_pickup orders
+      // IMPORTANT: Filter out pickup orders - only delivery orders
       const filtered = (assignments || []).filter((assignment: any) => {
+        // First filter: Only delivery orders
+        if (assignment.order?.fulfillment_type !== 'delivery') {
+          return false;
+        }
         const orderStatus = assignment.order?.status?.toLowerCase();
         
         // Always include ready_for_pickup orders if they're assigned to this rider
@@ -330,6 +416,7 @@ export class RiderService {
   }
 
   // Get delivered orders
+  // IMPORTANT: Only returns delivery orders, NOT pickup orders
   static async getDeliveredOrders(riderId: string): Promise<RiderAssignment[]> {
     try {
       console.log('RiderService.getDeliveredOrders: Fetching delivered orders for rider:', riderId);
@@ -340,6 +427,7 @@ export class RiderService {
           *,
           order:orders(
             *,
+            fulfillment_type,
             delivery_address:addresses(*),
             customer:profiles!orders_user_id_fkey(full_name, phone_number),
             items:order_items(
@@ -355,7 +443,11 @@ export class RiderService {
       console.log('RiderService.getDeliveredOrders: Query result:', { assignments, error });
 
       if (error) throw error;
-      return assignments || [];
+      
+      // Filter out pickup orders - riders should only see delivery orders
+      return (assignments || []).filter((assignment: any) => 
+        assignment.order?.fulfillment_type === 'delivery'
+      );
     } catch (error) {
       console.error('Error fetching delivered orders:', error);
       throw error;
@@ -363,8 +455,23 @@ export class RiderService {
   }
 
   // Accept order assignment
+  // IMPORTANT: Only accepts delivery orders, NOT pickup orders
   static async acceptOrder(orderId: string, riderId: string): Promise<void> {
     try {
+      // First, check if this is a delivery order (not pickup)
+      const { data: orderData, error: orderError } = await supabase
+        .from('orders')
+        .select('fulfillment_type')
+        .eq('id', orderId)
+        .single();
+
+      if (orderError) throw orderError;
+
+      // Reject pickup orders - they should never be assigned to riders
+      if (orderData?.fulfillment_type === 'pickup') {
+        throw new Error('This is a pickup order and cannot be assigned to a rider. Only delivery orders can be assigned.');
+      }
+
       // Check if order is still available
       const { data: existingAssignment, error: checkError } = await supabase
         .from('delivery_assignments')
@@ -914,21 +1021,33 @@ export class RiderService {
       // Generate weekly breakdown
       const weeklyBreakdown = [];
       const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+      
+      // Helper function to get date string (YYYY-MM-DD) in local timezone for comparison
+      const getDateString = (date: Date): string => {
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const day = String(date.getDate()).padStart(2, '0');
+        return `${year}-${month}-${day}`;
+      };
+      
       for (let i = 0; i < 7; i++) {
         const dayStart = new Date(thisWeekStart.getTime() + i * 24 * 60 * 60 * 1000);
-        const dayEnd = new Date(dayStart.getTime() + 24 * 60 * 60 * 1000);
+        dayStart.setHours(0, 0, 0, 0);
+        const targetDateString = getDateString(dayStart);
         
         const dayEarnings = earnings
           .filter((e: any) => {
-            const date = new Date(e.date);
-            return date >= dayStart && date < dayEnd;
+            const deliveryDate = new Date(e.date);
+            const deliveryDateString = getDateString(deliveryDate);
+            return deliveryDateString === targetDateString;
           })
           .reduce((sum: number, e: any) => sum + e.earnings, 0);
 
         const dayDeliveries = earnings
           .filter((e: any) => {
-            const date = new Date(e.date);
-            return date >= dayStart && date < dayEnd;
+            const deliveryDate = new Date(e.date);
+            const deliveryDateString = getDateString(deliveryDate);
+            return deliveryDateString === targetDateString;
           }).length;
 
         weeklyBreakdown.push({

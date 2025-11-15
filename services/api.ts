@@ -440,66 +440,26 @@ export const promoCodeService = {
 
 // Notification Service
 export const notificationService = {
-  // Get user notifications
-  getNotifications: async (userId: string, limit = 20): Promise<Notification[]> => {
-    const { data, error } = await supabase
+  // Get user notifications - now fetches ALL notifications without filtering
+  getNotifications: async (userId: string, limit?: number): Promise<Notification[]> => {
+    let query = supabase
       .from('notifications')
       .select('*')
       .eq('user_id', userId)
-      .order('created_at', { ascending: false })
-      .limit(Math.max(limit, 50)); // pull a bit more to allow client-side de-dup
+      .order('created_at', { ascending: false });
+
+    // Only apply limit if specified, otherwise fetch all
+    if (limit && limit > 0) {
+      query = query.limit(limit);
+    }
+
+    const { data, error } = await query;
 
     if (error) throw error;
 
-    const list = (data || []);
-
-    // Normalize into important categories so UI shows concise, non-redundant items
-    const normalizeCategory = (n: any): string => {
-      const title = (n.title || '').toLowerCase();
-      const message = (n.message || '').toLowerCase();
-      const type = (n.type || '').toLowerCase();
-
-      if (title.includes('cancelled') || message.includes('cancelled')) return 'cancelled';
-      if (title.includes('payment') && (title.includes('verified') || title.includes('received') || message.includes('verified'))) return 'payment_verified';
-      if (title.includes('ready for pickup') || message.includes('ready for pickup')) return 'ready_for_pickup';
-      if (type === 'delivery' && (title.includes('on the way') || message.includes('out for delivery'))) return 'out_for_delivery';
-      if (title.includes('delivered') || message.includes('delivered')) return 'delivered';
-      if (title.includes('prepared') || message.includes('being prepared') || title.includes('preparing')) return 'preparing';
-      if (title.includes('order placed') || message.includes('placed')) return 'order_placed';
-      return 'other';
-    };
-
-    // Keep only the latest per order+category to avoid redundant spam
-    const seen: Record<string, number> = {};
-    const deduped: any[] = [];
-    for (const item of list) {
-      const category = normalizeCategory(item);
-      if (category === 'other') continue; // drop non-essential noise
-      const orderKey = `${item.related_order_id || 'no-order'}::${category}`;
-      if (!(orderKey in seen)) {
-        seen[orderKey] = 1;
-        // Minimize text to an important, concise title while keeping created_at
-        const conciseTitleMap: Record<string, string> = {
-          order_placed: 'Order placed',
-          preparing: 'Preparing your order',
-          ready_for_pickup: 'Ready for pickup',
-          out_for_delivery: 'Out for delivery',
-          delivered: 'Delivered',
-          payment_verified: 'Payment verified',
-          cancelled: 'Order cancelled',
-          other: item.title
-        };
-        deduped.push({
-          ...item,
-          title: conciseTitleMap[category] || item.title,
-          // Shorten message to the core information
-          message: item.related_order_id ? `Order ${String(item.related_order_id).slice(-8)} - ${conciseTitleMap[category] || item.title}` : (conciseTitleMap[category] || item.title),
-        });
-      }
-    }
-
-    // Return already ordered latest-first; ensure we respect limit after de-dup
-    return deduped.slice(0, limit) as Notification[];
+    // Return all notifications without filtering or deduplication
+    // This ensures all notifications are shown, including read ones
+    return (data || []) as Notification[];
   },
 
   // Get unread notifications count

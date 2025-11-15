@@ -9,6 +9,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAlert } from '../../../components/ui/AlertProvider';
 import Button from '../../../components/ui/Button';
+import { ImageUploadProcessingOverlay } from '../../../components/ui/ImageUploadProcessingOverlay';
 import { LoadingState } from '../../../components/ui/LoadingState';
 import { ResponsiveText } from '../../../components/ui/ResponsiveText';
 import { ResponsiveView } from '../../../components/ui/ResponsiveView';
@@ -34,6 +35,7 @@ export default function OrderDetailsScreen() {
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
   const [uploadingProof, setUploadingProof] = useState(false);
+  const [showUploadOverlay, setShowUploadOverlay] = useState(false);
   const [riderId, setRiderId] = useState<string | null>(null);
 
   useEffect(() => {
@@ -173,11 +175,20 @@ export default function OrderDetailsScreen() {
 
           if (res.assets[0]) {
             const uri = res.assets[0].uri;
-            const result = await OrderService.uploadDeliveryProof(order.id, user.id, uri);
-            if (result.success) {
-              success('Success! 📸', result.message, [{ text: 'OK', onPress: () => loadOrderDetails() }]);
-            } else {
-              showError('Error', result.message);
+            // Show overlay when starting upload
+            setShowUploadOverlay(true);
+            try {
+              const result = await OrderService.uploadDeliveryProof(order.id, user.id, uri);
+              if (result.success) {
+                success('Success! 📸', result.message, [{ text: 'OK', onPress: () => loadOrderDetails() }]);
+              } else {
+                showError('Error', result.message);
+              }
+            } catch (uploadError: any) {
+              console.error('Error uploading proof:', uploadError);
+              showError('Error', uploadError.message || 'Failed to upload proof. Please try again.');
+            } finally {
+              setShowUploadOverlay(false);
             }
           }
         } finally {
@@ -187,6 +198,7 @@ export default function OrderDetailsScreen() {
         console.error('Error taking photo:', error);
         showError('Error', error.message || 'Failed to take photo. Please try again.');
         setUploadingProof(false);
+        setShowUploadOverlay(false);
       }
     };
 
@@ -213,11 +225,20 @@ export default function OrderDetailsScreen() {
 
           if (res.assets[0]) {
             const uri = res.assets[0].uri;
-            const result = await OrderService.uploadDeliveryProof(order.id, user.id, uri);
-            if (result.success) {
-              success('Success! 📸', result.message, [{ text: 'OK', onPress: () => loadOrderDetails() }]);
-            } else {
-              showError('Error', result.message);
+            // Show overlay when starting upload
+            setShowUploadOverlay(true);
+            try {
+              const result = await OrderService.uploadDeliveryProof(order.id, user.id, uri);
+              if (result.success) {
+                success('Success! 📸', result.message, [{ text: 'OK', onPress: () => loadOrderDetails() }]);
+              } else {
+                showError('Error', result.message);
+              }
+            } catch (uploadError: any) {
+              console.error('Error uploading proof:', uploadError);
+              showError('Error', uploadError.message || 'Failed to upload proof. Please try again.');
+            } finally {
+              setShowUploadOverlay(false);
             }
           }
         } finally {
@@ -227,6 +248,7 @@ export default function OrderDetailsScreen() {
         console.error('Error selecting photo:', error);
         showError('Error', error.message || 'Failed to select photo. Please try again.');
         setUploadingProof(false);
+        setShowUploadOverlay(false);
       }
     };
 
@@ -283,6 +305,8 @@ export default function OrderDetailsScreen() {
             if (res.assets[0]?.uri) {
               const uri = res.assets[0].uri;
               console.log('📸 Image selected from camera, starting upload and delivery process...', { uri: uri.substring(0, 50) + '...' });
+              // Show overlay when starting upload
+              setShowUploadOverlay(true);
               try {
                 // Mark as delivered with proof image
                 const result = await OrderService.markOrderDelivered(order.id, user.id, uri);
@@ -298,6 +322,8 @@ export default function OrderDetailsScreen() {
               } catch (deliveryError: any) {
                 console.error('Error marking order as delivered:', deliveryError);
                 showError('Error', deliveryError.message || 'Failed to mark order as delivered. Please try again.');
+              } finally {
+                setShowUploadOverlay(false);
               }
             } else {
               console.warn('No image URI found in camera result');
@@ -310,6 +336,7 @@ export default function OrderDetailsScreen() {
           console.error('Error taking photo:', error);
           showError('Error', error.message || 'Failed to take photo. Please try again.');
           setActionLoading(false);
+          setShowUploadOverlay(false);
         }
       };
 
@@ -337,6 +364,8 @@ export default function OrderDetailsScreen() {
             if (res.assets[0]?.uri) {
               const uri = res.assets[0].uri;
               console.log('📸 Image selected from gallery, starting upload and delivery process...', { uri: uri.substring(0, 50) + '...' });
+              // Show overlay when starting upload
+              setShowUploadOverlay(true);
               try {
                 // Mark as delivered with proof image
                 const result = await OrderService.markOrderDelivered(order.id, user.id, uri);
@@ -352,6 +381,8 @@ export default function OrderDetailsScreen() {
               } catch (deliveryError: any) {
                 console.error('Error marking order as delivered:', deliveryError);
                 showError('Error', deliveryError.message || 'Failed to mark order as delivered. Please try again.');
+              } finally {
+                setShowUploadOverlay(false);
               }
             } else {
               console.warn('No image URI found in gallery selection');
@@ -364,6 +395,7 @@ export default function OrderDetailsScreen() {
           console.error('Error selecting photo:', error);
           showError('Error', error.message || 'Failed to select photo. Please try again.');
           setActionLoading(false);
+          setShowUploadOverlay(false);
         }
       };
 
@@ -955,6 +987,12 @@ export default function OrderDetailsScreen() {
           )}
         </ResponsiveView>
       </ScrollView>
+      
+      {/* Image Upload Processing Overlay - Shows during proof upload */}
+      <ImageUploadProcessingOverlay 
+        visible={showUploadOverlay}
+        message="Uploading proof of delivery Please wait for a while"
+      />
     </SafeAreaView>
   );
 }

@@ -54,7 +54,8 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({ chil
       console.log('NotificationContext - Fetching notifications for user:', user.id);
       setIsLoading(true);
       setError(null);
-      const data = await notificationService.getNotifications(user.id, 50);
+      // Fetch ALL notifications without limit
+      const data = await notificationService.getNotifications(user.id);
       console.log('NotificationContext - Fetched notifications:', data.length);
       
       // Ensure notifications are sorted by created_at in descending order (newest first - LIFO)

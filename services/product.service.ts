@@ -70,7 +70,9 @@ export class ProductService {
       }
 
       if (filters?.search) {
-        query = query.or(`name.ilike.%${filters.search}%,description.ilike.%${filters.search}%,categories.name.ilike.%${filters.search}%`);
+        // Escape special characters and use * for wildcards in PostgREST
+        const searchTerm = filters.search.replace(/[%_*]/g, '\\$&');
+        query = query.or(`name.ilike.*${searchTerm}*,description.ilike.*${searchTerm}*`);
       }
 
       if (filters?.price_min) {
@@ -85,8 +87,44 @@ export class ProductService {
 
       if (error) throw error;
 
+      // Sort products by search relevance if search is active
+      let sortedData = data || [];
+      if (filters?.search && sortedData.length > 0) {
+        const searchTermLower = filters.search.toLowerCase();
+        sortedData = sortedData.sort((a: any, b: any) => {
+          const aNameLower = (a.name || '').toLowerCase();
+          const bNameLower = (b.name || '').toLowerCase();
+          const aDescLower = (a.description || '').toLowerCase();
+          const bDescLower = (b.description || '').toLowerCase();
+
+          // Priority 1: Name starts with search term
+          const aNameStarts = aNameLower.startsWith(searchTermLower) ? 0 : 1;
+          const bNameStarts = bNameLower.startsWith(searchTermLower) ? 0 : 1;
+          if (aNameStarts !== bNameStarts) {
+            return aNameStarts - bNameStarts;
+          }
+
+          // Priority 2: Name contains search term
+          const aNameContains = aNameLower.includes(searchTermLower) ? 0 : 1;
+          const bNameContains = bNameLower.includes(searchTermLower) ? 0 : 1;
+          if (aNameContains !== bNameContains) {
+            return aNameContains - bNameContains;
+          }
+
+          // Priority 3: Description contains search term
+          const aDescContains = aDescLower.includes(searchTermLower) ? 0 : 1;
+          const bDescContains = bDescLower.includes(searchTermLower) ? 0 : 1;
+          if (aDescContains !== bDescContains) {
+            return aDescContains - bDescContains;
+          }
+
+          // If same priority, maintain original order (by created_at)
+          return 0;
+        });
+      }
+
       // Ensure backward-compat price field and map categories to category
-      const products = (data || []).map((p: any) => {
+      const products = sortedData.map((p: any) => {
         // Handle category data - it might be an object or array
         let categoryData = null;
         if (p.categories) {
@@ -167,7 +205,9 @@ export class ProductService {
       }
 
       if (filters?.search) {
-        query = query.or(`name.ilike.%${filters.search}%,description.ilike.%${filters.search}%,categories.name.ilike.%${filters.search}%`);
+        // Escape special characters and use * for wildcards in PostgREST
+        const searchTerm = filters.search.replace(/[%_*]/g, '\\$&');
+        query = query.or(`name.ilike.*${searchTerm}*,description.ilike.*${searchTerm}*`);
       }
 
       if (filters?.price_min) {
@@ -185,6 +225,42 @@ export class ProductService {
         throw error;
       }
 
+      // Sort products by search relevance if search is active
+      let sortedData = data || [];
+      if (filters?.search && sortedData.length > 0) {
+        const searchTermLower = filters.search.toLowerCase();
+        sortedData = sortedData.sort((a: any, b: any) => {
+          const aNameLower = (a.name || '').toLowerCase();
+          const bNameLower = (b.name || '').toLowerCase();
+          const aDescLower = (a.description || '').toLowerCase();
+          const bDescLower = (b.description || '').toLowerCase();
+
+          // Priority 1: Name starts with search term
+          const aNameStarts = aNameLower.startsWith(searchTermLower) ? 0 : 1;
+          const bNameStarts = bNameLower.startsWith(searchTermLower) ? 0 : 1;
+          if (aNameStarts !== bNameStarts) {
+            return aNameStarts - bNameStarts;
+          }
+
+          // Priority 2: Name contains search term
+          const aNameContains = aNameLower.includes(searchTermLower) ? 0 : 1;
+          const bNameContains = bNameLower.includes(searchTermLower) ? 0 : 1;
+          if (aNameContains !== bNameContains) {
+            return aNameContains - bNameContains;
+          }
+
+          // Priority 3: Description contains search term
+          const aDescContains = aDescLower.includes(searchTermLower) ? 0 : 1;
+          const bDescContains = bDescLower.includes(searchTermLower) ? 0 : 1;
+          if (aDescContains !== bDescContains) {
+            return aDescContains - bDescContains;
+          }
+
+          // If same priority, maintain original order (by created_at)
+          return 0;
+        });
+      }
+
       // Get all crusts for mapping
       const { data: crusts, error: crustsError } = await supabase
         .from('crusts')
@@ -197,7 +273,7 @@ export class ProductService {
       const crustMap = new Map<string, any>((crusts || []).map((crust: any) => [crust.id, crust]));
 
       // Map pizza options with crust information
-      const productsWithCrusts = (data || []).map((product: any) => ({
+      const productsWithCrusts = (sortedData || []).map((product: any) => ({
         ...product,
         stock: this.normalizeStock(product.stock, product.id),
         pizza_options: (product.pizza_options || []).map((option: any) => {

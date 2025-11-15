@@ -16,12 +16,12 @@ import { ResponsiveView } from '../../../components/ui/ResponsiveView';
 import Layout from '../../../constants/Layout';
 import Responsive, { responsiveValue } from '../../../constants/Responsive';
 import { Strings } from '../../../constants/Strings';
-import { useTheme } from '../../../contexts/ThemeContext';
 import { useNotificationContext } from '../../../contexts/NotificationContext';
+import { useTheme } from '../../../contexts/ThemeContext';
 import { useAdminOrders, useAdminStats, useAuth } from '../../../hooks';
 
 export default function AdminDashboard() {
-  const { colors } = useTheme();
+  const { colors, isDark } = useTheme();
   const { user } = useAuth();
   const router = useRouter();
   
@@ -240,9 +240,13 @@ export default function AdminDashboard() {
           headerAction={
             <Button
               title="Manage Orders"
-              onPress={() => router.push('/(admin)/orders' as any)}
+              onPress={() => router.push('/(admin)/orders?status=all' as any)}
               variant="text"
               size="small"
+              textStyle={{
+                color: isDark ? '#D4AF37' : '#000000',
+                fontWeight: Layout.fontWeight.semiBold,
+              }}
             />
           }
           variant="card"
@@ -256,8 +260,10 @@ export default function AdminDashboard() {
               { key: 'delivered', label: 'Delivered', value: stats?.delivered_orders || 0 },
               { key: 'cancelled', label: 'Cancelled', value: stats?.cancelled_orders || 0 },
             ].map((s) => (
-              <ResponsiveView
+              <TouchableOpacity
                 key={s.key}
+                activeOpacity={0.7}
+                onPress={() => router.push(`/(admin)/orders?status=${s.key}` as any)}
                 style={[
                   styles.statusSummaryItem,
                   { backgroundColor: (getStatusColor(s.key) + '20') as any },
@@ -274,7 +280,7 @@ export default function AdminDashboard() {
                 <ResponsiveText size="xl" weight="bold" color={colors.text}>
                   {s.value}
                 </ResponsiveText>
-              </ResponsiveView>
+              </TouchableOpacity>
             ))}
           </ResponsiveView>
         </AdminSection>
@@ -311,6 +317,10 @@ export default function AdminDashboard() {
                 onPress={() => router.push('/(admin)/orders' as any)}
                 variant="text"
                 size="small"
+                textStyle={{
+                  color: isDark ? '#D4AF37' : '#000000',
+                  fontWeight: '600',
+                }}
               />
             }
           >

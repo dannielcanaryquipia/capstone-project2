@@ -1,6 +1,6 @@
 import { MaterialIcons } from '@expo/vector-icons';
 import { useFocusEffect, useRouter } from 'expo-router';
-import React, { useCallback, useRef } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAlert } from '../../components/ui/AlertProvider';
@@ -10,6 +10,8 @@ import { useNotificationContext } from '../../contexts/NotificationContext';
 import { useTheme } from '../../contexts/ThemeContext';
 import { useAuth } from '../../hooks/useAuth';
 import { Notification } from '../../lib/database.types';
+import { supabase } from '../../lib/supabase';
+import { groupNotificationsByTime } from '../../utils/notificationGrouping';
 
 const getNotificationIcon = (type: string) => {
   switch (type) {
@@ -69,6 +71,10 @@ export default function NotificationScreen() {
   const router = useRouter();
   const { isAdmin, isDelivery } = useAuth();
   const lastRefreshTime = useRef<number>(0);
+  
+  // State to track order fulfillment types for filtering rider notifications
+  const [orderFulfillmentTypes, setOrderFulfillmentTypes] = useState<Map<string, string>>(new Map());
+  const [isLoadingFulfillmentTypes, setIsLoadingFulfillmentTypes] = useState(false);
 
   // Helper function to determine the route based on notification type and user role
   const getNotificationRoute = useCallback((notification: Notification): string | null => {
@@ -122,6 +128,109 @@ export default function NotificationScreen() {
   const handleRefresh = useCallback(async () => {
     await refresh();
   }, [refresh]);
+
+  // Fetch fulfillment types for notifications with related_order_id (for riders only)
+  useEffect(() => {
+    if (!isDelivery || notifications.length === 0) {
+      return;
+    }
+
+    const fetchFulfillmentTypes = async () => {
+      // Get all unique order IDs from notifications
+      const orderIds = notifications
+        .map(n => n.related_order_id)
+        .filter((id): id is string => !!id)
+        .filter((id, index, self) => self.indexOf(id) === index); // Remove duplicates
+
+      if (orderIds.length === 0) {
+        return;
+      }
+
+      setIsLoadingFulfillmentTypes(true);
+      try {
+        const { data, error } = await supabase
+          .from('orders')
+          .select('id, fulfillment_type')
+          .in('id', orderIds);
+
+        if (error) {
+          console.error('Error fetching order fulfillment types:', error);
+          return;
+        }
+
+        // Create a map of order ID to fulfillment type
+        const fulfillmentMap = new Map<string, string>();
+        (data || []).forEach((order: any) => {
+          fulfillmentMap.set(order.id, order.fulfillment_type);
+        });
+
+        setOrderFulfillmentTypes(fulfillmentMap);
+      } catch (err) {
+        console.error('Error fetching fulfillment types:', err);
+      } finally {
+        setIsLoadingFulfillmentTypes(false);
+      }
+    };
+
+    fetchFulfillmentTypes();
+  }, [isDelivery, notifications]);
+
+  // Filter notifications for riders - only show delivery orders
+  const filteredNotifications = useMemo(() => {
+    if (!isDelivery) {
+      // For non-riders, return all notifications
+      return notifications;
+    }
+
+    // For riders, filter out notifications related to pickup orders
+    return notifications.filter((notification) => {
+      // If notification doesn't have a related order, show it (system notifications, etc.)
+      if (!notification.related_order_id) {
+        return true;
+      }
+
+      // Get fulfillment type for this order
+      const fulfillmentType = orderFulfillmentTypes.get(notification.related_order_id);
+
+      // If we haven't loaded the fulfillment type yet and we're still loading, 
+      // don't show order-related notifications to prevent flickering
+      if (fulfillmentType === undefined && isLoadingFulfillmentTypes) {
+        return false;
+      }
+
+      // If fulfillment type is still undefined after loading is complete,
+      // it means the order might not exist or there was an error
+      // In this case, we'll be conservative and hide it for riders
+      if (fulfillmentType === undefined) {
+        console.warn('⚠️ Could not determine fulfillment type for notification:', {
+          notificationId: notification.id,
+          orderId: notification.related_order_id
+        });
+        return false;
+      }
+
+      // Only show notifications for delivery orders
+      // Filter out 'pickup' orders (database value is 'pickup', not 'To Be Picked Up')
+      const isDeliveryOrder = fulfillmentType === 'delivery';
+      const isPickupOrder = fulfillmentType === 'pickup';
+
+      if (isPickupOrder) {
+        console.log('🚫 Filtering out pickup order notification for rider:', {
+          notificationId: notification.id,
+          orderId: notification.related_order_id,
+          fulfillmentType
+        });
+        return false;
+      }
+
+      return isDeliveryOrder;
+    });
+  }, [notifications, isDelivery, orderFulfillmentTypes, isLoadingFulfillmentTypes]);
+
+  // Group notifications by time periods
+  const groupedNotifications = useMemo(() => {
+    return groupNotificationsByTime(filteredNotifications);
+  }, [filteredNotifications]);
 
   // Refresh notifications when screen comes into focus
   // This ensures the notification list is up-to-date when user opens the notification page
@@ -184,7 +293,7 @@ export default function NotificationScreen() {
           <Text style={[styles.headerTitle, { color: colors.text }]}>Notifications</Text>
         </View>
         <View style={styles.headerRight}>
-          {notifications.length > 0 && unreadCount > 0 && (
+          {filteredNotifications.length > 0 && filteredNotifications.filter(n => !n.is_read).length > 0 && (
             <TouchableOpacity onPress={handleMarkAllAsRead} style={[styles.markAllButton, { backgroundColor: colors.primary }]}>
               <Text style={[styles.markAllButtonText, { color: colors.textInverse }]}>Mark All Read</Text>
             </TouchableOpacity>
@@ -193,16 +302,24 @@ export default function NotificationScreen() {
       </View>
 
       {/* Unread Count Info */}
-      {notifications.length > 0 && unreadCount > 0 && (
-        <View style={[styles.unreadInfo, { backgroundColor: colors.primaryLight + '20' }]}>
-          <Text style={[styles.unreadInfoText, { color: colors.primary }]}>
-            {unreadCount} unread notification{unreadCount > 1 ? 's' : ''}
-          </Text>
-        </View>
-      )}
+      {filteredNotifications.length > 0 && (() => {
+        const filteredUnreadCount = filteredNotifications.filter(n => !n.is_read).length;
+        return filteredUnreadCount > 0 && (
+          <View style={[styles.unreadInfo, { backgroundColor: colors.primaryLight + '20' }]}>
+            <Text style={[styles.unreadInfoText, { color: colors.primary }]}>
+              {filteredUnreadCount} unread notification{filteredUnreadCount > 1 ? 's' : ''}
+            </Text>
+          </View>
+        );
+      })()}
 
       {/* Notifications List or Empty State */}
-      {notifications.length > 0 ? (
+      {isLoadingFulfillmentTypes ? (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={colors.primary} />
+          <Text style={[styles.loadingText, { color: colors.textSecondary }]}>Loading notifications...</Text>
+        </View>
+      ) : filteredNotifications.length > 0 ? (
         <ScrollView 
           style={styles.content} 
           showsVerticalScrollIndicator={false}
@@ -215,41 +332,62 @@ export default function NotificationScreen() {
             />
           }
         >
-          {notifications.map((notification) => (
-            <TouchableOpacity 
-              key={notification.id} 
-              style={[
-                styles.notificationItem,
-                { backgroundColor: colors.surface, borderBottomColor: colors.border },
-                !notification.is_read && { backgroundColor: colors.primaryLight + '10' }
-              ]}
-              onPress={() => handleNotificationPress(notification)}
-              activeOpacity={0.7}
-            >
-              <View style={[styles.notificationIcon, { backgroundColor: colors.background }]}>
-                <MaterialIcons 
-                  name={getNotificationIcon(notification.type)} 
-                  size={24} 
-                  color={getNotificationColor(notification.type, isDark)} 
-                />
-              </View>
-              <View style={styles.notificationContent}>
-                <Text style={[
-                  styles.notificationTitle,
-                  { color: colors.text },
-                  !notification.is_read && styles.unreadTitle
-                ]}>
-                  {notification.title}
+          {groupedNotifications.map((group) => (
+            <View key={group.key} style={styles.groupContainer}>
+              {/* Group Header */}
+              <View style={[styles.groupHeader, { backgroundColor: colors.background }]}>
+                <Text style={[styles.groupTitle, { color: colors.text }]}>
+                  {group.title}
                 </Text>
-                <Text style={[styles.notificationMessage, { color: colors.textSecondary }]}>
-                  {notification.message}
-                </Text>
-                <Text style={[styles.notificationTime, { color: colors.textTertiary }]}>
-                  {formatTimeAgo(notification.created_at)}
+                <Text style={[styles.groupCount, { color: colors.textSecondary }]}>
+                  {group.notifications.length}
                 </Text>
               </View>
-              {!notification.is_read && <View style={[styles.unreadDot, { backgroundColor: colors.primary }]} />}
-            </TouchableOpacity>
+              
+              {/* Group Notifications Container */}
+              <View style={[styles.groupContent, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+                {group.notifications.map((notification, index) => (
+                  <TouchableOpacity 
+                    key={notification.id} 
+                    style={[
+                      styles.notificationItem,
+                      { 
+                        backgroundColor: colors.surface, 
+                        borderBottomColor: colors.border,
+                        borderBottomWidth: index < group.notifications.length - 1 ? 1 : 0,
+                      },
+                      !notification.is_read && { backgroundColor: colors.primaryLight + '10' }
+                    ]}
+                    onPress={() => handleNotificationPress(notification)}
+                    activeOpacity={0.7}
+                  >
+                    <View style={[styles.notificationIcon, { backgroundColor: colors.background }]}>
+                      <MaterialIcons 
+                        name={getNotificationIcon(notification.type)} 
+                        size={24} 
+                        color={getNotificationColor(notification.type, isDark)} 
+                      />
+                    </View>
+                    <View style={styles.notificationContent}>
+                      <Text style={[
+                        styles.notificationTitle,
+                        { color: colors.text },
+                        !notification.is_read && styles.unreadTitle
+                      ]}>
+                        {notification.title}
+                      </Text>
+                      <Text style={[styles.notificationMessage, { color: colors.textSecondary }]}>
+                        {notification.message}
+                      </Text>
+                      <Text style={[styles.notificationTime, { color: colors.textTertiary }]}>
+                        {formatTimeAgo(notification.created_at)}
+                      </Text>
+                    </View>
+                    {!notification.is_read && <View style={[styles.unreadDot, { backgroundColor: colors.primary }]} />}
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
           ))}
         </ScrollView>
       ) : (
@@ -363,12 +501,45 @@ const styles = StyleSheet.create({
   content: {
     flex: 1,
   },
+  groupContainer: {
+    marginBottom: 24,
+  },
+  groupHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    marginBottom: 8,
+  },
+  groupTitle: {
+    fontSize: 16,
+    fontFamily: Layout.fontFamily.bold,
+    fontWeight: 'bold',
+  },
+  groupCount: {
+    fontSize: 14,
+    fontFamily: Layout.fontFamily.medium,
+  },
+  groupContent: {
+    borderRadius: 12,
+    marginHorizontal: 16,
+    overflow: 'hidden',
+    borderWidth: 1,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 1,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 2,
+  },
   notificationItem: {
     flexDirection: 'row',
     alignItems: 'flex-start',
     paddingHorizontal: 20,
     paddingVertical: 16,
-    borderBottomWidth: 1,
   },
   notificationIcon: {
     width: 40,

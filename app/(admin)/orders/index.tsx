@@ -1,6 +1,6 @@
 import { MaterialIcons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
-import React, { useState } from 'react';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import React, { useEffect, useState } from 'react';
 import {
     FlatList,
     RefreshControl,
@@ -38,11 +38,22 @@ const getStatusTabs = (colors: any): TabItem[] => [
 export default function AdminOrdersScreen() {
   const { colors } = useTheme();
   const router = useRouter();
+  const params = useLocalSearchParams<{ status?: string }>();
   const { show, success, error: showError, confirm } = useAlert();
   const [activeTab, setActiveTab] = useState<OrderStatus | 'all'>('all');
   const [updatingOrder, setUpdatingOrder] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   // Search removed to avoid redundancy with dashboard summary
+
+  // Set initial tab from route params if provided
+  useEffect(() => {
+    if (params.status) {
+      const validStatuses: (OrderStatus | 'all')[] = ['all', 'pending', 'confirmed', 'preparing', 'ready_for_pickup', 'out_for_delivery', 'delivered', 'cancelled'];
+      if (validStatuses.includes(params.status as any)) {
+        setActiveTab(params.status as OrderStatus | 'all');
+      }
+    }
+  }, [params.status]);
 
   // Use improved hook with real-time updates
   const { 
@@ -115,12 +126,17 @@ export default function AdminOrdersScreen() {
     }
   };
 
-  const getNextStatus = (currentStatus: OrderStatus): OrderStatus | null => {
+  const getNextStatus = (currentStatus: OrderStatus, fulfillmentType?: string): OrderStatus | null => {
+    const isPickup = fulfillmentType === 'pickup';
+    
     switch (currentStatus) {
       case 'pending': return 'confirmed';
       case 'confirmed': return 'preparing';
       case 'preparing': return 'ready_for_pickup';
-      case 'ready_for_pickup': return 'out_for_delivery';
+      case 'ready_for_pickup': 
+        // For pickup orders, skip out_for_delivery and go directly to delivered
+        // For delivery orders, go to out_for_delivery
+        return isPickup ? 'delivered' : 'out_for_delivery';
       case 'out_for_delivery': return 'delivered';
       default: return null;
     }
@@ -128,14 +144,15 @@ export default function AdminOrdersScreen() {
 
   const renderOrderItem = ({ item }: { item: Order }) => {
     // Enforce role-based action policy for Admin:
-    // - COD: no actions in admin (verification and delivered handled by rider)
-    // - GCash: require payment verification before allowing status transitions
-    // - Admin never marks as delivered (that happens on rider app)
+    // - For delivery orders: COD handled by rider, GCash requires verification
+    // - For pickup orders: Admin handles everything including COD payment confirmation and marking as delivered
     const paymentMethod = (item.payment_method as any)?.toLowerCase?.() || '';
     const paymentStatus = (item.payment_status as any)?.toLowerCase?.() || '';
     const isCOD = paymentMethod === 'cod';
     const isGCash = paymentMethod === 'gcash';
     const isPaymentVerified = paymentStatus === 'verified';
+    const isPickup = (item as any).fulfillment_type === 'pickup';
+    const isReadyForPickup = item.status === 'ready_for_pickup';
 
     // Debug logging for GCash orders
     if (isGCash) {
@@ -148,21 +165,37 @@ export default function AdminOrdersScreen() {
       });
     }
 
-    let nextStatus = getNextStatus(item.status);
+    let nextStatus = getNextStatus(item.status, (item as any).fulfillment_type);
 
-    // Block admin from transitioning to Delivered
-    if (nextStatus === 'delivered') {
-      nextStatus = null;
-    }
+    // Special handling for pickup orders
+    if (isPickup) {
+      // For pickup orders at ready_for_pickup:
+      // - If COD and payment not verified: no action button (handled in detail screen)
+      // - If payment verified: allow marking as delivered
+      if (isReadyForPickup) {
+        if (isCOD && !isPaymentVerified) {
+          nextStatus = null; // Will show "Confirm Payment" in detail screen
+        } else if (!isPaymentVerified) {
+          nextStatus = null; // GCash not verified yet
+        }
+        // If payment verified, nextStatus will be 'delivered' which is allowed for pickup orders
+      }
+    } else {
+      // For delivery orders:
+      // Block admin from transitioning to Delivered (rider handles this)
+      if (nextStatus === 'delivered') {
+        nextStatus = null;
+      }
 
-    // Block all actions for COD in admin
-    if (isCOD) {
-      nextStatus = null;
-    }
+      // Block all actions for COD delivery orders in admin (rider handles)
+      if (isCOD) {
+        nextStatus = null;
+      }
 
-    // For GCash, require payment verification before any transitions
-    if (isGCash && !isPaymentVerified) {
-      nextStatus = null;
+      // For GCash delivery orders, require payment verification before any transitions
+      if (isGCash && !isPaymentVerified) {
+        nextStatus = null;
+      }
     }
 
     const showAction = !!nextStatus;

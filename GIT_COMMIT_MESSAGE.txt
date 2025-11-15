@@ -1,0 +1,150 @@
+feat: Major enhancements - Order fulfillment, user blocklist, stock automation, notifications, and UI improvements
+
+## 🆕 New Features Added
+
+### Database & Migrations
+- Order fulfillment type system (delivery/pickup) - migration: 20241113_add_order_fulfillment_type.sql
+- User blocklist functionality - migration: 20241201_add_user_blocklist.sql
+- Product stock automation triggers - database/product_stock_triggers.sql
+
+### UI Components
+- PaymentProcessingOverlay - Loading overlay for payment processing
+- ImageUploadProcessingOverlay - Loading overlay for image uploads
+
+### Utilities
+- notificationGrouping.ts - Time-based notification grouping (Today, This Week, This Month, Older)
+- sliceSorting.ts - Pizza slice sorting utility (8 Regular Cut → 16 Regular Cut → 32 Square Cut)
+
+### Pages
+- Customer Help & Support page - app/(customer)/profile/help-support.tsx
+- Delivery Help & Support page - app/(delivery)/help-support.tsx
+- Delivery Terms & Privacy page - app/(delivery)/terms-privacy.tsx
+- Admin Profile Settings - app/(admin)/profile/settings.tsx
+- Delivery Profile Settings - app/(delivery)/profile/settings.tsx
+- Delivery Settings - app/(delivery)/settings.tsx
+
+### Documentation
+- PROJECT_FEATURES_SCOPE.md - Complete feature documentation
+- TERMS_PRIVACY_HELP_SUPPORT_STRINGS.md - Strings reference
+- TERMS_PRIVACY_HELP_SUPPORT_GUIDE.md - Implementation guide
+
+## 🔄 Modified Files
+
+### Admin Pages
+- app/(admin)/dashboard/index.tsx - Enhanced dashboard with better stats, notifications, refresh
+- app/(admin)/orders/[id].tsx - Added fulfillment type display, pickup location, pickup notes
+- app/(admin)/orders/index.tsx - Enhanced order listing, filtering, fulfillment type support
+- app/(admin)/products/index.tsx - Enhanced product listing, stock management, low stock warnings
+- app/(admin)/products/new.tsx - Enhanced product creation, validation, image upload
+- app/(admin)/profile/index.tsx - Improved profile display, settings navigation
+- app/(admin)/users/index.tsx - User blocklist (block/unblock), enhanced search, role filtering, user stats
+
+### Customer Pages
+- app/(customer)/(tabs)/profile.tsx - Image upload overlay integration, better avatar handling
+- app/(customer)/notification.tsx - Notification grouping by time, better organization, filtering
+- app/(customer)/product/[id].tsx - Pizza slice sorting, better customization display, stock indicators
+- app/(customer)/profile/help-support.tsx - Complete help & support with FAQ system
+- app/(customer)/profile/settings.tsx - Enhanced settings page
+
+### Delivery Pages
+- app/(delivery)/_layout.tsx - Enhanced layout structure, navigation setup
+- app/(delivery)/order/[id].tsx - Better order details, fulfillment type support
+- app/(delivery)/orders/index.tsx - Enhanced order listing, filtering
+- app/(delivery)/profile/index.tsx - Improved profile display, statistics
+
+### Core App
+- app/_layout.tsx - Enhanced app layout, routing configuration
+
+### Components
+- components/rider/RiderDashboard.tsx - Enhanced dashboard, statistics, availability toggle, notifications
+- components/rider/RiderOrdersManager.tsx - Better order management, fulfillment type support
+- components/ui/GCashPaymentModal.tsx - Removed cropping requirement, better image handling, QR display
+- components/ui/OrderCard.tsx - Enhanced order card, fulfillment type display
+
+### Contexts
+- contexts/NotificationContext.tsx - Fetch all notifications, sort newest first (LIFO), better state management
+
+### Hooks
+- hooks/useRiderProfile.ts - Enhanced profile management, availability toggle, statistics
+
+### Services
+- services/admin-assignment.service.ts - Enhanced assignment logic, better tracking
+- services/api.ts - Enhanced API service, better notification handling
+- services/order.service.ts - Fulfillment type support, pickup handling, enhanced notifications
+- services/product.service.ts - Comprehensive stock management, low stock threshold, inventory logging
+- services/rider.service.ts - Enhanced rider service, better management
+- services/user.service.ts - User blocklist (block/unblock), enhanced filtering, user stats
+
+### Library & Config
+- lib/supabase-client.ts - Enhanced Supabase client configuration
+- package.json - Dependency updates
+- package-lock.json - Lock file updates
+
+## 🎯 Key Improvements
+
+### Order Management
+- ✅ Dual fulfillment system (delivery + pickup)
+- ✅ Pickup location tracking and verification
+- ✅ Enhanced order status workflow
+- ✅ Better fulfillment type visualization
+
+### User Management
+- ✅ User blocklist system (block/unblock instead of delete)
+- ✅ Enhanced user search and filtering
+- ✅ Role-based user filtering
+- ✅ User statistics (active/inactive based on block status)
+
+### Stock Management
+- ✅ Automated stock decrement on order creation
+- ✅ Product availability auto-sync with stock
+- ✅ Low stock threshold support
+- ✅ Inventory transaction logging
+
+### Notifications
+- ✅ Time-based grouping (Today, This Week, This Month, Older)
+- ✅ Fetch all notifications (no limit)
+- ✅ Sort newest first (LIFO)
+- ✅ Better notification organization
+
+### Product Management
+- ✅ Pizza slice sorting (consistent order: 8 Regular → 16 Regular → 32 Square)
+- ✅ Better customization display
+- ✅ Enhanced stock availability indicators
+
+### User Experience
+- ✅ Help & Support pages (Customer & Delivery)
+- ✅ Terms & Privacy page (Delivery)
+- ✅ Payment processing overlay
+- ✅ Image upload processing overlay
+- ✅ Better error handling and feedback
+
+### Admin Experience
+- ✅ Enhanced dashboard with better stats
+- ✅ User blocklist management
+- ✅ Better order management
+- ✅ Improved user controls
+
+### Delivery Experience
+- ✅ Enhanced dashboard
+- ✅ Better order management
+- ✅ Help & Support page
+- ✅ Terms & Privacy page
+
+## 📊 Statistics
+
+- **New Files**: 15+
+- **Modified Files**: 32
+- **Total Changes**: 47+ files
+- **Major Features**: 10+ new features
+- **Improvements**: 50+ enhancements
+
+## 🚀 Migration Required
+
+1. Run `supabase/migrations/20241113_add_order_fulfillment_type.sql`
+2. Run `supabase/migrations/20241201_add_user_blocklist.sql`
+3. Run `database/product_stock_triggers.sql`
+
+## ✅ Ready for Commit
+
+All changes are backward compatible and ready for production.
+

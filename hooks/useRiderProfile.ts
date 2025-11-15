@@ -228,25 +228,60 @@ export const useRiderOrders = () => {
         RiderService.getDeliveredOrders((rider as any).id)
       ]);
 
-      console.log('useRiderOrders: Fetched data:', {
-        assigned: assigned.length,
-        available: available.length,
-        recent: recent.length,
-        delivered: delivered.length
+      // CRITICAL: Filter out any pickup orders that might have slipped through
+      // Only delivery orders should be shown to riders
+      const filteredAvailable = (available || []).filter((order: any) => {
+        const isDelivery = order.fulfillment_type === 'delivery';
+        if (!isDelivery) {
+          console.warn('🚫 useRiderOrders: Filtering out pickup order from available orders:', order.id, order.fulfillment_type);
+        }
+        return isDelivery;
+      });
+
+      const filteredAssigned = (assigned || []).filter((assignment: any) => {
+        const isDelivery = assignment.order?.fulfillment_type === 'delivery';
+        if (!isDelivery) {
+          console.warn('🚫 useRiderOrders: Filtering out pickup order from assigned orders:', assignment.order_id, assignment.order?.fulfillment_type);
+        }
+        return isDelivery;
+      });
+
+      const filteredRecent = (recent || []).filter((assignment: any) => {
+        const isDelivery = assignment.order?.fulfillment_type === 'delivery';
+        if (!isDelivery) {
+          console.warn('🚫 useRiderOrders: Filtering out pickup order from recent orders:', assignment.order_id, assignment.order?.fulfillment_type);
+        }
+        return isDelivery;
+      });
+
+      const filteredDelivered = (delivered || []).filter((assignment: any) => {
+        const isDelivery = assignment.order?.fulfillment_type === 'delivery';
+        if (!isDelivery) {
+          console.warn('🚫 useRiderOrders: Filtering out pickup order from delivered orders:', assignment.order_id, assignment.order?.fulfillment_type);
+        }
+        return isDelivery;
+      });
+
+      console.log('useRiderOrders: Fetched data (after filtering):', {
+        assigned: filteredAssigned.length,
+        available: filteredAvailable.length,
+        recent: filteredRecent.length,
+        delivered: filteredDelivered.length
       });
 
       // Debug: Log some sample data
-      if (assigned.length > 0) {
-        console.log('useRiderOrders: Sample assigned order:', assigned[0]);
+      if (filteredAssigned.length > 0) {
+        console.log('useRiderOrders: Sample assigned order:', filteredAssigned[0]);
       }
-      if (available.length > 0) {
-        console.log('useRiderOrders: Sample available order:', available[0]);
+      if (filteredAvailable.length > 0) {
+        console.log('useRiderOrders: Sample available order:', filteredAvailable[0]);
       }
 
-      setAssignedOrders(assigned);
-      setAvailableOrders(available);
-      setRecentOrders(recent);
-      setDeliveredOrders(delivered);
+      // Set filtered orders (only delivery orders)
+      setAssignedOrders(filteredAssigned);
+      setAvailableOrders(filteredAvailable);
+      setRecentOrders(filteredRecent);
+      setDeliveredOrders(filteredDelivered);
 
       scheduleNotificationRefresh();
     } catch (err: any) {

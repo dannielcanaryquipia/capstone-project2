@@ -68,6 +68,21 @@ export default function ProfileScreen() {
     }
   };
 
+  // Function to open Kitchen One Facebook page
+  const openFacebookPage = async () => {
+    const url = 'https://www.facebook.com/profile.php?id=100076165180445'; // Kitchen One Facebook page
+    try {
+      const supported = await Linking.canOpenURL(url);
+      if (supported) {
+        await Linking.openURL(url);
+      } else {
+        showError('Error', 'Cannot open Facebook page. Please check your internet connection.');
+      }
+    } catch (error) {
+      showError('Error', 'Failed to open Facebook page. Please try again.');
+    }
+  };
+
   const handleRefresh = async () => {
     setRefreshing(true);
     await refresh();
@@ -246,7 +261,7 @@ export default function ProfileScreen() {
     {
       id: 'settings',
       title: Strings.settings,
-      subtitle: 'App preferences and notifications',
+      subtitle: 'App preferences',
       icon: 'settings',
       onPress: () => router.push('/(customer)/profile/settings'),
       showChevron: true,
@@ -272,6 +287,11 @@ export default function ProfileScreen() {
             {
               text: 'Visit Website',
               onPress: openWebsite,
+              style: 'default'
+            },
+            {
+              text: 'Visit Facebook Page',
+              onPress: openFacebookPage,
               style: 'default'
             },
             {

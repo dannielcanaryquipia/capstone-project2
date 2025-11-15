@@ -1,6 +1,6 @@
 import { MaterialIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   FlatList,
   RefreshControl,
@@ -9,7 +9,7 @@ import {
   TouchableOpacity,
   View
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import Button from '../../../components/ui/Button';
 import { LoadingState } from '../../../components/ui/LoadingState';
 import { OrderCard } from '../../../components/ui/OrderCard';
@@ -26,6 +26,7 @@ import { Order, OrderStatus } from '../../../types/order.types';
 export default function OrdersScreen() {
   const { colors } = useTheme();
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const [activeTab, setActiveTab] = useState<OrderStatus | 'all'>('all');
   const [refreshing, setRefreshing] = useState(false);
 
@@ -46,6 +47,11 @@ export default function OrdersScreen() {
   } = useAdminOrders(
     activeTab !== 'all' ? { status: [activeTab] } : { status: ['out_for_delivery', 'delivered', 'cancelled'] }
   );
+
+  // Filter out pickup orders - riders should only see delivery orders
+  const deliveryOrders = useMemo(() => {
+    return orders.filter(order => order.fulfillment_type === 'delivery');
+  }, [orders]);
 
   const handleRefresh = async () => {
     setRefreshing(true);
@@ -131,7 +137,7 @@ export default function OrdersScreen() {
 
   if (loading) {
     return (
-      <SafeAreaView style={[global.screen, { backgroundColor: colors.background }]} edges={['top']}>
+      <SafeAreaView style={[global.screen, { backgroundColor: colors.background }]} edges={['top', 'bottom']}>
         <View style={{ flex: 1 }}>
           <ResponsiveView padding="lg">
             <ResponsiveView style={[styles.header, { backgroundColor: colors.surface }]}>
@@ -162,7 +168,7 @@ export default function OrdersScreen() {
   }
 
   return (
-    <SafeAreaView style={[global.screen, { backgroundColor: colors.background }]} edges={['top']}>
+    <SafeAreaView style={[global.screen, { backgroundColor: colors.background }]} edges={['top', 'bottom']}>
       <View style={{ flex: 1 }}>
         <ResponsiveView padding="lg">
           {/* Header */}
@@ -180,25 +186,21 @@ export default function OrdersScreen() {
                 </ResponsiveText>
               </ResponsiveView>
             </ResponsiveView>
-            <Button
-              title=""
-              onPress={handleRefresh}
-              variant="text"
-              icon={<MaterialIcons name="refresh" size={24} color={colors.primary} />}
-              style={styles.refreshButton}
-            />
           </ResponsiveView>
 
           {/* Status Filter */}
           {renderStatusFilter()}
 
           {/* Orders List */}
-          {orders.length > 0 ? (
+          {deliveryOrders.length > 0 ? (
             <FlatList
-              data={orders}
+              data={deliveryOrders}
               renderItem={renderOrderItem}
               keyExtractor={(item) => item.id}
-              contentContainerStyle={styles.ordersList}
+              contentContainerStyle={[
+                styles.ordersList,
+                { paddingBottom: insets.bottom + ResponsiveSpacing.md }
+              ]}
               showsVerticalScrollIndicator={false}
               refreshControl={
                 <RefreshControl 
@@ -211,6 +213,7 @@ export default function OrdersScreen() {
           ) : (
             <ScrollView 
               style={{ flex: 1 }} 
+              contentContainerStyle={{ paddingBottom: insets.bottom + ResponsiveSpacing.md }}
               showsVerticalScrollIndicator={false}
               refreshControl={
                 <RefreshControl 
@@ -248,9 +251,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     flex: 1,
-  },
-  refreshButton: {
-    padding: ResponsiveSpacing.sm,
   },
   ordersList: {
     paddingHorizontal: ResponsiveSpacing.md,

@@ -44,13 +44,17 @@ SplashScreen.preventAutoHideAsync();
 
 // This can be used to protect routes that require authentication
 const AuthGuard = ({ children }: { children: React.ReactNode }) => {
-  const { user, isLoading, isInitialized, isAdmin, isDelivery, error } = useAuth();
+  const { user, profile, isLoading, isInitialized, isAdmin, isDelivery, error } = useAuth();
   const segments = useSegments();
   const router = useRouter();
 
   useEffect(() => {
     // Don't navigate until auth is initialized
     if (!isInitialized || isLoading) return;
+
+    // If user exists but profile hasn't loaded yet, wait for profile to load
+    // This prevents redirecting to customer page before we know the user's role
+    if (user && !profile) return;
 
     const inAuthGroup = segments[0] === '(auth)';
     const inAdminGroup = segments[0] === '(admin)';
@@ -62,6 +66,7 @@ const AuthGuard = ({ children }: { children: React.ReactNode }) => {
       router.replace('/(auth)/sign-in');
     } else if (user && inAuthGroup) {
       // User logged in but in auth group, redirect to appropriate dashboard
+      // Now we can safely check roles since profile is loaded
       if (isAdmin) {
         router.replace('/(admin)/dashboard');
       } else if (isDelivery) {
@@ -79,10 +84,13 @@ const AuthGuard = ({ children }: { children: React.ReactNode }) => {
         router.replace('/(customer)/(tabs)');
       }
     }
-  }, [user, isLoading, isInitialized, segments, isAdmin, isDelivery, router]);
+  }, [user, profile, isLoading, isInitialized, segments, isAdmin, isDelivery, router]);
 
-  // Show loading screen while auth is initializing
-  if (!isInitialized || isLoading) {
+  // Show loading screen while auth is initializing or profile is loading
+  // Wait for profile to load if user exists (prevents redirecting to wrong page)
+  // Only wait if there's no error (if error, profile load failed and we'll handle it)
+  const isProfileLoading = user && !profile && !error;
+  if (!isInitialized || isLoading || isProfileLoading) {
     return (
       <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
         <ActivityIndicator size="large" />

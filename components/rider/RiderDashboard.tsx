@@ -1,6 +1,6 @@
 import { MaterialIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -61,6 +61,44 @@ export default function RiderDashboard({
   
   const loading = profileLoading || ordersLoading;
   const error = profileError || ordersError;
+
+  // Track current date to ensure recalculation when day changes
+  const [currentDate, setCurrentDate] = useState(() => {
+    const today = new Date();
+    return `${today.getFullYear()}-${today.getMonth()}-${today.getDate()}`;
+  });
+
+  // Update date periodically to catch day changes
+  useEffect(() => {
+    const updateDate = () => {
+      const today = new Date();
+      const newDateString = `${today.getFullYear()}-${today.getMonth()}-${today.getDate()}`;
+      setCurrentDate(newDateString);
+    };
+
+    // Update immediately
+    updateDate();
+
+    // Update every minute to catch day changes
+    const interval = setInterval(updateDate, 60000);
+
+    return () => clearInterval(interval);
+  }, []);
+
+  // Filter delivered orders to only show today's deliveries
+  // Uses the same logic as getRiderStats for todayEarnings calculation
+  const todayDeliveredOrders = useMemo(() => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    return deliveredOrders.filter((assignment: any) => {
+      if (!assignment.delivered_at) return false;
+      
+      const deliveredAt = new Date(assignment.delivered_at);
+      // Match the same logic as RiderService.getRiderStats: deliveredAt >= today
+      return deliveredAt >= today;
+    });
+  }, [deliveredOrders, currentDate]);
 
   // Ensure stats are loaded when component mounts
   useEffect(() => {
@@ -233,10 +271,10 @@ export default function RiderDashboard({
                 </ResponsiveText>
               </ResponsiveView>
               <ResponsiveText size="xxl" weight="bold" color={colors.text}>
-                {deliveredOrders.length || 0}
+                {todayDeliveredOrders.length || 0}
               </ResponsiveText>
               <ResponsiveText size="xs" color={colors.textSecondary}>
-                ₱{((deliveredOrders.length || 0) * 50).toFixed(0)} earned
+                ₱{((todayDeliveredOrders.length || 0) * 50).toFixed(0)} earned
               </ResponsiveText>
             </ResponsiveView>
 
@@ -265,10 +303,10 @@ export default function RiderDashboard({
                 </ResponsiveText>
               </ResponsiveView>
               <ResponsiveText size="xxl" weight="bold" color={colors.text}>
-                {availableOrders.length || 0}
+                {availableOrders.filter((o: any) => (o as any).fulfillment_type === 'delivery').length || 0}
               </ResponsiveText>
               <ResponsiveText size="xs" color={colors.textSecondary}>
-                Ready for pickup
+                Ready for delivery
               </ResponsiveText>
             </ResponsiveView>
 
@@ -280,7 +318,7 @@ export default function RiderDashboard({
                 </ResponsiveText>
               </ResponsiveView>
               <ResponsiveText size="xxl" weight="bold" color={colors.text}>
-                ₱{((deliveredOrders.length || 0) * 50).toFixed(0)}
+                ₱{(stats.totalEarnings || 0).toFixed(0)}
               </ResponsiveText>
               <ResponsiveText size="xs" color={colors.textSecondary}>
                 All time
@@ -324,37 +362,47 @@ export default function RiderDashboard({
           </ResponsiveView>
 
           {/* Available Orders */}
-          {availableOrders.length > 0 && (
-            <ResponsiveView style={styles.section}>
-              <ResponsiveView style={styles.sectionHeader}>
-                <ResponsiveView flexDirection="row" alignItems="center">
-                  <ResponsiveText size="lg" weight="semiBold" color={colors.text}>
-                    Available Orders
-                  </ResponsiveText>
-                  {availableOrders.some(order => {
-                    const orderDate = new Date(order.created_at);
-                    const now = new Date();
-                    const minutesAgo = (now.getTime() - orderDate.getTime()) / (1000 * 60);
-                    return minutesAgo <= 10;
-                  }) && (
-                    <ResponsiveView 
-                      style={[styles.newIndicator, { backgroundColor: colors.primary }]}
-                      marginLeft="xs"
-                    >
-                      <MaterialIcons name="fiber-new" size={16} color={colors.textInverse} />
-                    </ResponsiveView>
-                  )}
+          {/* CRITICAL: Filter out pickup orders - only show delivery orders */}
+          {(() => {
+            const deliveryOrdersOnly = availableOrders.filter((order: any) => {
+              const isDelivery = (order as any).fulfillment_type === 'delivery';
+              if (!isDelivery) {
+                console.warn('🚫 RiderDashboard: Filtering out pickup order from available orders:', order.id);
+              }
+              return isDelivery;
+            });
+            
+            return deliveryOrdersOnly.length > 0 && (
+              <ResponsiveView style={styles.section}>
+                <ResponsiveView style={styles.sectionHeader}>
+                  <ResponsiveView flexDirection="row" alignItems="center">
+                    <ResponsiveText size="lg" weight="semiBold" color={colors.text}>
+                      Available Orders
+                    </ResponsiveText>
+                    {deliveryOrdersOnly.some(order => {
+                      const orderDate = new Date(order.created_at);
+                      const now = new Date();
+                      const minutesAgo = (now.getTime() - orderDate.getTime()) / (1000 * 60);
+                      return minutesAgo <= 10;
+                    }) && (
+                      <ResponsiveView 
+                        style={[styles.newIndicator, { backgroundColor: colors.primary }]}
+                        marginLeft="xs"
+                      >
+                        <MaterialIcons name="fiber-new" size={16} color={colors.textInverse} />
+                      </ResponsiveView>
+                    )}
+                  </ResponsiveView>
+                  <Button
+                    title="View All"
+                    onPress={onNavigateToOrders || (() => router.push('/(delivery)/orders' as any))}
+                    variant="text"
+                    size="small"
+                  />
                 </ResponsiveView>
-                <Button
-                  title="View All"
-                  onPress={onNavigateToOrders || (() => router.push('/(delivery)/orders' as any))}
-                  variant="text"
-                  size="small"
-                />
-              </ResponsiveView>
 
-              <ResponsiveView style={styles.ordersList}>
-                {availableOrders.slice(0, 3).map((order) => {
+                <ResponsiveView style={styles.ordersList}>
+                  {deliveryOrdersOnly.slice(0, 3).map((order) => {
                   // Check if order is new (created in last 10 minutes)
                   const orderDate = new Date(order.created_at);
                   const now = new Date();
@@ -409,13 +457,14 @@ export default function RiderDashboard({
                           variant="primary"
                           size="small"
                         />
-                      </ResponsiveView>
-                    </TouchableOpacity>
-                  );
-                })}
+                        </ResponsiveView>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </ResponsiveView>
               </ResponsiveView>
-            </ResponsiveView>
-          )}
+            );
+          })()}
 
           {/* My Orders (Assigned Orders) */}
           {assignedOrders.length > 0 && (

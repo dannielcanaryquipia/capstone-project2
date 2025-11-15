@@ -70,6 +70,21 @@ export default function RiderProfileScreen() {
     }
   };
 
+  // Function to open Kitchen One Facebook page
+  const openFacebookPage = async () => {
+    const url = 'https://www.facebook.com/profile.php?id=100076165180445'; // Kitchen One Facebook page
+    try {
+      const supported = await Linking.canOpenURL(url);
+      if (supported) {
+        await Linking.openURL(url);
+      } else {
+        showError('Error', 'Cannot open Facebook page. Please check your internet connection.');
+      }
+    } catch (error) {
+      showError('Error', 'Failed to open Facebook page. Please try again.');
+    }
+  };
+
   // Ensure stats are loaded when component mounts
   useEffect(() => {
     if (profile?.id && !isLoading) {
@@ -256,12 +271,9 @@ export default function RiderProfileScreen() {
     {
       id: 'settings',
       title: Strings.settings,
-      subtitle: 'App preferences and notifications',
+      subtitle: 'App preferences',
       icon: 'settings',
-      onPress: () => {
-        // TODO: Add settings page for riders
-        info('Settings', 'Rider settings coming soon!');
-      },
+      onPress: () => router.push('/(delivery)/profile/settings'),
       showChevron: true,
     },
     {
@@ -269,10 +281,15 @@ export default function RiderProfileScreen() {
       title: 'Help & Support',
       subtitle: 'Get help and contact support',
       icon: 'help-outline',
-      onPress: () => {
-        // TODO: Add help page for riders
-        info('Help & Support', 'Rider support coming soon!');
-      },
+      onPress: () => router.push('/(delivery)/help-support'),
+      showChevron: true,
+    },
+    {
+      id: 'terms',
+      title: 'Terms & Privacy',
+      subtitle: 'View terms of service and privacy policy',
+      icon: 'document-text',
+      onPress: () => router.push('/(delivery)/terms-privacy'),
       showChevron: true,
     },
     {
@@ -288,6 +305,11 @@ export default function RiderProfileScreen() {
             {
               text: 'Visit Website',
               onPress: openWebsite,
+              style: 'default'
+            },
+            {
+              text: 'Visit Facebook Page',
+              onPress: openFacebookPage,
               style: 'default'
             },
             {

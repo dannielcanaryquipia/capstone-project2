@@ -3,12 +3,13 @@ import { useRouter } from 'expo-router';
 import React, { useState } from 'react';
 import { Linking, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useAlert } from '../../../components/ui/AlertProvider';
-import ResponsiveText from '../../../components/ui/ResponsiveText';
-import ResponsiveView from '../../../components/ui/ResponsiveView';
-import Layout from '../../../constants/Layout';
-import { useTheme } from '../../../contexts/ThemeContext';
-import global from '../../../styles/global';
+import { useAlert } from '../../components/ui/AlertProvider';
+import Button from '../../components/ui/Button';
+import ResponsiveText from '../../components/ui/ResponsiveText';
+import ResponsiveView from '../../components/ui/ResponsiveView';
+import Layout from '../../constants/Layout';
+import { useTheme } from '../../contexts/ThemeContext';
+import global from '../../styles/global';
 
 interface FAQItem {
   id: number;
@@ -17,7 +18,7 @@ interface FAQItem {
   category: string;
 }
 
-export default function CustomerHelpSupportScreen() {
+export default function DeliveryHelpSupportScreen() {
   const { colors } = useTheme();
   const { info, show } = useAlert();
   const router = useRouter();
@@ -25,44 +26,56 @@ export default function CustomerHelpSupportScreen() {
   const [selectedCategory, setSelectedCategory] = useState<string>('All');
   const [expandedFAQ, setExpandedFAQ] = useState<number | null>(null);
 
-  const categories = ['All', 'Ordering', 'Delivery', 'Payment', 'Issues'];
+  const categories = ['All', 'Orders', 'Delivery', 'Earnings', 'Payment', 'Issues', 'Account'];
 
   const faqItems: FAQItem[] = [
     {
       id: 1,
-      question: 'How do I place an order?',
-      answer: 'Browse our menu, add items to your cart, and proceed to checkout. You can pay with cash on delivery or online payment methods.',
-      category: 'Ordering',
+      question: 'How do I accept a delivery order?',
+      answer: 'When a new order is available, you\'ll receive a notification. Tap "Accept Delivery" to take the order. Make sure you\'re in the delivery area.',
+      category: 'Orders',
     },
     {
       id: 2,
-      question: 'How long does delivery take?',
-      answer: 'Delivery typically takes 30-45 minutes depending on your location and order volume. You can track your order in real-time.',
+      question: 'How do I complete a delivery?',
+      answer: 'After delivering the order to the customer, tap "Complete Delivery" in the order details. This will mark the order as delivered and update your earnings.',
       category: 'Delivery',
     },
     {
       id: 3,
-      question: 'Can I cancel my order?',
-      answer: 'You can cancel your order within 5 minutes of placing it. After that, please contact our support team.',
-      category: 'Ordering',
+      question: 'What if I can\'t find the customer\'s address?',
+      answer: 'Contact the customer using the phone number provided in the order details. If you still can\'t locate them, contact support for assistance.',
+      category: 'Delivery',
     },
     {
       id: 4,
-      question: 'What payment methods do you accept?',
-      answer: 'We accept cash on delivery, GCash, and other online payment methods. All payments are secure and encrypted.',
-      category: 'Payment',
+      question: 'How do I track my earnings?',
+      answer: 'Go to your profile to view your delivery statistics and earnings. Earnings are calculated based on completed deliveries and distance traveled.',
+      category: 'Earnings',
     },
     {
       id: 5,
-      question: 'How do I track my order?',
-      answer: 'Go to your profile and tap "Track Orders" to see all your orders and their current status.',
+      question: 'What if a customer is not available?',
+      answer: 'Try calling the customer first. If they don\'t respond, wait for 5 minutes then contact support. Do not leave the order unattended.',
       category: 'Delivery',
     },
     {
       id: 6,
-      question: 'What if my food arrives cold or incorrect?',
-      answer: 'Contact us immediately and we\'ll make it right. We guarantee your satisfaction with every order.',
+      question: 'How do I report an issue with an order?',
+      answer: 'Use the "Report Issue" option in the order details or contact support directly. Include the order number and describe the problem clearly.',
       category: 'Issues',
+    },
+    {
+      id: 7,
+      question: 'What payment methods do customers use?',
+      answer: 'Customers can pay with cash on delivery, GCash, or other online payment methods. Always verify payment before completing delivery.',
+      category: 'Payment',
+    },
+    {
+      id: 8,
+      question: 'How do I update my availability status?',
+      answer: 'Your status is automatically set to "Available for Delivery" when you\'re online. You can go offline by signing out of the app.',
+      category: 'Account',
     },
   ];
 
@@ -105,7 +118,7 @@ export default function CustomerHelpSupportScreen() {
       'What type of issue are you experiencing?',
       [
         {
-          text: 'Order Problem',
+          text: 'Delivery Problem',
           onPress: () => Linking.openURL('https://www.facebook.com/profile.php?id=100076165180445'),
           style: 'default',
         },
@@ -116,6 +129,11 @@ export default function CustomerHelpSupportScreen() {
         },
         {
           text: 'Payment Issue',
+          onPress: () => Linking.openURL('https://www.facebook.com/profile.php?id=100076165180445'),
+          style: 'default',
+        },
+        {
+          text: 'Customer Issue',
           onPress: () => Linking.openURL('https://www.facebook.com/profile.php?id=100076165180445'),
           style: 'default',
         },
@@ -218,19 +236,19 @@ export default function CustomerHelpSupportScreen() {
 
               <TouchableOpacity
                 style={[styles.quickActionItem, { borderTopColor: colors.border }]}
-                onPress={() => router.push('/(customer)/orders')}
+                onPress={() => info('Delivery Guide', 'Delivery guide coming soon!')}
                 activeOpacity={0.7}
               >
                 <ResponsiveView style={[styles.quickActionIcon, { backgroundColor: colors.surfaceVariant }]}>
-                  <MaterialIcons name="history" size={24} color={colors.primary} />
+                  <MaterialIcons name="delivery-dining" size={24} color={colors.primary} />
                 </ResponsiveView>
                 <ResponsiveView style={styles.quickActionText}>
                   <ResponsiveText size="md" weight="medium" color={colors.text}>
-                    Order History
+                    Delivery Guide
                   </ResponsiveText>
                   <ResponsiveView marginTop="xs">
                     <ResponsiveText size="sm" color={colors.textSecondary}>
-                      View your past orders
+                      Learn delivery best practices
                     </ResponsiveText>
                   </ResponsiveView>
                 </ResponsiveView>
@@ -371,10 +389,55 @@ export default function CustomerHelpSupportScreen() {
                     Hours:
                   </ResponsiveText>
                   <ResponsiveText size="md" color={colors.text}>
-                    8:00 AM - 10:00 PM
+                    6:00 AM - 12:00 AM
                   </ResponsiveText>
                 </ResponsiveView>
               </ResponsiveView>
+
+              <ResponsiveView style={[styles.contactItem, { borderTopColor: colors.border }]}>
+                <ResponsiveView style={[styles.contactIcon, { backgroundColor: colors.surfaceVariant }]}>
+                  <MaterialIcons name="location-on" size={20} color={colors.primary} />
+                </ResponsiveView>
+                <ResponsiveView marginLeft="sm">
+                  <ResponsiveText size="sm" color={colors.textSecondary}>
+                    Office:
+                  </ResponsiveText>
+                  <ResponsiveText size="md" color={colors.text}>
+                    San Vicente, Bulan, Sorsogon, Philippines
+                  </ResponsiveText>
+                </ResponsiveView>
+              </ResponsiveView>
+            </ResponsiveView>
+          </ResponsiveView>
+
+          {/* Emergency Contact */}
+          <ResponsiveView style={styles.section}>
+            <ResponsiveView style={[styles.emergencyCard, { 
+              backgroundColor: colors.warning + '20',
+              borderLeftColor: colors.warning
+            }]}>
+              <MaterialIcons name="warning" size={24} color={colors.warning} />
+              <ResponsiveView style={styles.emergencyText}>
+                <ResponsiveText size="md" weight="semiBold" color={colors.text}>
+                  Emergency Contact
+                </ResponsiveText>
+                <ResponsiveView marginTop="xs">
+                  <ResponsiveText size="sm" color={colors.textSecondary}>
+                    Emergency: +63 909 474 4215
+                  </ResponsiveText>
+                  <ResponsiveView marginTop="xs">
+                    <ResponsiveText size="xs" color={colors.textTertiary}>
+                      Use this number for urgent delivery issues, safety concerns, or accidents.
+                    </ResponsiveText>
+                  </ResponsiveView>
+                </ResponsiveView>
+              </ResponsiveView>
+              <Button
+                title="Call"
+                onPress={() => Linking.openURL('tel:+639094744215')}
+                variant="primary"
+                size="small"
+              />
             </ResponsiveView>
           </ResponsiveView>
         </ResponsiveView>
@@ -458,4 +521,17 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
+  emergencyCard: {
+    borderRadius: Layout.borderRadius.lg,
+    padding: Layout.spacing.md,
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderLeftWidth: 4,
+  },
+  emergencyText: {
+    flex: 1,
+    marginLeft: Layout.spacing.sm,
+    marginRight: Layout.spacing.sm,
+  },
 });
+

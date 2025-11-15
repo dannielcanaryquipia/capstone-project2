@@ -17,6 +17,7 @@ import { useAuth } from '../../hooks/useAuth';
 import { useRiderOrders } from '../../hooks/useRiderProfile';
 import global from '../../styles/global';
 import Button from '../ui/Button';
+import { ImageUploadProcessingOverlay } from '../ui/ImageUploadProcessingOverlay';
 import { LoadingState } from '../ui/LoadingState';
 import { ResponsiveText } from '../ui/ResponsiveText';
 import { ResponsiveView } from '../ui/ResponsiveView';
@@ -39,6 +40,7 @@ export default function RiderOrdersManager({
   const router = useRouter();
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
+  const [showUploadOverlay, setShowUploadOverlay] = useState(false);
   
   const { 
     assignedOrders, 
@@ -123,18 +125,28 @@ export default function RiderOrdersManager({
             });
             if (!res.canceled) {
               setActionLoading(orderId);
-              const result = await markDelivered(orderId, res.assets[0].uri);
-              if (result?.success) {
-                Alert.alert(
-                  result.proofUploaded ? 'Success! 📸' : 'Success! ✅', 
-                  result.message
-                );
-              } else {
-                Alert.alert('Error', result?.message || 'Failed to mark as delivered');
+              // Show overlay when starting upload
+              setShowUploadOverlay(true);
+              try {
+                const result = await markDelivered(orderId, res.assets[0].uri);
+                if (result?.success) {
+                  Alert.alert(
+                    result.proofUploaded ? 'Success! 📸' : 'Success! ✅', 
+                    result.message
+                  );
+                } else {
+                  Alert.alert('Error', result?.message || 'Failed to mark as delivered');
+                }
+              } catch (error: any) {
+                Alert.alert('Error', error.message || 'Failed to mark as delivered');
+              } finally {
+                setShowUploadOverlay(false);
+                setActionLoading(null);
               }
             }
           } catch (error: any) {
             Alert.alert('Error', error.message || 'Failed to take photo');
+            setShowUploadOverlay(false);
           } finally {
             setActionLoading(null);
           }
@@ -148,18 +160,28 @@ export default function RiderOrdersManager({
             });
             if (!res.canceled) {
               setActionLoading(orderId);
-              const result = await markDelivered(orderId, res.assets[0].uri);
-              if (result?.success) {
-                Alert.alert(
-                  result.proofUploaded ? 'Success! 📸' : 'Success! ✅', 
-                  result.message
-                );
-              } else {
-                Alert.alert('Error', result?.message || 'Failed to mark as delivered');
+              // Show overlay when starting upload
+              setShowUploadOverlay(true);
+              try {
+                const result = await markDelivered(orderId, res.assets[0].uri);
+                if (result?.success) {
+                  Alert.alert(
+                    result.proofUploaded ? 'Success! 📸' : 'Success! ✅', 
+                    result.message
+                  );
+                } else {
+                  Alert.alert('Error', result?.message || 'Failed to mark as delivered');
+                }
+              } catch (error: any) {
+                Alert.alert('Error', error.message || 'Failed to mark as delivered');
+              } finally {
+                setShowUploadOverlay(false);
+                setActionLoading(null);
               }
             }
           } catch (error: any) {
             Alert.alert('Error', error.message || 'Failed to select photo');
+            setShowUploadOverlay(false);
           } finally {
             setActionLoading(null);
           }
@@ -346,33 +368,43 @@ export default function RiderOrdersManager({
           )}
 
           {/* Available Orders */}
-          {showAvailableOrders && availableOrders.length > 0 && (
-            <ResponsiveView style={styles.section}>
-              <ResponsiveView style={styles.sectionHeader}>
-                <ResponsiveView flexDirection="row" alignItems="center">
-                  <ResponsiveText size="lg" weight="semiBold" color={colors.text}>
-                    Available Orders
+          {/* CRITICAL: Filter out pickup orders - only show delivery orders */}
+          {(() => {
+            const deliveryOrdersOnly = availableOrders.filter((order: any) => {
+              const isDelivery = (order as any).fulfillment_type === 'delivery' || !(order as any).fulfillment_type;
+              if (!isDelivery) {
+                console.warn('🚫 Filtering out pickup order from available orders display:', order.id);
+              }
+              return isDelivery;
+            });
+            
+            return showAvailableOrders && deliveryOrdersOnly.length > 0 && (
+              <ResponsiveView style={styles.section}>
+                <ResponsiveView style={styles.sectionHeader}>
+                  <ResponsiveView flexDirection="row" alignItems="center">
+                    <ResponsiveText size="lg" weight="semiBold" color={colors.text}>
+                      Available Orders
+                    </ResponsiveText>
+                    {deliveryOrdersOnly.some(order => {
+                      const orderDate = new Date(order.created_at);
+                      const now = new Date();
+                      const minutesAgo = (now.getTime() - orderDate.getTime()) / (1000 * 60);
+                      return minutesAgo <= 10;
+                    }) && (
+                      <ResponsiveView 
+                        style={[styles.newIndicator, { backgroundColor: colors.primary }]}
+                        marginLeft="xs"
+                      >
+                        <MaterialIcons name="fiber-new" size={16} color={colors.textInverse} />
+                      </ResponsiveView>
+                    )}
+                  </ResponsiveView>
+                  <ResponsiveText size="sm" color={colors.textSecondary}>
+                    {deliveryOrdersOnly.length} orders
                   </ResponsiveText>
-                  {availableOrders.some(order => {
-                    const orderDate = new Date(order.created_at);
-                    const now = new Date();
-                    const minutesAgo = (now.getTime() - orderDate.getTime()) / (1000 * 60);
-                    return minutesAgo <= 10;
-                  }) && (
-                    <ResponsiveView 
-                      style={[styles.newIndicator, { backgroundColor: colors.primary }]}
-                      marginLeft="xs"
-                    >
-                      <MaterialIcons name="fiber-new" size={16} color={colors.textInverse} />
-                    </ResponsiveView>
-                  )}
                 </ResponsiveView>
-                <ResponsiveText size="sm" color={colors.textSecondary}>
-                  {availableOrders.length} orders
-                </ResponsiveText>
-              </ResponsiveView>
-              <ResponsiveView style={styles.ordersList}>
-                {availableOrders.map((order) => {
+                <ResponsiveView style={styles.ordersList}>
+                  {deliveryOrdersOnly.map((order) => {
                   // Check if order is new (created in last 10 minutes)
                   const orderDate = new Date(order.created_at);
                   const now = new Date();
@@ -428,10 +460,11 @@ export default function RiderOrdersManager({
                       </ResponsiveView>
                     </TouchableOpacity>
                   );
-                })}
+                  })}
+                </ResponsiveView>
               </ResponsiveView>
-            </ResponsiveView>
-          )}
+            );
+          })()}
 
           {/* Assigned Orders */}
           {showAssignedOrders && assignedOrders.length > 0 && (
@@ -611,6 +644,12 @@ export default function RiderOrdersManager({
           )}
         </ResponsiveView>
       </ScrollView>
+      
+      {/* Image Upload Processing Overlay - Shows during proof upload */}
+      <ImageUploadProcessingOverlay 
+        visible={showUploadOverlay}
+        message="Uploading proof of delivery Please wait for a while"
+      />
     </SafeAreaView>
   );
 }

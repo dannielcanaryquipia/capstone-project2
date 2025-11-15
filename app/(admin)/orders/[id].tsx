@@ -228,6 +228,78 @@ export default function OrderDetailScreen() {
     );
   };
 
+  // Handle COD payment confirmation for pickup orders
+  const handleConfirmCODPayment = async () => {
+    if (!id || !order) return;
+    confirmDestructive(
+      'Confirm COD Payment',
+      `Confirm that you have received ₱${order.total_amount.toFixed(2)} in cash from the customer for this pickup order.`,
+      async () => {
+        try {
+          setVerifying(true);
+          // Get current admin user ID
+          const { data: { user } } = await supabase.auth.getUser();
+          if (!user) throw new Error('Admin not authenticated');
+          
+          // For pickup orders, we can verify COD payment directly without requiring out_for_delivery status
+          const now = new Date().toISOString();
+          const { error: updateError } = await supabase
+            .from('orders')
+            .update({
+              payment_status: 'verified',
+              payment_verified: true,
+              payment_verified_at: now,
+              payment_verified_by: user.id,
+              updated_at: now,
+            })
+            .eq('id', id);
+
+          if (updateError) throw updateError;
+
+          // Add tracking entry (using internal method via updateOrderStatus which handles tracking)
+          // We'll add a manual tracking entry
+          try {
+            const { error: trackError } = await supabase
+              .from('order_tracking')
+              .insert({
+                order_id: id,
+                status: 'Payment Verified',
+                updated_by: user.id,
+                notes: 'COD payment verified by admin for pickup order',
+                created_at: now,
+              });
+            if (trackError) console.warn('Failed to add tracking entry:', trackError);
+          } catch (trackErr) {
+            console.warn('Failed to add tracking entry:', trackErr);
+          }
+
+          // Notify customer
+          try {
+            await notificationService.sendNotification({
+              userId: order.user_id,
+              title: 'Payment Confirmed',
+              message: `Your COD payment for order #${(order as any).order_number || id.slice(-8)} has been confirmed. Your order is ready for pickup!`,
+              type: 'payment',
+              relatedId: id,
+            });
+          } catch (notifyErr) {
+            console.warn('Failed to send notification:', notifyErr);
+          }
+
+          await loadOrder();
+          success('Success', 'COD payment confirmed. Order is ready for customer pickup.');
+        } catch (e: any) {
+          showError('Error', e.message || 'Failed to confirm payment.');
+        } finally {
+          setVerifying(false);
+        }
+      },
+      undefined,
+      'Confirm Payment',
+      'Cancel'
+    );
+  };
+
   const handleCancelOrder = async () => {
     if (!id) return;
     confirmDestructive(
@@ -281,11 +353,16 @@ export default function OrderDetailScreen() {
   };
 
   const getNextStatus = (currentStatus: OrderStatus): OrderStatus | null => {
+    const isPickup = (order as any).fulfillment_type === 'pickup';
+    
     switch (currentStatus) {
       case 'pending': return 'confirmed';
       case 'confirmed': return 'preparing';
       case 'preparing': return 'ready_for_pickup';
-      case 'ready_for_pickup': return 'out_for_delivery';
+      case 'ready_for_pickup': 
+        // For pickup orders, skip out_for_delivery and go directly to delivered
+        // For delivery orders, go to out_for_delivery
+        return isPickup ? 'delivered' : 'out_for_delivery';
       case 'out_for_delivery': return 'delivered';
       default: return null;
     }
@@ -352,19 +429,38 @@ export default function OrderDetailScreen() {
     );
   }
 
+  const isPickup = (order as any).fulfillment_type === 'pickup';
   let nextStatus = getNextStatus(order.status);
   const paymentMethod = (order.payment_method || '').toLowerCase();
   const paymentStatus = (order.payment_status || '').toLowerCase();
   const isPaymentVerified = paymentStatus === 'verified' || order.payment_status === 'Verified';
+  const isReadyForPickup = order.status === 'ready_for_pickup';
 
-  // Admin cannot mark Delivered from details screen
-  if (nextStatus === 'delivered') {
-    nextStatus = null;
-  }
+  // Special handling for pickup orders
+  if (isPickup && isReadyForPickup) {
+    // For pickup orders at ready_for_pickup status:
+    // - If COD and payment not verified: show "Confirm Payment" button
+    // - If COD and payment verified: show "Mark as Delivered" button
+    // - If GCash and payment verified: show "Mark as Delivered" button
+    // - If GCash and payment not verified: no button (wait for payment verification)
+    if (paymentMethod === 'cod' && !isPaymentVerified) {
+      nextStatus = null; // Will show "Confirm Payment" button instead
+    } else if (isPaymentVerified) {
+      nextStatus = 'delivered'; // Show "Mark as Delivered" button
+    } else {
+      nextStatus = null; // GCash not verified yet
+    }
+  } else {
+    // For delivery orders or other statuses, use normal flow
+    // Admin cannot mark Delivered from details screen for delivery orders
+    if (nextStatus === 'delivered' && !isPickup) {
+      nextStatus = null;
+    }
 
-  // For GCash, require payment verification before any transitions
-  if (paymentMethod === 'gcash' && !isPaymentVerified) {
-    nextStatus = null;
+    // For GCash, require payment verification before any transitions
+    if (paymentMethod === 'gcash' && !isPaymentVerified) {
+      nextStatus = null;
+    }
   }
 
   return (
@@ -433,6 +529,30 @@ export default function OrderDetailScreen() {
               </ResponsiveText>
             </ResponsiveView>
           </ResponsiveView>
+
+          {/* Delivery Address (only for delivery orders) */}
+          {(order as any).fulfillment_type === 'delivery' && order.delivery_address && (
+            <ResponsiveView style={styles.infoRow} marginTop="sm">
+              <MaterialIcons name="location-on" size={responsiveValue(16, 18, 20, 22)} color={colors.primary} />
+              <ResponsiveView marginLeft="sm" flex={1}>
+                <ResponsiveText size="md" color={colors.text} weight="medium">
+                  Delivery Address:
+                </ResponsiveText>
+                <ResponsiveView marginTop="xs">
+                  <ResponsiveText size="md" color={colors.text}>
+                    {order.delivery_address.full_address}
+                  </ResponsiveText>
+                  {order.delivery_address.label && (
+                    <ResponsiveView marginTop="xs">
+                      <ResponsiveText size="sm" color={colors.textSecondary}>
+                        {order.delivery_address.label}
+                      </ResponsiveText>
+                    </ResponsiveView>
+                  )}
+                </ResponsiveView>
+              </ResponsiveView>
+            </ResponsiveView>
+          )}
         </ResponsiveView>
 
         {/* Receive Options / Fulfillment Type */}
@@ -886,8 +1006,18 @@ export default function OrderDetailScreen() {
       </ScrollView>
 
       {/* Action Buttons */}
-      {nextStatus && (
-        <ResponsiveView style={[styles.actionContainer, { backgroundColor: colors.surface }]}>
+      <ResponsiveView style={[styles.actionContainer, { backgroundColor: colors.surface }]}>
+        {/* Special handling for pickup orders at ready_for_pickup status */}
+        {isPickup && isReadyForPickup && paymentMethod === 'cod' && !isPaymentVerified ? (
+          <Button
+            title="Confirm Payment"
+            onPress={handleConfirmCODPayment}
+            variant="primary"
+            loading={verifying}
+            disabled={verifying}
+            icon={<MaterialIcons name="payment" size={20} color="white" />}
+          />
+        ) : nextStatus ? (
           <Button
             title={`Mark as ${nextStatus.replace(/_/g, ' ').split(' ').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ')}`}
             onPress={() => handleStatusUpdate(nextStatus)}
@@ -895,8 +1025,8 @@ export default function OrderDetailScreen() {
             loading={updating}
             disabled={updating}
           />
-        </ResponsiveView>
-      )}
+        ) : null}
+      </ResponsiveView>
 
       {/* Image Preview Modal */}
       <Modal

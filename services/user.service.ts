@@ -8,6 +8,7 @@ export interface User {
   avatar_url?: string;
   role: 'customer' | 'admin' | 'delivery';
   is_active: boolean;
+  is_blocked?: boolean;
   created_at: string;
   updated_at?: string;
   last_login?: string;
@@ -48,7 +49,19 @@ export class UserService {
       let query = supabase
         .from('profiles')
         .select(`
-          *,
+          id,
+          username,
+          full_name,
+          phone_number,
+          role,
+          avatar_url,
+          created_at,
+          updated_at,
+          email_verified,
+          phone_verified,
+          last_login,
+          preferences,
+          is_blocked,
           orders:orders!orders_user_id_fkey(count),
           total_spent:orders!orders_user_id_fkey(sum:total_amount)
         `)
@@ -63,8 +76,10 @@ export class UserService {
         }
       }
 
+      // Note: is_active doesn't exist in schema, so we use is_blocked instead
+      // If is_active filter is provided, we'll use !is_blocked as active
       if (filters?.is_active !== undefined) {
-        query = query.eq('is_active', filters.is_active);
+        query = query.eq('is_blocked', !filters.is_active);
       }
 
       if (filters?.search) {
@@ -91,8 +106,10 @@ export class UserService {
           full_name: user.full_name,
           phone_number: user.phone_number,
           role: normalizedRole,
-          is_active: user.is_active,
+          is_active: true, // is_active doesn't exist in schema, default to true
+          is_blocked: user.is_blocked || false,
           created_at: user.created_at,
+          updated_at: user.updated_at,
           last_login: user.last_login,
           total_orders: user.orders?.[0]?.count || 0,
           total_spent: user.total_spent?.[0]?.sum || 0,
@@ -110,7 +127,19 @@ export class UserService {
       const { data, error } = await supabase
         .from('profiles')
         .select(`
-          *,
+          id,
+          username,
+          full_name,
+          phone_number,
+          role,
+          avatar_url,
+          created_at,
+          updated_at,
+          email_verified,
+          phone_verified,
+          last_login,
+          preferences,
+          is_blocked,
           orders:orders!orders_user_id_fkey(count),
           total_spent:orders!orders_user_id_fkey(sum:total_amount)
         `)
@@ -121,12 +150,13 @@ export class UserService {
 
       return {
         id: data.id,
-        email: data.email, // Use actual email from profiles table
+        email: '', // Email not available in profiles table (use username instead)
         full_name: data.full_name,
         phone_number: data.phone_number,
         avatar_url: data.avatar_url,
         role: data.role,
-        is_active: data.is_active,
+        is_active: true, // is_active doesn't exist in schema, default to true
+        is_blocked: data.is_blocked || false,
         created_at: data.created_at,
         updated_at: data.updated_at,
         total_orders: data.orders?.[0]?.count || 0,
@@ -144,16 +174,61 @@ export class UserService {
     updates: Partial<User>
   ): Promise<User> {
     try {
-      const { error } = await supabase
+      // Filter out fields that don't exist in the profiles table
+      const { email, total_orders, total_spent, is_active, ...validUpdates } = updates;
+      
+      // Only include fields that exist in the profiles table schema
+      const profileUpdates: any = {};
+      if (validUpdates.full_name !== undefined) profileUpdates.full_name = validUpdates.full_name;
+      if (validUpdates.phone_number !== undefined) profileUpdates.phone_number = validUpdates.phone_number;
+      if (validUpdates.avatar_url !== undefined) profileUpdates.avatar_url = validUpdates.avatar_url;
+      if (validUpdates.role !== undefined) profileUpdates.role = validUpdates.role;
+      if (validUpdates.is_blocked !== undefined) profileUpdates.is_blocked = validUpdates.is_blocked;
+      // Note: is_active doesn't exist in the profiles table schema, so we skip it
+      
+      // Update and explicitly select only existing columns to avoid schema cache issues
+      // Also update updated_at timestamp
+      profileUpdates.updated_at = new Date().toISOString();
+      
+      const { data, error } = await supabase
         .from('profiles')
-        .update({
-          ...updates,
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', userId);
+        .update(profileUpdates)
+        .eq('id', userId)
+        .select(`
+          id,
+          username,
+          full_name,
+          phone_number,
+          role,
+          avatar_url,
+          created_at,
+          updated_at,
+          email_verified,
+          phone_verified,
+          last_login,
+          preferences,
+          is_blocked
+        `)
+        .single();
 
       if (error) throw error;
-      return await this.getUserById(userId) as User;
+      
+      // Return the updated user data in the expected format
+      return {
+        id: data.id,
+        email: '', // Email not available in profiles table
+        full_name: data.full_name,
+        phone_number: data.phone_number,
+        avatar_url: data.avatar_url,
+        role: data.role,
+        is_active: true, // is_active doesn't exist in schema, default to true
+        is_blocked: data.is_blocked || false,
+        created_at: data.created_at,
+        updated_at: data.updated_at,
+        last_login: data.last_login,
+        total_orders: 0, // Will be fetched separately if needed
+        total_spent: 0, // Will be fetched separately if needed
+      } as User;
     } catch (error) {
       console.error('Error updating user:', error);
       throw error;
@@ -187,7 +262,31 @@ export class UserService {
     }
   }
 
-  // Delete user
+  // Block user
+  static async blockUser(userId: string): Promise<User> {
+    try {
+      return await this.updateUser(userId, {
+        is_blocked: true,
+      });
+    } catch (error) {
+      console.error('Error blocking user:', error);
+      throw error;
+    }
+  }
+
+  // Unblock user
+  static async unblockUser(userId: string): Promise<User> {
+    try {
+      return await this.updateUser(userId, {
+        is_blocked: false,
+      });
+    } catch (error) {
+      console.error('Error unblocking user:', error);
+      throw error;
+    }
+  }
+
+  // Delete user (kept for backward compatibility, but should use block instead)
   static async deleteUser(userId: string): Promise<void> {
     try {
       const { error } = await supabase
@@ -207,14 +306,15 @@ export class UserService {
     try {
       const { data: users, error } = await supabase
         .from('profiles')
-        .select('role, is_active, created_at');
+        .select('role, is_blocked, created_at');
 
       if (error) throw error;
 
+      // Since is_active doesn't exist, we'll use !is_blocked as active
       const stats: UserStats = {
         total_users: users.length,
-        active_users: users.filter((u: any) => u.is_active).length,
-        inactive_users: users.filter((u: any) => !u.is_active).length,
+        active_users: users.filter((u: any) => !u.is_blocked).length,
+        inactive_users: users.filter((u: any) => u.is_blocked).length,
         customers: users.filter((u: any) => u.role === 'customer').length,
         admins: users.filter((u: any) => u.role === 'admin').length,
         delivery_staff: users.filter((u: any) => u.role === 'delivery').length,
@@ -236,7 +336,18 @@ export class UserService {
       const { data, error } = await supabase
         .from('profiles')
         .select(`
-          *,
+          id,
+          username,
+          full_name,
+          phone_number,
+          role,
+          avatar_url,
+          created_at,
+          email_verified,
+          phone_verified,
+          last_login,
+          preferences,
+          is_blocked,
           orders:orders!orders_user_id_fkey(count),
           total_spent:orders!orders_user_id_fkey(sum:total_amount)
         `)
@@ -251,8 +362,10 @@ export class UserService {
         full_name: user.full_name,
         phone_number: user.phone_number,
         role: user.role,
-        is_active: user.is_active,
+        is_active: true, // is_active doesn't exist in schema, default to true
+        is_blocked: user.is_blocked || false,
         created_at: user.created_at,
+        updated_at: user.updated_at,
         last_login: user.last_login,
         total_orders: user.orders?.[0]?.count || 0,
         total_spent: user.total_spent?.[0]?.sum || 0,

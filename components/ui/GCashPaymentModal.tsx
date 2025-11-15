@@ -31,7 +31,7 @@ export function GCashPaymentModal({
   qrImageSource
 }: GCashPaymentModalProps) {
   const { colors } = useTheme();
-  const { error, confirm } = useAlert();
+  const { error, confirm, info } = useAlert();
   const [proofUri, setProofUri] = useState<string | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [showZoomModal, setShowZoomModal] = useState(false);
@@ -100,13 +100,14 @@ export function GCashPaymentModal({
   };
 
   const handleChangeReceipt = () => {
-    confirm(
+    info(
       'Change Receipt',
       'How would you like to change the receipt?',
-      handleTakePhoto,
-      undefined,
-      'Take Photo',
-      'Cancel'
+      [
+        { text: 'Cancel', style: 'cancel', onPress: () => {} },
+        { text: 'Take Photo', style: 'default', onPress: handleTakePhoto },
+        { text: 'Choose from Gallery', style: 'default', onPress: handleUploadReceipt },
+      ]
     );
   };
 

@@ -1,13 +1,13 @@
 import { MaterialIcons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as Location from 'expo-location';
 import { useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import {
-    Linking,
-    ScrollView,
-    StyleSheet,
-    Switch,
-    TouchableOpacity
+  ScrollView,
+  StyleSheet,
+  Switch,
+  TouchableOpacity
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAlert } from '../../../components/ui/AlertProvider';
@@ -28,27 +28,45 @@ interface SettingsItem {
   onPress?: () => void;
 }
 
+type ThemeMode = 'light' | 'dark' | 'system';
+
 export default function SettingsScreen() {
-  const { colors } = useTheme();
+  const { colors, mode, setTheme } = useTheme();
   const { confirm, confirmDestructive, success, info, error: showError } = useAlert();
   const router = useRouter();
   const [settings, setSettings] = useState({
-    pushNotifications: true,
-    emailNotifications: false,
     locationServices: true,
     darkMode: false,
     autoSaveAddresses: true,
   });
+  const [isLoadingPermissions, setIsLoadingPermissions] = useState(false);
 
   useEffect(() => {
     loadSettings();
+    checkPermissions();
   }, []);
+
+  const checkPermissions = async () => {
+    try {
+      // Check location permission status
+      try {
+        const locationStatus = await Location.getForegroundPermissionsAsync();
+        const locationEnabled = locationStatus.granted;
+        setSettings(prev => ({ ...prev, locationServices: locationEnabled }));
+      } catch (error) {
+        console.error('Error checking location permissions:', error);
+      }
+    } catch (error) {
+      console.error('Error checking permissions:', error);
+    }
+  };
 
   const loadSettings = async () => {
     try {
       const savedSettings = await AsyncStorage.getItem('userSettings');
       if (savedSettings) {
-        setSettings(JSON.parse(savedSettings));
+        const parsed = JSON.parse(savedSettings);
+        setSettings(prev => ({ ...prev, ...parsed }));
       }
     } catch (error) {
       console.error('Error loading settings:', error);
@@ -67,36 +85,73 @@ export default function SettingsScreen() {
 
   const handleToggleSetting = async (key: keyof typeof settings) => {
     const newValue = !settings[key];
-    await saveSettings({ ...settings, [key]: newValue });
-    
-    // Show confirmation for important settings
-    if (key === 'locationServices' && newValue) {
-      info(
-        'Location Services',
-        'Location services help us provide accurate delivery estimates and find nearby restaurants.'
-      );
+    setIsLoadingPermissions(true);
+
+    try {
+      if (key === 'locationServices') {
+        if (newValue) {
+          // Request location permissions
+          const { status: existingStatus } = await Location.getForegroundPermissionsAsync();
+          let finalStatus = existingStatus;
+          
+          if (existingStatus !== 'granted') {
+            const { status } = await Location.requestForegroundPermissionsAsync();
+            finalStatus = status;
+          }
+          
+          if (finalStatus === 'granted') {
+            // Note: This toggle saves your preference. Location services on your device
+            // are controlled by the permission you grant, not by this toggle.
+            await saveSettings({ ...settings, locationServices: true });
+            success('Success', 'Location permission granted');
+            info(
+              'Location Services',
+              'Location services help us provide accurate delivery estimates and find nearby restaurants. Your device location is now accessible when the app needs it.'
+            );
+          } else {
+            await saveSettings({ ...settings, locationServices: false });
+            showError('Permission Denied', 'Location permission was denied. Please enable it in your device settings to use location features.');
+          }
+        } else {
+          // Disable location services preference
+          // Note: This only saves your preference. To fully disable location,
+          // you need to revoke the permission in your device settings.
+          await saveSettings({ ...settings, locationServices: false });
+          info(
+            'Location Services',
+            'Location preference disabled. To fully disable location access, please revoke the permission in your device settings.'
+          );
+        }
+      } else if (key === 'autoSaveAddresses') {
+        // Auto-save addresses is a preference toggle only
+        // It doesn't directly modify addresses in the database.
+        // This setting controls whether addresses should be automatically saved
+        // when entered in forms (implementation depends on form logic).
+        await saveSettings({ ...settings, autoSaveAddresses: newValue });
+        success('Success', `Auto-save addresses ${newValue ? 'enabled' : 'disabled'}`);
+      } else {
+        // For other settings (darkMode), just save locally
+        await saveSettings({ ...settings, [key]: newValue });
+      }
+    } catch (error) {
+      console.error('Error toggling setting:', error);
+      showError('Error', 'Failed to update setting. Please try again.');
+    } finally {
+      setIsLoadingPermissions(false);
     }
   };
 
   const handlePrivacyPolicy = () => {
-    confirm(
+    info(
       'Privacy Policy',
-      'Our privacy policy outlines how we collect, use, and protect your personal information. You can view the full policy on our website.',
-      () => Linking.openURL('https://kitchenone.com/privacy-policy'),
-      undefined,
-      'View Online',
-      'Cancel'
+      'This will open our privacy policy'
     );
   };
 
   const handleTermsOfService = () => {
-    confirm(
+    info(
       'Terms of Service',
-      'Our terms of service govern your use of our app and services. You can view the full terms on our website.',
-      () => Linking.openURL('https://kitchenone.com/terms-of-service'),
-      undefined,
-      'View Online',
-      'Cancel'
+      'This will open our terms of service'
     );
   };
 
@@ -114,45 +169,44 @@ export default function SettingsScreen() {
   };
 
   const handleDeleteAccount = () => {
-    confirmDestructive(
-      'Delete Account',
-      'This action cannot be undone. All your data, including orders and addresses, will be permanently deleted.',
-      () => {
-        confirmDestructive(
-          'Confirm Deletion',
-          'Are you absolutely sure you want to delete your account?',
-          () => {
-            // TODO: Implement account deletion
-            info('Account Deletion', 'Account deletion feature will be implemented soon.');
-          },
-          undefined,
-          'Yes, Delete',
-          'Cancel'
-        );
-      },
-      undefined,
-      'Delete Account',
-      'Cancel'
+    info(
+      'Account Deletion',
+      'Account deletion feature is coming soon. Please contact support if you need to delete your account.'
     );
   };
 
+  const handleThemeChange = async (newMode: ThemeMode) => {
+    try {
+      await setTheme(newMode);
+      success('Success', `Theme changed to ${newMode === 'system' ? 'System' : newMode === 'light' ? 'Light' : 'Dark'} mode`);
+    } catch (error) {
+      console.error('Error changing theme:', error);
+      showError('Error', 'Failed to change theme. Please try again.');
+    }
+  };
+
+  const themeOptions: { value: ThemeMode; label: string; subtitle: string; icon: string }[] = [
+    {
+      value: 'system',
+      label: 'System',
+      subtitle: 'Follow device theme',
+      icon: 'brightness-auto',
+    },
+    {
+      value: 'light',
+      label: 'Light',
+      subtitle: 'Always use light mode',
+      icon: 'wb-sunny',
+    },
+    {
+      value: 'dark',
+      label: 'Dark',
+      subtitle: 'Always use dark mode',
+      icon: 'brightness-2',
+    },
+  ];
+
   const settingsItems: SettingsItem[] = [
-    {
-      id: 'notifications',
-      title: 'Push Notifications',
-      subtitle: 'Receive order updates and promotions',
-      icon: 'notifications',
-      type: 'switch',
-      value: settings.pushNotifications,
-    },
-    {
-      id: 'email',
-      title: 'Email Notifications',
-      subtitle: 'Receive updates via email',
-      icon: 'email',
-      type: 'switch',
-      value: settings.emailNotifications,
-    },
     {
       id: 'location',
       title: 'Location Services',
@@ -199,8 +253,16 @@ export default function SettingsScreen() {
     if (item.type === 'navigation' && item.onPress) {
       item.onPress();
     } else if (item.type === 'switch') {
-      const settingKey = item.id as keyof typeof settings;
-      handleToggleSetting(settingKey);
+      // Map item IDs to actual settings keys
+      const idToKeyMap: Record<string, keyof typeof settings> = {
+        'location': 'locationServices',
+        'autoSave': 'autoSaveAddresses',
+      };
+      
+      const settingKey = idToKeyMap[item.id];
+      if (settingKey) {
+        handleToggleSetting(settingKey);
+      }
     }
   };
 
@@ -221,55 +283,6 @@ export default function SettingsScreen() {
             <ResponsiveText size="xl" weight="bold" color={colors.text}>
               Settings
             </ResponsiveText>
-          </ResponsiveView>
-        </ResponsiveView>
-
-        {/* Notification Settings */}
-        <ResponsiveView style={styles.section}>
-          <ResponsiveView marginBottom="md">
-            <ResponsiveText size="lg" weight="semiBold" color={colors.text}>
-              Notifications
-            </ResponsiveText>
-          </ResponsiveView>
-          <ResponsiveView style={[styles.settingsCard, { 
-            backgroundColor: colors.surface,
-            ...Layout.shadows.sm
-          }]}>
-            {settingsItems.filter(item => ['notifications', 'email'].includes(item.id)).map((item, index) => (
-              <TouchableOpacity
-                key={item.id}
-                style={[
-                  styles.settingItem,
-                  index < 1 && { borderBottomColor: colors.border },
-                ]}
-                onPress={() => handleSettingPress(item)}
-                activeOpacity={0.7}
-              >
-                <ResponsiveView style={styles.settingLeft}>
-                  <ResponsiveView style={[styles.settingIcon, { backgroundColor: colors.surfaceVariant }]}>
-                    <MaterialIcons name={item.icon as any} size={24} color={colors.primary} />
-                  </ResponsiveView>
-                  <ResponsiveView style={styles.settingText}>
-                    <ResponsiveText size="md" weight="medium" color={colors.text}>
-                      {item.title}
-                    </ResponsiveText>
-                    <ResponsiveView marginTop="xs">
-                      <ResponsiveText size="sm" color={colors.textSecondary}>
-                        {item.subtitle}
-                      </ResponsiveText>
-                    </ResponsiveView>
-                  </ResponsiveView>
-                </ResponsiveView>
-                <ResponsiveView style={styles.settingRight}>
-                  <Switch
-                    value={item.value}
-                    onValueChange={() => handleSettingPress(item)}
-                    trackColor={{ false: colors.border, true: colors.primary }}
-                    thumbColor={item.value ? colors.white : colors.textTertiary}
-                  />
-                </ResponsiveView>
-              </TouchableOpacity>
-            ))}
           </ResponsiveView>
         </ResponsiveView>
 
@@ -319,6 +332,57 @@ export default function SettingsScreen() {
                 </ResponsiveView>
               </TouchableOpacity>
             ))}
+          </ResponsiveView>
+        </ResponsiveView>
+
+        {/* Appearance Settings */}
+        <ResponsiveView style={styles.section}>
+          <ResponsiveView marginBottom="md">
+            <ResponsiveText size="lg" weight="semiBold" color={colors.text}>
+              Appearance
+            </ResponsiveText>
+          </ResponsiveView>
+          <ResponsiveView style={[styles.settingsCard, { 
+            backgroundColor: colors.surface,
+            ...Layout.shadows.sm
+          }]}>
+            {themeOptions.map((option, index) => {
+              const isSelected = mode === option.value;
+              return (
+                <TouchableOpacity
+                  key={option.value}
+                  style={[
+                    styles.themeOption,
+                    index < themeOptions.length - 1 && { borderBottomColor: colors.border },
+                  ]}
+                  onPress={() => handleThemeChange(option.value)}
+                  activeOpacity={0.7}
+                >
+                  <ResponsiveView style={styles.settingLeft}>
+                    <ResponsiveView style={[styles.settingIcon, { backgroundColor: colors.surfaceVariant }]}>
+                      <MaterialIcons name={option.icon as any} size={24} color={colors.primary} />
+                    </ResponsiveView>
+                    <ResponsiveView style={styles.settingText}>
+                      <ResponsiveText size="md" weight="medium" color={colors.text}>
+                        {option.label}
+                      </ResponsiveText>
+                      <ResponsiveView marginTop="xs">
+                        <ResponsiveText size="sm" color={colors.textSecondary}>
+                          {option.subtitle}
+                        </ResponsiveText>
+                      </ResponsiveView>
+                    </ResponsiveView>
+                  </ResponsiveView>
+                  <ResponsiveView style={styles.settingRight}>
+                    {isSelected ? (
+                      <MaterialIcons name="radio-button-checked" size={24} color={colors.primary} />
+                    ) : (
+                      <MaterialIcons name="radio-button-unchecked" size={24} color={colors.textTertiary} />
+                    )}
+                  </ResponsiveView>
+                </TouchableOpacity>
+              );
+            })}
           </ResponsiveView>
         </ResponsiveView>
 
@@ -407,7 +471,7 @@ export default function SettingsScreen() {
             Kitchen One App v1.0.0
           </ResponsiveText>
           <ResponsiveText size="xs" color={colors.textTertiary} align="center">
-            Build 2024.01.15
+            Build 2025.07.04
           </ResponsiveText>
         </ResponsiveView>
         </ResponsiveView>
@@ -486,5 +550,13 @@ const styles = StyleSheet.create({
   versionSection: {
     marginTop: Layout.spacing.xl,
     paddingVertical: Layout.spacing.md,
+  },
+  themeOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: Layout.spacing.md,
+    paddingVertical: Layout.spacing.md,
+    borderBottomWidth: 1,
   },
 });

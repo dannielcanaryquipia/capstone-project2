@@ -1,7 +1,7 @@
 import { MaterialIcons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
-import { Dimensions, Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Dimensions, Image, Modal, Pressable, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAlert } from '../../../components/ui/AlertProvider';
 import BuyNowButton from '../../../components/ui/BuyNowButton';
@@ -16,6 +16,7 @@ import { useCart } from '../../../hooks/useCart';
 import { useCrusts, useProductDetail } from '../../../hooks/useProductDetail';
 import { useRecommendations } from '../../../hooks/useRecommendations';
 import { sortSizes } from '../../../utils/sizeSorting';
+import { sortSlices } from '../../../utils/sliceSorting';
 
 const { width } = Dimensions.get('window');
 
@@ -51,6 +52,7 @@ export default function ProductScreen() {
     quantity: number;
     totalPrice: number;
   } | null>(null);
+  const [showZoomModal, setShowZoomModal] = useState(false);
 
   // Fetch real product data from backend
   const { productDetail, isLoading, error } = useProductDetail(id as string);
@@ -120,8 +122,12 @@ export default function ProductScreen() {
   const availableCrustsForSize = useMemo(() => (allCrusts || []).map(c => c.name), [allCrusts]);
 
   // Fetch all slices from slices table
+  // Sort slices: 8 Regular Cut → 16 Regular Cut → 32 Square Cut
   const { slices: allSlices } = useSlices();
-  const availableSlices = useMemo(() => (allSlices || []).map((s: any) => s.name), [allSlices]);
+  const availableSlices = useMemo(() => {
+    const slices = (allSlices || []).map((s: any) => s.name);
+    return sortSlices(slices);
+  }, [allSlices]);
 
   // Determine price based on selected size (fallback to base_price)
   const selectedSizePrice = useMemo(() => {
@@ -268,6 +274,14 @@ export default function ProductScreen() {
     setShowCartNotification(false);
   };
 
+  const handleLongPressImage = () => {
+    setShowZoomModal(true);
+  };
+
+  const handleCloseZoomModal = () => {
+    setShowZoomModal(false);
+  };
+
   const handleBuyNow = () => {
     if (!product || product.id === 'loading') return;
 
@@ -360,7 +374,12 @@ export default function ProductScreen() {
       <ScrollView showsVerticalScrollIndicator={false}>
         {/* Product Image with Overlay Icons */}
         <View style={styles.imageContainer}>
-          <Image source={{ uri: product.image_url || 'https://via.placeholder.com/400x300' }} style={styles.productImage} />
+          <Pressable
+            onLongPress={handleLongPressImage}
+            delayLongPress={500}
+          >
+            <Image source={{ uri: product.image_url || 'https://via.placeholder.com/400x300' }} style={styles.productImage} />
+          </Pressable>
           
           {/* Overlay Header Icons */}
           <View style={styles.imageOverlay}>
@@ -426,7 +445,7 @@ export default function ProductScreen() {
             >
               <MaterialIcons name="inventory" size={20} color={colors.success} />
               <Text style={[styles.stockAlertText, { color: colors.success }]}>
-                {stockQuantity} {stockQuantity === 1 ? 'unit' : 'units'} left
+                {stockQuantity} {stockQuantity === 1 ? 'product' : 'products'} left
               </Text>
             </View>
           ) : null}
@@ -643,6 +662,50 @@ export default function ProductScreen() {
           onClose={handleCloseNotification}
         />
       )}
+
+      {/* Zoom Modal */}
+      <Modal
+        visible={showZoomModal}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={handleCloseZoomModal}
+      >
+        <View style={styles.zoomModalContainer}>
+          <TouchableOpacity
+            style={styles.zoomModalBackdrop}
+            activeOpacity={1}
+            onPress={handleCloseZoomModal}
+          />
+          <View style={styles.zoomModalContent}>
+            <TouchableOpacity
+              style={styles.zoomCloseButton}
+              onPress={handleCloseZoomModal}
+            >
+              <MaterialIcons 
+                name="close" 
+                size={Responsive.responsiveValue(24, 26, 28, 32)} 
+                color={colors.white} 
+              />
+            </TouchableOpacity>
+            <ScrollView
+              style={styles.zoomScrollView}
+              contentContainerStyle={styles.zoomScrollContent}
+              maximumZoomScale={3.0}
+              minimumZoomScale={1.0}
+              bouncesZoom={true}
+              showsVerticalScrollIndicator={false}
+              showsHorizontalScrollIndicator={false}
+              centerContent={true}
+            >
+              <Image
+                source={{ uri: product.image_url || 'https://via.placeholder.com/400x300' }}
+                style={styles.zoomImage}
+                resizeMode="contain"
+              />
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -931,5 +994,46 @@ const styles = StyleSheet.create({
   pizzaOptionContent: {
     padding: 12,
     alignItems: 'center',
+  },
+  zoomModalContainer: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.95)',
+  },
+  zoomModalBackdrop: {
+    ...StyleSheet.absoluteFillObject,
+  },
+  zoomModalContent: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  zoomCloseButton: {
+    position: 'absolute',
+    top: Responsive.responsiveValue(40, 45, 50, 60),
+    right: Responsive.responsiveValue(15, 18, 20, 24),
+    zIndex: 10,
+    width: Responsive.responsiveValue(40, 42, 44, 48),
+    height: Responsive.responsiveValue(40, 42, 44, 48),
+    borderRadius: Responsive.responsiveValue(20, 21, 22, 24),
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  zoomScrollView: {
+    flex: 1,
+    width: '100%',
+  },
+  zoomScrollContent: {
+    flexGrow: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    minHeight: Dimensions.get('window').height,
+    paddingVertical: Responsive.responsiveValue(20, 24, 28, 32),
+  },
+  zoomImage: {
+    width: Dimensions.get('window').width,
+    height: Dimensions.get('window').width * 0.8,
+    maxWidth: '100%',
+    maxHeight: Dimensions.get('window').height * 0.9,
   },
 });

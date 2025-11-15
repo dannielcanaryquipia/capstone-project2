@@ -149,6 +149,11 @@ export class OrderService {
             pizza_crust: customization.pizza_crust || '',
             toppings: customization.toppings || [],
             customization_details: customization,
+            // Preserve product relationship for OrderCard component
+            product: item.product ? {
+              name: item.product.name,
+              image_url: item.product.image_url
+            } : undefined
           };
         }) || [];
 
@@ -420,23 +425,38 @@ export class OrderService {
       await this.addOrderTracking(orderId, dbStatus, updatedBy, notes);
 
       // Trigger auto-assignment when order becomes ready for pickup
+      // IMPORTANT: Only for delivery orders, NOT pickup orders
       if (dbStatus === 'ready_for_pickup') {
         try {
-          const { AutoAssignmentService } = await import('./auto-assignment.service');
-          await AutoAssignmentService.onOrderStatusUpdate(orderId, dbStatus);
+          // Check if this is a delivery order (not pickup)
+          const { data: orderData } = await supabase
+            .from('orders')
+            .select('fulfillment_type')
+            .eq('id', orderId)
+            .single();
+
+          // Only trigger auto-assignment for delivery orders
+          if (orderData?.fulfillment_type === 'delivery') {
+            const { AutoAssignmentService } = await import('./auto-assignment.service');
+            await AutoAssignmentService.onOrderStatusUpdate(orderId, dbStatus);
+          } else {
+            console.log(`⏭️ Skipping auto-assignment for pickup order ${orderId}`);
+          }
         } catch (assignmentError) {
           console.warn('Auto-assignment failed:', assignmentError);
         }
 
         // Notify all available riders about the new order
+        // IMPORTANT: Only for delivery orders, NOT pickup orders
         try {
           const { data: order } = await supabase
             .from('orders')
-            .select('id, order_number, total_amount, status')
+            .select('id, order_number, total_amount, status, fulfillment_type')
             .eq('id', orderId)
             .single();
 
-          if (order) {
+          // Only notify riders for delivery orders
+          if (order && order.fulfillment_type === 'delivery') {
             // Get all available riders
             const { data: availableRiders } = await supabase
               .from('riders')
@@ -465,6 +485,8 @@ export class OrderService {
 
               console.log(`✅ Notified ${riderUserIds.length} available riders about new order ${orderId}`);
             }
+          } else {
+            console.log(`⏭️ Skipping rider notification for pickup order ${orderId}`);
           }
         } catch (notifyError) {
           console.warn('Failed to notify riders about new order:', notifyError);
@@ -576,55 +598,97 @@ export class OrderService {
       }
 
       // Send customer notification for ALL status changes
+      // IMPORTANT: Notifications are sent for BOTH pickup and delivery orders
       try {
         const { data: ord } = await supabase
           .from('orders')
-          .select('id, user_id, status, order_number')
+          .select('id, user_id, status, order_number, fulfillment_type')
           .eq('id', orderId)
           .single();
         
         if (ord?.user_id) {
+          const isPickup = (ord as any).fulfillment_type === 'pickup';
+          const orderNumber = ord.order_number || orderId.slice(-8);
+          
           // Define notification messages for each status
-          const statusMessages: Record<string, { title: string; message: string; type: 'order_update' | 'payment' | 'delivery' | 'system' }> = {
-            'pending': {
-              title: 'Order Received',
-              message: `Your order ${ord.order_number || orderId.slice(-8)} has been received and is being processed.`,
-              type: 'order_update'
-            },
-            'preparing': {
-              title: 'Your order is being prepared',
-              message: `Order ${ord.order_number || orderId.slice(-8)} is now being prepared by the kitchen.`,
-              type: 'order_update'
-            },
-            'ready_for_pickup': {
-              title: 'Order Ready for Pickup',
-              message: `Your order ${ord.order_number || orderId.slice(-8)} is ready for pickup!`,
-              type: 'order_update'
-            },
-            'out_for_delivery': {
-              title: 'Your order is on the way',
-              message: `Order ${ord.order_number || orderId.slice(-8)} is now out for delivery.`,
-              type: 'delivery'
-            },
-            'delivered': {
-              title: 'Order Delivered',
-              message: `Your order ${ord.order_number || orderId.slice(-8)} has been delivered successfully. Enjoy your meal!`,
-              type: 'delivery'
-            },
-            'cancelled': {
-              title: 'Order Cancelled',
-              message: `Your order ${ord.order_number || orderId.slice(-8)} has been cancelled. If you have any questions, please contact us.`,
-              type: 'order_update'
-            }
-          };
-
-          const notificationConfig = statusMessages[dbStatus];
+          // Messages are customized based on fulfillment type (pickup vs delivery)
+          let notificationConfig: { title: string; message: string; type: 'order_update' | 'payment' | 'delivery' | 'system' } | null = null;
+          
+          switch (dbStatus) {
+            case 'pending':
+              notificationConfig = {
+                title: 'Order Received',
+                message: `Your order ${orderNumber} has been received and is being processed.`,
+                type: 'order_update'
+              };
+              break;
+              
+            case 'preparing':
+              notificationConfig = {
+                title: 'Your order is being prepared',
+                message: `Order ${orderNumber} is now being prepared by the kitchen.`,
+                type: 'order_update'
+              };
+              break;
+              
+            case 'ready_for_pickup':
+              if (isPickup) {
+                notificationConfig = {
+                  title: 'Order Ready for Pickup',
+                  message: `Your order ${orderNumber} is ready for pickup at Kitchen One Main Branch! Please come and collect your order.`,
+                  type: 'order_update'
+                };
+              } else {
+                notificationConfig = {
+                  title: 'Order Ready for Delivery',
+                  message: `Your order ${orderNumber} is ready and will be delivered to you soon!`,
+                  type: 'order_update'
+                };
+              }
+              break;
+              
+            case 'out_for_delivery':
+              // Only for delivery orders (pickup orders skip this status)
+              if (!isPickup) {
+                notificationConfig = {
+                  title: 'Your order is on the way',
+                  message: `Order ${orderNumber} is now out for delivery and on its way to you.`,
+                  type: 'delivery'
+                };
+              }
+              break;
+              
+            case 'delivered':
+              if (isPickup) {
+                notificationConfig = {
+                  title: 'Order Picked Up',
+                  message: `Your order ${orderNumber} has been picked up successfully. Thank you for choosing Kitchen One!`,
+                  type: 'order_update'
+                };
+              } else {
+                notificationConfig = {
+                  title: 'Order Delivered',
+                  message: `Your order ${orderNumber} has been delivered successfully. Enjoy your meal!`,
+                  type: 'delivery'
+                };
+              }
+              break;
+              
+            case 'cancelled':
+              notificationConfig = {
+                title: 'Order Cancelled',
+                message: `Your order ${orderNumber} has been cancelled. If you have any questions, please contact us.`,
+                type: 'order_update'
+              };
+              break;
+          }
           
           if (notificationConfig) {
             console.log('📧 Sending notification for order status update:', {
               orderId,
               userId: ord.user_id,
               status: dbStatus,
+              fulfillment_type: (ord as any).fulfillment_type,
               title: notificationConfig.title
             });
             
@@ -638,7 +702,7 @@ export class OrderService {
             
             console.log('✅ Notification sent successfully');
           } else {
-            console.log('⚠️ No notification config for status:', dbStatus);
+            console.log('⚠️ No notification config for status:', dbStatus, 'fulfillment_type:', (ord as any).fulfillment_type);
           }
         }
       } catch (notifyErr) {
@@ -701,7 +765,10 @@ export class OrderService {
         .from('orders')
         .select(`
           *,
-          items:order_items(*),
+          items:order_items(
+            *,
+            product:products(name, image_url)
+          ),
           delivery_address:addresses(*),
           user:profiles!orders_user_id_fkey(full_name, phone_number),
           payment_transactions(
@@ -724,15 +791,30 @@ export class OrderService {
 
       if (error) throw error;
       
-      // Convert database status back to app format
+      // Convert database status back to app format and process order items
       const convertedData = (data || []).map((order: any) => {
         // Extract proof of payment URL from payment transactions
         const proofOfPaymentUrl = order.payment_transactions?.[0]?.proof_of_payment_url || order.proof_of_payment_url;
+        
+        // Process order items to ensure product_image is available
+        const processedItems = (order.items || []).map((item: any) => {
+          const customization = item.customization_details || {};
+          return {
+            ...item,
+            product_name: customization.product_name || item.product?.name || item.product_name || 'Unknown Product',
+            product_image: customization.product_image || item.product?.image_url || item.product_image || '',
+            product: item.product ? {
+              name: item.product.name,
+              image_url: item.product.image_url
+            } : undefined
+          };
+        });
         
         return {
         ...order,
           status: this.convertStatusFromDb(order.status),
           proof_of_payment_url: proofOfPaymentUrl,
+          items: processedItems,
         };
       });
       

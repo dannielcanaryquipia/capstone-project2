@@ -32,11 +32,12 @@ export default function RiderDashboard({
   onNavigateToProfile 
 }: RiderDashboardProps) {
   const { colors } = useTheme();
-  const { user } = useAuth();
+  const { user, isDelivery } = useAuth();
   const router = useRouter();
   const [refreshing, setRefreshing] = useState(false);
-  const { unreadCount, refresh: refreshNotifications } = useNotificationContext();
-  const hasUnreadNotifications = unreadCount > 0;
+  const { unreadCount, displayUnreadCount, refresh: refreshNotifications } = useNotificationContext();
+  const riderUnreadCount = isDelivery ? displayUnreadCount : unreadCount;
+  const hasUnreadNotifications = riderUnreadCount > 0;
   
   // Use enhanced hooks
   const { 
@@ -221,7 +222,7 @@ export default function RiderDashboard({
                 {hasUnreadNotifications && (
                   <View style={[styles.notificationBadge, { backgroundColor: colors.error }]}>
                     <ResponsiveText size="xs" weight="bold" color={colors.textInverse}>
-                      {unreadCount > 99 ? '99+' : unreadCount}
+                      {riderUnreadCount > 99 ? '99+' : riderUnreadCount}
                     </ResponsiveText>
                   </View>
                 )}

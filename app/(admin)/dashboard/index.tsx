@@ -186,6 +186,7 @@ export default function AdminDashboard() {
               iconColor={colors.primary}
               variant="outlined"
               size="medium"
+              onPress={() => router.push('/(admin)/orders?status=all' as any)}
             />
             <AdminMetricCard
               title="Income"
@@ -195,6 +196,7 @@ export default function AdminDashboard() {
               iconColor={colors.secondary}
               variant="outlined"
               size="medium"
+              onPress={() => router.push('/(admin)/reports' as any)}
             />
           </ResponsiveView>
 

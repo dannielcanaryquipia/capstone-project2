@@ -44,6 +44,8 @@ export default function AdminReportsScreen() {
   
   const refreshRevenue = async () => {
     setRevenueLoading(true);
+    // Clear previous data to prevent stale data from showing
+    setRevenueAnalytics(null);
     try {
       const currentDate = new Date();
       let startDate: Date;
@@ -66,9 +68,14 @@ export default function AdminReportsScreen() {
       }
 
       // Fetch orders within the selected time period
+      // For week view, fetch more details to show individual orders
+      const selectFields = selectedPeriod === 'week' 
+        ? 'id, order_number, total_amount, created_at, status, payment_status, user:profiles!orders_user_id_fkey(full_name)'
+        : 'total_amount, created_at, status, payment_status';
+      
       const { data: orders, error } = await supabase
         .from('orders')
-        .select('total_amount, created_at, status, payment_status')
+        .select(selectFields)
         .eq('status', 'delivered')
         .gte('created_at', startDate.toISOString())
         .lte('created_at', endDate.toISOString())
@@ -86,12 +93,23 @@ export default function AdminReportsScreen() {
       
       if (selectedPeriod === 'week') {
         // Group by day for the last 7 days
-        const dailyMap = new Map<string, { income: number; orderCount: number }>();
+        const dailyMap = new Map<string, { 
+          income: number; 
+          orderCount: number;
+        }>();
+        
+        // Helper function to get date string in local timezone (YYYY-MM-DD)
+        const getLocalDateString = (date: Date): string => {
+          const year = date.getFullYear();
+          const month = String(date.getMonth() + 1).padStart(2, '0');
+          const day = String(date.getDate()).padStart(2, '0');
+          return `${year}-${month}-${day}`;
+        };
         
         orders?.forEach((order: any) => {
           const orderDate = new Date(order.created_at);
-          const dateKey = orderDate.toISOString().split('T')[0];
-          const dayName = orderDate.toLocaleDateString('en-US', { weekday: 'short' });
+          // Use local date components to avoid timezone issues
+          const dateKey = getLocalDateString(orderDate);
           
           if (dailyMap.has(dateKey)) {
             const existing = dailyMap.get(dateKey)!;
@@ -100,21 +118,24 @@ export default function AdminReportsScreen() {
           } else {
             dailyMap.set(dateKey, { 
               income: order.total_amount || 0, 
-              orderCount: 1 
+              orderCount: 1
             });
           }
         });
 
-        // Fill in missing days
+        // Fill in missing days in chronological order
         for (let i = 6; i >= 0; i--) {
           const date = new Date();
           date.setDate(date.getDate() - i);
-          const dateKey = date.toISOString().split('T')[0];
+          // Use local date components to avoid timezone issues
+          const dateKey = getLocalDateString(date);
           const dayName = date.toLocaleDateString('en-US', { weekday: 'short' });
+          const monthDay = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
           
           const dayData = dailyMap.get(dateKey) || { income: 0, orderCount: 0 };
+          
           periodData.push({
-            period: dayName,
+            period: `${dayName}, ${monthDay}`, // e.g., "Mon, Jan 15"
             date: dateKey,
             income: dayData.income,
             orderCount: dayData.orderCount,
@@ -122,34 +143,77 @@ export default function AdminReportsScreen() {
         }
       } else if (selectedPeriod === 'month') {
         // Group by week for the current month
-        const weeklyMap = new Map<string, { income: number; orderCount: number }>();
+        // Only include weeks that have at least one day in the current month
+        const currentMonth = currentDate.getMonth();
+        const currentYear = currentDate.getFullYear();
+        const monthStart = new Date(currentYear, currentMonth, 1);
+        const monthEnd = new Date(currentYear, currentMonth + 1, 0, 23, 59, 59, 999);
+        
+        const weeklyMap = new Map<string, { 
+          income: number; 
+          orderCount: number;
+          weekStart: Date;
+          weekEnd: Date;
+        }>();
         
         orders?.forEach((order: any) => {
           const orderDate = new Date(order.created_at);
+          // Get the start of the week (Sunday = 0)
           const weekStart = new Date(orderDate);
           weekStart.setDate(orderDate.getDate() - orderDate.getDay());
-          const weekKey = weekStart.toISOString().split('T')[0];
-          const weekLabel = `Week ${Math.ceil(orderDate.getDate() / 7)}`;
+          weekStart.setHours(0, 0, 0, 0);
           
-          if (weeklyMap.has(weekKey)) {
-            const existing = weeklyMap.get(weekKey)!;
-            existing.income += order.total_amount || 0;
-            existing.orderCount += 1;
-          } else {
-            weeklyMap.set(weekKey, { 
-              income: order.total_amount || 0, 
-              orderCount: 1 
-            });
+          // Get the end of the week
+          const weekEnd = new Date(weekStart);
+          weekEnd.setDate(weekStart.getDate() + 6);
+          weekEnd.setHours(23, 59, 59, 999);
+          
+          // Only include weeks that overlap with the current month
+          if (weekEnd >= monthStart && weekStart <= monthEnd) {
+            const weekKey = weekStart.toISOString().split('T')[0];
+            
+            if (weeklyMap.has(weekKey)) {
+              const existing = weeklyMap.get(weekKey)!;
+              existing.income += order.total_amount || 0;
+              existing.orderCount += 1;
+            } else {
+              weeklyMap.set(weekKey, { 
+                income: order.total_amount || 0, 
+                orderCount: 1,
+                weekStart: new Date(weekStart), // Create new Date to avoid reference issues
+                weekEnd: new Date(weekEnd)
+              });
+            }
           }
         });
 
-        // Convert to array and sort
-        periodData = Array.from(weeklyMap.entries()).map(([date, data]) => ({
-          period: `Week ${Math.ceil(new Date(date).getDate() / 7)}`,
-          date: date,
-          income: data.income,
-          orderCount: data.orderCount,
-        })).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+        // Convert to array and sort by week start date (chronological order)
+        periodData = Array.from(weeklyMap.entries())
+          .map(([date, data]) => {
+            const weekStartDate = new Date(data.weekStart);
+            const weekEndDate = new Date(data.weekEnd);
+            
+            // Format week range, showing only dates within the current month
+            const displayStart = weekStartDate < monthStart ? monthStart : weekStartDate;
+            const displayEnd = weekEndDate > monthEnd ? monthEnd : weekEndDate;
+            
+            const weekStartStr = displayStart.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+            const weekEndStr = displayEnd.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+            
+            return {
+              period: `${weekStartStr} - ${weekEndStr}`,
+              date: date,
+              income: data.income,
+              orderCount: data.orderCount,
+              weekStart: data.weekStart,
+            };
+          })
+          .sort((a, b) => {
+            // Sort by week start date (chronological order)
+            const aTime = a.weekStart instanceof Date ? a.weekStart.getTime() : new Date(a.weekStart).getTime();
+            const bTime = b.weekStart instanceof Date ? b.weekStart.getTime() : new Date(b.weekStart).getTime();
+            return aTime - bTime;
+          });
       } else if (selectedPeriod === 'year') {
         // Group by month for the current year
         const monthlyMap = new Map<string, { income: number; orderCount: number }>();
@@ -195,8 +259,12 @@ export default function AdminReportsScreen() {
         selectedPeriod
       };
       
-      console.log(`Revenue analytics for ${selectedPeriod}:`, analytics);
-      setRevenueAnalytics(analytics);
+      // Only set analytics if the selectedPeriod hasn't changed during the async operation
+      // This prevents stale data from being displayed
+      if (analytics.selectedPeriod === selectedPeriod) {
+        console.log(`Revenue analytics for ${selectedPeriod}:`, analytics);
+        setRevenueAnalytics(analytics);
+      }
     } catch (error) {
       console.error('Error loading revenue analytics:', error);
     } finally {
@@ -212,7 +280,7 @@ export default function AdminReportsScreen() {
     if (stats) {
       refreshRevenue();
     }
-  }, [stats]);
+  }, [stats, selectedPeriod]); // Add selectedPeriod as dependency to refresh when period changes
 
   const loadReportData = async () => {
     try {
@@ -553,7 +621,7 @@ export default function AdminReportsScreen() {
       {/* Monthly/Yearly Revenue */}
       <AdminSection
         title={`Income by ${selectedPeriod === 'week' ? 'Day' : selectedPeriod === 'month' ? 'Week' : 'Month'}`}
-        subtitle="Periodic income breakdown"
+        subtitle={selectedPeriod === 'week' ? "All orders grouped by date" : "Periodic income breakdown"}
         variant="outlined"
       >
         {revenueLoading ? (
@@ -563,29 +631,100 @@ export default function AdminReportsScreen() {
               Loading revenue data...
             </ResponsiveText>
           </ResponsiveView>
-        ) : revenueAnalytics ? (
+        ) : revenueAnalytics && revenueAnalytics.selectedPeriod === selectedPeriod ? (
           <ResponsiveView style={styles.revenueList}>
-            {revenueAnalytics.periodData
-              .slice(0, 12) // Show last 12 periods
-              .map((period: any, index: number) => (
+            {selectedPeriod === 'week' ? (
+              // Week view: Show summary only, clickable to view details
+              revenueAnalytics.periodData.map((period: any, index: number) => (
                 <AdminCard
                   key={`${period.date}-${index}`}
                   variant="outlined"
-                  style={styles.revenueItem}
+                  onPress={() => {
+                    router.push({
+                      pathname: '/(admin)/reports/[date]',
+                      params: { date: period.date }
+                    } as any);
+                  }}
+                  style={[styles.revenueItemSummary, { backgroundColor: colors.surfaceVariant, borderColor: colors.border }]}
                 >
-                  <ResponsiveView style={styles.periodInfo}>
-                    <ResponsiveText size="md" weight="medium" color={colors.text}>
-                      {period.period}
-                    </ResponsiveText>
-                    <ResponsiveText size="sm" color={colors.textSecondary}>
-                      {period.orderCount} orders
-                    </ResponsiveText>
+                  <ResponsiveView style={styles.periodInfoSummary}>
+                    <ResponsiveView style={styles.periodInfoLeft}>
+                      <ResponsiveText size="md" weight="medium" color={colors.text}>
+                        {period.period}
+                      </ResponsiveText>
+                      <ResponsiveText size="sm" color={colors.textSecondary}>
+                        {period.orderCount} {period.orderCount === 1 ? 'order' : 'orders'}
+                      </ResponsiveText>
+                    </ResponsiveView>
+                    <ResponsiveView style={styles.periodInfoRight}>
+                      <ResponsiveText size="lg" weight="semiBold" color={colors.primary}>
+                        ₱{period.income.toFixed(2)}
+                      </ResponsiveText>
+                      <MaterialIcons 
+                        name="chevron-right" 
+                        size={20} 
+                        color={colors.textSecondary}
+                        style={styles.chevronIcon}
+                      />
+                    </ResponsiveView>
                   </ResponsiveView>
-                  <ResponsiveText size="lg" weight="semiBold" color={colors.primary}>
-                    ₱{period.income.toFixed(2)}
-                  </ResponsiveText>
                 </AdminCard>
-              ))}
+              ))
+            ) : selectedPeriod === 'month' ? (
+              // Month view: Show weekly summaries
+              revenueAnalytics.periodData
+                .slice(0, 12) // Show last 12 weeks
+                .map((period: any, index: number) => (
+                  <AdminCard
+                    key={`${period.date}-${index}`}
+                    variant="outlined"
+                    style={[styles.revenueItemSummary, { backgroundColor: colors.surfaceVariant, borderColor: colors.border }]}
+                  >
+                    <ResponsiveView style={styles.periodInfoSummary}>
+                      <ResponsiveView style={styles.periodInfoLeft}>
+                        <ResponsiveText size="md" weight="medium" color={colors.text}>
+                          {period.period}
+                        </ResponsiveText>
+                        <ResponsiveText size="sm" color={colors.textSecondary}>
+                          {period.orderCount} {period.orderCount === 1 ? 'order' : 'orders'}
+                        </ResponsiveText>
+                      </ResponsiveView>
+                      <ResponsiveView style={styles.periodInfoRight}>
+                        <ResponsiveText size="lg" weight="semiBold" color={colors.primary}>
+                          ₱{period.income.toFixed(2)}
+                        </ResponsiveText>
+                      </ResponsiveView>
+                    </ResponsiveView>
+                  </AdminCard>
+                ))
+            ) : (
+              // Year view: Show monthly summaries
+              revenueAnalytics.periodData
+                .slice(0, 12) // Show last 12 months
+                .map((period: any, index: number) => (
+                  <AdminCard
+                    key={`${period.date}-${index}`}
+                    variant="outlined"
+                    style={[styles.revenueItemSummary, { backgroundColor: colors.surfaceVariant, borderColor: colors.border }]}
+                  >
+                    <ResponsiveView style={styles.periodInfoSummary}>
+                      <ResponsiveView style={styles.periodInfoLeft}>
+                        <ResponsiveText size="md" weight="medium" color={colors.text}>
+                          {period.period}
+                        </ResponsiveText>
+                        <ResponsiveText size="sm" color={colors.textSecondary}>
+                          {period.orderCount} {period.orderCount === 1 ? 'order' : 'orders'}
+                        </ResponsiveText>
+                      </ResponsiveView>
+                      <ResponsiveView style={styles.periodInfoRight}>
+                        <ResponsiveText size="lg" weight="semiBold" color={colors.primary}>
+                          ₱{period.income.toFixed(2)}
+                        </ResponsiveText>
+                      </ResponsiveView>
+                    </ResponsiveView>
+                  </AdminCard>
+                ))
+            )}
           </ResponsiveView>
         ) : (
           <ResponsiveText size="md" color={colors.textSecondary} align="center">
@@ -886,19 +1025,33 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   revenueList: {
-    gap: ResponsiveSpacing.sm,
+    // Spacing handled by marginBottom on items
   },
-  revenueItem: {
+  revenueItemSummary: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingVertical: ResponsiveSpacing.sm,
+    paddingVertical: ResponsiveSpacing.md,
     paddingHorizontal: ResponsiveSpacing.md,
-    backgroundColor: '#f5f5f5',
     borderRadius: ResponsiveBorderRadius.md,
+    marginBottom: ResponsiveSpacing.sm,
   },
-  periodInfo: {
+  periodInfoSummary: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    width: '100%',
     flex: 1,
+  },
+  periodInfoLeft: {
+    flex: 1,
+  },
+  periodInfoRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  chevronIcon: {
+    marginLeft: ResponsiveSpacing.xs,
   },
   loadingContainer: {
     flex: 1,

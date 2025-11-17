@@ -1,0 +1,123 @@
+@startuml Kitchen One App - Activity Diagram
+
+!theme plain
+skinparam monochrome true
+skinparam shadowing false
+skinparam roundcorner 10
+skinparam activity {
+    BackgroundColor #FFFFFF
+    BorderColor #000000
+    FontColor #000000
+    FontSize 11
+}
+skinparam partition {
+    BackgroundColor #F5F5F5
+    BorderColor #000000
+    FontColor #000000
+    FontSize 13
+    FontStyle bold
+}
+skinparam arrow {
+    Color #000000
+    FontColor #000000
+}
+skinparam note {
+    BackgroundColor #FFFFFF
+    BorderColor #000000
+    FontColor #000000
+}
+
+title Kitchen One App - Order Processing Activity Diagram
+
+|#LightGray|Admin|
+|#LightGray|Customer|
+|#LightGray|Rider|
+
+start
+:Login or Register;
+
+if (Are you Admin?) then (Yes)
+    |Admin|
+    :View Orders;
+    :Confirm & Prepare Orders;
+    
+    if (Fulfillment Type?) then (For Delivery)
+        if (Payment Verified?) then (Yes)
+            :Update Order Status\nto Preparing;
+        else (Wait)
+            :Await Verification;
+        endif
+    else (To Be Pickup)
+        if (Payment Verified?) then (Yes)
+            :Update Order Status\nto Preparing;
+        else (Wait)
+            :Await Verification;
+        endif
+        
+        :Mark Order Ready for Pickup;
+        
+        if (Payment Method?) then (COD)
+            :Confirm COD Payment\non Pickup;
+        endif
+        
+        :Mark Order as Delivered;
+    endif
+    
+    :Monitor Inventory;
+    
+    if (Low Stock?) then (Yes)
+        :Restock or Update Inventory;
+    else (Continue)
+    endif
+    
+    :View Reports;
+    |Admin|
+    stop
+else (No)
+    if (Are you Customer?) then (Yes)
+        |Customer|
+        :Browse Menu;
+        :Place Order;
+        
+        if (Fulfillment Type?) then (For Delivery)
+            if (Payment Method?) then (GCash)
+                :Upload Payment Proof;
+                :Wait for Payment Verification;
+                :Order Confirmed;
+            else (COD)
+                :Order Confirmed;
+            endif
+            
+            :Track Order Status;
+            :Receive Order;
+        else (To Be Pickup)
+            if (Payment Method?) then (GCash)
+                :Upload Payment Proof;
+                :Wait for Payment Verification;
+                :Order Confirmed;
+            else (COD)
+                :Order Confirmed;
+            endif
+            
+            :Track Order Status;
+            :Pick Up Order;
+        endif
+        |Customer|
+        stop
+    else (No)
+        |Rider|
+        :View Assigned Orders\n(For Delivery Only);
+        :Pick Up Order;
+        :Deliver to Customer;
+        
+        if (Payment Method?) then (COD)
+            :Confirm Payment from Customer;
+        endif
+        
+        :Update Delivery Status;
+        |Rider|
+        stop
+    endif
+endif
+
+@enduml

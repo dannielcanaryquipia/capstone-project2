@@ -1,4 +1,5 @@
 import { MaterialIcons } from '@expo/vector-icons';
+import * as ImagePicker from 'expo-image-picker';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import {
@@ -21,6 +22,7 @@ import { Strings } from '../../../constants/Strings';
 import { useTheme } from '../../../contexts/ThemeContext';
 import { useProductCategories } from '../../../hooks';
 import { useAuth } from '../../../hooks/useAuth';
+import { ImageUploadService } from '../../../services/image-upload.service';
 import { ProductService } from '../../../services/product.service';
 import global from '../../../styles/global';
 import { Product } from '../../../types/product.types';
@@ -39,7 +41,7 @@ interface ProductFormData {
 export default function EditProductScreen() {
   const { colors } = useTheme();
   const { user } = useAuth();
-  const { success, error: showError, confirm, confirmDestructive } = useAlert();
+  const { success, error: showError, confirmDestructive, show } = useAlert();
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
   const [loading, setLoading] = useState(true);
@@ -49,6 +51,8 @@ export default function EditProductScreen() {
   const [lowStockThreshold, setLowStockThreshold] = useState<string>('10');
   const [stockSaving, setStockSaving] = useState(false);
   const [stockNote, setStockNote] = useState('');
+  const [uploadingImage, setUploadingImage] = useState(false);
+  const [imageUri, setImageUri] = useState<string | null>(null);
 
   const [formData, setFormData] = useState<ProductFormData>({
     name: '',
@@ -97,6 +101,10 @@ export default function EditProductScreen() {
             ? productData.stock.low_stock_threshold.toString()
             : '10'
         );
+        // Set image URI if product has an image
+        if (productData.image_url) {
+          setImageUri(productData.image_url);
+        }
       }
     } catch (error) {
       console.error('Error loading product:', error);
@@ -119,6 +127,72 @@ export default function EditProductScreen() {
       ...prev,
       category_id: categoryId
     }));
+  };
+
+  const pickImage = async (source: 'camera' | 'library') => {
+    try {
+      let result;
+      
+      if (source === 'camera') {
+        const permissionResult = await ImagePicker.requestCameraPermissionsAsync();
+        if (permissionResult.granted === false) {
+          showError('Permission Required', 'Camera permission is required to take photos.');
+          return;
+        }
+        result = await ImagePicker.launchCameraAsync({
+          mediaTypes: ImagePicker.MediaTypeOptions.Images,
+          allowsEditing: true,
+          aspect: [1, 1],
+          quality: 0.8,
+        });
+      } else {
+        const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
+        if (permissionResult.granted === false) {
+          showError('Permission Required', 'Photo library permission is required to select images.');
+          return;
+        }
+        result = await ImagePicker.launchImageLibraryAsync({
+          mediaTypes: ImagePicker.MediaTypeOptions.Images,
+          allowsEditing: true,
+          aspect: [1, 1],
+          quality: 0.8,
+        });
+      }
+
+      if (!result.canceled && result.assets[0]) {
+        setImageUri(result.assets[0].uri);
+        await uploadProductImage(result.assets[0].uri);
+      }
+    } catch (error) {
+      console.error('Error picking image:', error);
+      showError('Error', 'Failed to pick image. Please try again.');
+    }
+  };
+
+  const uploadProductImage = async (uri: string) => {
+    if (!id || id === 'new') return;
+    
+    setUploadingImage(true);
+    try {
+      const result = await ImageUploadService.uploadProductImage(id, uri);
+      setFormData(prev => ({
+        ...prev,
+        image_url: result.url
+      }));
+      // Update the local image URI to show the uploaded image
+      setImageUri(result.url);
+    } catch (error: any) {
+      console.error('Error uploading image:', error);
+      showError('Upload Error', error.message || 'Failed to upload image. Please try again.');
+      // Revert to original image if upload fails
+      if (product?.image_url) {
+        setImageUri(product.image_url);
+      } else {
+        setImageUri(null);
+      }
+    } finally {
+      setUploadingImage(false);
+    }
   };
 
   const handleSaveStock = async () => {
@@ -292,31 +366,83 @@ export default function EditProductScreen() {
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
-        {/* Product Image */}
-        {product && (
-          <ResponsiveView style={[styles.imageContainer, { backgroundColor: colors.surface }]} marginBottom="lg">
-            {product.image_url ? (
-              <Image
-                source={{ uri: product.image_url }}
-                style={styles.productImage}
-                resizeMode="cover"
-              />
-            ) : (
-              <ResponsiveView style={[styles.imagePlaceholder, { backgroundColor: colors.background }]}>
-                <MaterialIcons 
-                  name="image" 
-                  size={responsiveValue(48, 56, 64, 72)} 
-                  color={colors.textSecondary} 
-                />
-                <ResponsiveView marginTop="sm">
-                  <ResponsiveText size="sm" color={colors.textSecondary}>
-                    No image available
+        {/* Product Image Upload/Edit */}
+        <ResponsiveView style={[styles.formContainer, { backgroundColor: colors.surface }]} marginBottom="lg">
+          <ResponsiveView marginBottom="sm">
+            <ResponsiveText size="md" weight="medium" color={colors.text}>
+              Product Image
+            </ResponsiveText>
+          </ResponsiveView>
+          
+          {imageUri ? (
+            <ResponsiveView style={styles.imagePreviewContainer}>
+              <Image source={{ uri: imageUri }} style={styles.imagePreview} resizeMode="cover" />
+              <TouchableOpacity
+                style={[styles.editImageButton, { backgroundColor: colors.primary }]}
+                onPress={() => show(
+                  'Replace Image',
+                  'Choose an option to replace the current image',
+                  [
+                    { text: 'Camera', style: 'default', onPress: () => pickImage('camera') },
+                    { text: 'Gallery', style: 'default', onPress: () => pickImage('library') },
+                    { text: 'Cancel', style: 'cancel' }
+                  ]
+                )}
+                disabled={uploadingImage}
+              >
+                <MaterialIcons name="edit" size={20} color={colors.surface} />
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.removeImageButton, { backgroundColor: colors.error }]}
+                onPress={() => {
+                  setImageUri(null);
+                  setFormData(prev => ({ ...prev, image_url: '' }));
+                }}
+                disabled={uploadingImage}
+              >
+                <MaterialIcons name="close" size={20} color={colors.surface} />
+              </TouchableOpacity>
+              {uploadingImage && (
+                <ResponsiveView style={styles.uploadingOverlay}>
+                  <ActivityIndicator size="small" color={colors.primary} />
+                  <ResponsiveText size="sm" color={colors.surface} style={{ marginTop: 8 }}>
+                    Uploading...
                   </ResponsiveText>
                 </ResponsiveView>
-              </ResponsiveView>
-            )}
-          </ResponsiveView>
-        )}
+              )}
+            </ResponsiveView>
+          ) : (
+            <ResponsiveView style={styles.imageUploadContainer}>
+              <TouchableOpacity
+                style={[styles.imageUploadButton, { 
+                  backgroundColor: colors.background,
+                  borderColor: colors.border 
+                }]}
+                onPress={() => show(
+                  'Select Image',
+                  'Choose an option',
+                  [
+                    { text: 'Camera', style: 'default', onPress: () => pickImage('camera') },
+                    { text: 'Gallery', style: 'default', onPress: () => pickImage('library') },
+                    { text: 'Cancel', style: 'cancel' }
+                  ]
+                )}
+                disabled={uploadingImage}
+              >
+                {uploadingImage ? (
+                  <ActivityIndicator size="small" color={colors.primary} />
+                ) : (
+                  <>
+                    <MaterialIcons name="image" size={32} color={colors.textSecondary} />
+                    <ResponsiveText size="sm" color={colors.textSecondary} style={{ marginTop: 8 }}>
+                      Tap to upload image
+                    </ResponsiveText>
+                  </>
+                )}
+              </TouchableOpacity>
+            </ResponsiveView>
+          )}
+        </ResponsiveView>
 
         <ResponsiveView style={[styles.formContainer, { backgroundColor: colors.surface }]}>
           {/* Product Name */}
@@ -403,11 +529,14 @@ export default function EditProductScreen() {
             />
           </ResponsiveView>
 
-          {/* Image URL */}
+          {/* Image URL (Alternative - Manual Entry) */}
           <ResponsiveView marginBottom="md">
             <ResponsiveView marginBottom="sm">
               <ResponsiveText size="md" weight="medium" color={colors.text}>
-                Image URL
+                Image URL (Alternative)
+              </ResponsiveText>
+              <ResponsiveText size="xs" color={colors.textSecondary} marginTop="xs">
+                Or enter an image URL manually instead of uploading
               </ResponsiveText>
             </ResponsiveView>
             <TextInput
@@ -417,7 +546,14 @@ export default function EditProductScreen() {
                 borderColor: colors.border 
               }]}
               value={formData.image_url}
-              onChangeText={(value) => handleInputChange('image_url', value)}
+              onChangeText={(value) => {
+                handleInputChange('image_url', value);
+                if (value.trim()) {
+                  setImageUri(value.trim());
+                } else {
+                  setImageUri(null);
+                }
+              }}
               placeholder="Enter image URL (optional)"
               placeholderTextColor={colors.textSecondary}
             />
@@ -732,5 +868,60 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     borderRadius: ResponsiveBorderRadius.lg,
+  },
+  imageUploadContainer: {
+    marginTop: ResponsiveSpacing.sm,
+  },
+  imageUploadButton: {
+    borderWidth: 2,
+    borderStyle: 'dashed',
+    borderRadius: ResponsiveBorderRadius.md,
+    padding: ResponsiveSpacing.xl,
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: responsiveValue(120, 140, 160, 180),
+  },
+  imagePreviewContainer: {
+    position: 'relative',
+    marginTop: ResponsiveSpacing.sm,
+  },
+  imagePreview: {
+    width: '100%',
+    height: responsiveValue(200, 240, 280, 320),
+    borderRadius: ResponsiveBorderRadius.md,
+    resizeMode: 'cover',
+  },
+  editImageButton: {
+    position: 'absolute',
+    top: ResponsiveSpacing.sm,
+    left: ResponsiveSpacing.sm,
+    width: responsiveValue(32, 36, 40, 44),
+    height: responsiveValue(32, 36, 40, 44),
+    borderRadius: responsiveValue(16, 18, 20, 22),
+    alignItems: 'center',
+    justifyContent: 'center',
+    ...Layout.shadows.sm,
+  },
+  removeImageButton: {
+    position: 'absolute',
+    top: ResponsiveSpacing.sm,
+    right: ResponsiveSpacing.sm,
+    width: responsiveValue(32, 36, 40, 44),
+    height: responsiveValue(32, 36, 40, 44),
+    borderRadius: responsiveValue(16, 18, 20, 22),
+    alignItems: 'center',
+    justifyContent: 'center',
+    ...Layout.shadows.sm,
+  },
+  uploadingOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    borderRadius: ResponsiveBorderRadius.md,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 });

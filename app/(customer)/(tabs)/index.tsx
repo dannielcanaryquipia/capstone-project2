@@ -192,7 +192,7 @@ export default function HomeScreen() {
                 }
               ]}>
                 <MaterialIcons 
-                  name="notifications-none" 
+                  name={unreadCount > 0 ? "notifications-active" : "notifications-none"} 
                   size={Responsive.responsiveValue(28, 30, 32, 36)} 
                   color={unreadCount > 0 ? colors.primary : colors.text} 
                 />

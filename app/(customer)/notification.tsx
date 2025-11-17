@@ -10,7 +10,6 @@ import { useNotificationContext } from '../../contexts/NotificationContext';
 import { useTheme } from '../../contexts/ThemeContext';
 import { useAuth } from '../../hooks/useAuth';
 import { Notification } from '../../lib/database.types';
-import { supabase } from '../../lib/supabase';
 import { groupNotificationsByTime } from '../../utils/notificationGrouping';
 
 const getNotificationIcon = (type: string) => {
@@ -65,16 +64,23 @@ export default function NotificationScreen() {
     markAsRead,
     markAllAsRead,
     refresh,
+    displayNotifications,
+    displayUnreadCount,
+    hiddenUnreadCount,
+    isFilteringDeliveryNotifications,
   } = useNotificationContext();
   const { colors, isDark } = useTheme();
   const { confirm } = useAlert();
   const router = useRouter();
   const { isAdmin, isDelivery } = useAuth();
   const lastRefreshTime = useRef<number>(0);
-  
-  // State to track order fulfillment types for filtering rider notifications
-  const [orderFulfillmentTypes, setOrderFulfillmentTypes] = useState<Map<string, string>>(new Map());
-  const [isLoadingFulfillmentTypes, setIsLoadingFulfillmentTypes] = useState(false);
+  const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
+
+  useEffect(() => {
+    if (!isLoading) {
+      setHasLoadedOnce(true);
+    }
+  }, [isLoading]);
 
   // Helper function to determine the route based on notification type and user role
   const getNotificationRoute = useCallback((notification: Notification): string | null => {
@@ -129,103 +135,17 @@ export default function NotificationScreen() {
     await refresh();
   }, [refresh]);
 
-  // Fetch fulfillment types for notifications with related_order_id (for riders only)
-  useEffect(() => {
-    if (!isDelivery || notifications.length === 0) {
-      return;
-    }
-
-    const fetchFulfillmentTypes = async () => {
-      // Get all unique order IDs from notifications
-      const orderIds = notifications
-        .map(n => n.related_order_id)
-        .filter((id): id is string => !!id)
-        .filter((id, index, self) => self.indexOf(id) === index); // Remove duplicates
-
-      if (orderIds.length === 0) {
-        return;
-      }
-
-      setIsLoadingFulfillmentTypes(true);
-      try {
-        const { data, error } = await supabase
-          .from('orders')
-          .select('id, fulfillment_type')
-          .in('id', orderIds);
-
-        if (error) {
-          console.error('Error fetching order fulfillment types:', error);
-          return;
-        }
-
-        // Create a map of order ID to fulfillment type
-        const fulfillmentMap = new Map<string, string>();
-        (data || []).forEach((order: any) => {
-          fulfillmentMap.set(order.id, order.fulfillment_type);
-        });
-
-        setOrderFulfillmentTypes(fulfillmentMap);
-      } catch (err) {
-        console.error('Error fetching fulfillment types:', err);
-      } finally {
-        setIsLoadingFulfillmentTypes(false);
-      }
-    };
-
-    fetchFulfillmentTypes();
-  }, [isDelivery, notifications]);
-
-  // Filter notifications for riders - only show delivery orders
   const filteredNotifications = useMemo(() => {
     if (!isDelivery) {
-      // For non-riders, return all notifications
       return notifications;
     }
+    return displayNotifications;
+  }, [isDelivery, notifications, displayNotifications]);
 
-    // For riders, filter out notifications related to pickup orders
-    return notifications.filter((notification) => {
-      // If notification doesn't have a related order, show it (system notifications, etc.)
-      if (!notification.related_order_id) {
-        return true;
-      }
-
-      // Get fulfillment type for this order
-      const fulfillmentType = orderFulfillmentTypes.get(notification.related_order_id);
-
-      // If we haven't loaded the fulfillment type yet and we're still loading, 
-      // don't show order-related notifications to prevent flickering
-      if (fulfillmentType === undefined && isLoadingFulfillmentTypes) {
-        return false;
-      }
-
-      // If fulfillment type is still undefined after loading is complete,
-      // it means the order might not exist or there was an error
-      // In this case, we'll be conservative and hide it for riders
-      if (fulfillmentType === undefined) {
-        console.warn('⚠️ Could not determine fulfillment type for notification:', {
-          notificationId: notification.id,
-          orderId: notification.related_order_id
-        });
-        return false;
-      }
-
-      // Only show notifications for delivery orders
-      // Filter out 'pickup' orders (database value is 'pickup', not 'To Be Picked Up')
-      const isDeliveryOrder = fulfillmentType === 'delivery';
-      const isPickupOrder = fulfillmentType === 'pickup';
-
-      if (isPickupOrder) {
-        console.log('🚫 Filtering out pickup order notification for rider:', {
-          notificationId: notification.id,
-          orderId: notification.related_order_id,
-          fulfillmentType
-        });
-        return false;
-      }
-
-      return isDeliveryOrder;
-    });
-  }, [notifications, isDelivery, orderFulfillmentTypes, isLoadingFulfillmentTypes]);
+  const filteredUnreadCount = isDelivery ? displayUnreadCount : unreadCount;
+  const hasHiddenUnread = isDelivery && hiddenUnreadCount > 0;
+  const showMarkAllButton = filteredUnreadCount > 0 || hasHiddenUnread;
+  const showHiddenUnreadHint = hasHiddenUnread;
 
   // Group notifications by time periods
   const groupedNotifications = useMemo(() => {
@@ -252,7 +172,7 @@ export default function NotificationScreen() {
   );
 
 
-  if (isLoading) {
+  if (isLoading && !hasLoadedOnce) {
     return (
       <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
         <View style={styles.loadingContainer}>
@@ -278,6 +198,10 @@ export default function NotificationScreen() {
     );
   }
 
+  const showInlineLoader =
+    (isLoading && hasLoadedOnce) ||
+    (isFilteringDeliveryNotifications && hasLoadedOnce);
+
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
       {/* Header with Back Button and Mark All button */}
@@ -293,7 +217,7 @@ export default function NotificationScreen() {
           <Text style={[styles.headerTitle, { color: colors.text }]}>Notifications</Text>
         </View>
         <View style={styles.headerRight}>
-          {filteredNotifications.length > 0 && filteredNotifications.filter(n => !n.is_read).length > 0 && (
+          {showMarkAllButton && (
             <TouchableOpacity onPress={handleMarkAllAsRead} style={[styles.markAllButton, { backgroundColor: colors.primary }]}>
               <Text style={[styles.markAllButtonText, { color: colors.textInverse }]}>Mark All Read</Text>
             </TouchableOpacity>
@@ -301,20 +225,35 @@ export default function NotificationScreen() {
         </View>
       </View>
 
+      {showInlineLoader && (
+        <View style={[styles.inlineLoader, { borderBottomColor: colors.border, backgroundColor: colors.surface }]}>
+          <ActivityIndicator size="small" color={colors.primary} />
+          <Text style={[styles.inlineLoaderText, { color: colors.textSecondary }]}>
+            Updating notifications...
+          </Text>
+        </View>
+      )}
+
       {/* Unread Count Info */}
-      {filteredNotifications.length > 0 && (() => {
-        const filteredUnreadCount = filteredNotifications.filter(n => !n.is_read).length;
-        return filteredUnreadCount > 0 && (
+      {filteredUnreadCount > 0 && (
           <View style={[styles.unreadInfo, { backgroundColor: colors.primaryLight + '20' }]}>
             <Text style={[styles.unreadInfoText, { color: colors.primary }]}>
               {filteredUnreadCount} unread notification{filteredUnreadCount > 1 ? 's' : ''}
             </Text>
           </View>
-        );
-      })()}
+      )}
+
+      {/* Hidden unread hint for riders */}
+      {showHiddenUnreadHint && (
+        <View style={[styles.unreadInfo, { backgroundColor: colors.warning + '15' }]}>
+          <Text style={[styles.unreadInfoText, { color: colors.warning }]}>
+            {hiddenUnreadCount} unread notification{hiddenUnreadCount > 1 ? 's' : ''} hidden (pickup orders). Use Mark All Read to clear them.
+          </Text>
+        </View>
+      )}
 
       {/* Notifications List or Empty State */}
-      {isLoadingFulfillmentTypes ? (
+      {isDelivery && isFilteringDeliveryNotifications ? (
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={colors.primary} />
           <Text style={[styles.loadingText, { color: colors.textSecondary }]}>Loading notifications...</Text>
@@ -325,7 +264,7 @@ export default function NotificationScreen() {
           showsVerticalScrollIndicator={false}
           refreshControl={
             <RefreshControl
-              refreshing={isLoading}
+              refreshing={showInlineLoader}
               onRefresh={handleRefresh}
               colors={[colors.primary]}
               tintColor={colors.primary}
@@ -468,6 +407,18 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontFamily: Layout.fontFamily.regular,
     marginTop: 16,
+  },
+  inlineLoader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 8,
+    borderBottomWidth: 1,
+  },
+  inlineLoaderText: {
+    fontSize: 14,
+    fontFamily: Layout.fontFamily.medium,
+    marginLeft: 12,
   },
   errorContainer: {
     flex: 1,

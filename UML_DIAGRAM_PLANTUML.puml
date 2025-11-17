@@ -1,0 +1,545 @@
+@startuml Kitchen One App - Database Schema
+
+!define PK_COLOR #FFE6E6
+!define FK_COLOR #E6F3FF
+!define USER_COLOR #E6F0FF
+!define PRODUCT_COLOR #E6FFE6
+!define ORDER_COLOR #FFF4E6
+!define PAYMENT_COLOR #F0E6FF
+!define SYSTEM_COLOR #E6E6E6
+
+' Set diagram size to ensure all content is visible
+scale 0.8
+skinparam maxMessageSize 200
+skinparam maxClassWidth 250
+
+skinparam class {
+    BackgroundColor<<user>> USER_COLOR
+    BackgroundColor<<product>> PRODUCT_COLOR
+    BackgroundColor<<order>> ORDER_COLOR
+    BackgroundColor<<payment>> PAYMENT_COLOR
+    BackgroundColor<<system>> SYSTEM_COLOR
+    ArrowColor #333333
+    BorderColor #666666
+    FontSize 10
+    AttributeFontSize 9
+    MethodFontSize 9
+}
+
+' Use polyline instead of ortho for better large diagram handling
+skinparam linetype polyline
+skinparam roundcorner 10
+skinparam shadowing false
+skinparam packageStyle rectangle
+skinparam package {
+    BackgroundColor #FFFFFF
+    BorderColor #666666
+}
+
+' Layout hints for better organization
+skinparam defaultFontSize 10
+skinparam defaultFontName Arial
+
+' ============================================
+' USER MANAGEMENT TABLES
+' ============================================
+
+class Profiles <<user>> {
+    + id : UUID <<PK>>
+    + username : String <<UNIQUE>>
+    + full_name : String
+    + phone_number : String
+    + role : Enum
+    + avatar_url : String
+    + email_verified : Boolean
+    + phone_verified : Boolean
+    + is_blocked : Boolean
+    + preferences : JSONB
+    + created_at : Timestamp
+    + updated_at : Timestamp
+    + last_login : Timestamp
+    --
+    + getUsers(filters) : User[]
+    + getUserById(userId) : User
+    + updateUser(userId, updates) : User
+    + blockUser(userId) : User
+    + unblockUser(userId) : User
+    + changeUserRole(userId, newRole) : User
+    + getUserStats() : UserStats
+    + searchUsers(query) : User[]
+}
+
+class Addresses <<user>> {
+    + id : UUID <<PK>>
+    + user_id : UUID <<FK>>
+    + label : String
+    + full_address : String
+    + is_default : Boolean
+    + created_at : Timestamp
+    --
+    + getUserAddresses(userId) : Address[]
+    + createAddress(userId, addressData) : Address
+    + updateAddress(addressId, updates) : Address
+    + deleteAddress(addressId) : void
+    + setDefaultAddress(userId, addressId) : Address
+}
+
+class SavedProducts <<user>> {
+    + id : UUID <<PK>>
+    + user_id : UUID <<FK>>
+    + product_id : UUID <<FK>>
+    + created_at : Timestamp
+    --
+    + getSavedProducts(userId) : SavedProduct[]
+    + saveProduct(userId, productId) : SavedProduct
+    + removeSavedProduct(userId, productId) : void
+}
+
+class UserPreferences <<user>> {
+    + id : UUID <<PK>>
+    + user_id : UUID <<FK>>
+    + preference_key : String
+    + preference_value : JSONB
+    + created_at : Timestamp
+    + updated_at : Timestamp
+    --
+    + getUserPreferences(userId) : UserPreference[]
+    + setPreference(userId, key, value) : UserPreference
+}
+
+class UserInteractions <<user>> {
+    + id : UUID <<PK>>
+    + user_id : UUID <<FK>>
+    + product_id : UUID <<FK>>
+    + interaction_type : Enum
+    + session_id : String
+    + metadata : JSONB
+    + created_at : Timestamp
+    --
+    + logInteraction(userId, productId, type) : void
+    + getUserInteractions(userId) : Interaction[]
+}
+
+' ============================================
+' PRODUCT MANAGEMENT TABLES
+' ============================================
+
+class Categories <<product>> {
+    + id : UUID <<PK>>
+    + name : String <<UNIQUE>>
+    + description : String
+    + created_at : Timestamp
+    --
+    + getCategories() : Category[]
+    + createCategory(categoryData) : Category
+    + updateCategory(categoryId, updates) : Category
+    + deleteCategory(categoryId) : void
+}
+
+class Products <<product>> {
+    + id : UUID <<PK>>
+    + name : String
+    + description : String
+    + category_id : UUID <<FK>>
+    + base_price : Decimal
+    + image_url : String
+    + gallery_image_urls : String[]
+    + is_available : Boolean
+    + is_recommended : Boolean
+    + is_featured : Boolean
+    + preparation_time_minutes : Integer
+    + created_at : Timestamp
+    + updated_at : Timestamp
+    --
+    + getProducts(filters) : Product[]
+    + getProductById(productId) : Product
+    + createProduct(productData) : Product
+    + updateProduct(productId, updates) : Product
+    + deleteProduct(productId) : void
+    + toggleAvailability(productId) : Product
+    + searchProducts(query) : Product[]
+    + getProductStats() : ProductStats
+}
+
+class ProductStock <<product>> {
+    + id : UUID <<PK>>
+    + product_id : UUID <<FK>> <<UNIQUE>>
+    + quantity : Integer
+    + low_stock_threshold : Integer
+    + last_updated_at : Timestamp
+    --
+    + getProductStock(productId) : ProductStock
+    + updateProductStock(productId, updates) : ProductStock
+    + decrementStock(productId, quantity) : ProductStock
+}
+
+class PizzaOptions <<product>> {
+    + id : UUID <<PK>>
+    + product_id : UUID <<FK>>
+    + size : String
+    + price : Decimal
+    + crust_id : UUID <<FK>>
+    --
+    + getPizzaOptions(productId) : PizzaOption[]
+    + createPizzaOption(optionData) : PizzaOption
+    + updatePizzaOption(optionId, updates) : PizzaOption
+}
+
+class Crusts <<product>> {
+    + id : UUID <<PK>>
+    + name : String
+    --
+    + getCrusts() : Crust[]
+    + createCrust(name) : Crust
+    + updateCrust(crustId, name) : Crust
+}
+
+class Toppings <<product>> {
+    + id : UUID <<PK>>
+    + name : String
+    --
+    + getToppings() : Topping[]
+    + createTopping(name) : Topping
+    + updateTopping(toppingId, name) : Topping
+}
+
+class PizzaToppingOptions <<product>> {
+    + id : UUID <<PK>>
+    + pizza_option_id : UUID <<FK>>
+    + topping_id : UUID <<FK>>
+    --
+    + getToppingsForOption(pizzaOptionId) : Topping[]
+    + addToppingToOption(pizzaOptionId, toppingId) : void
+}
+
+class Slices <<product>> {
+    + id : UUID <<PK>>
+    + name : String <<UNIQUE>>
+    + description : String
+    + is_active : Boolean
+    + created_at : Timestamp
+    + updated_at : Timestamp
+    --
+    + getSlices() : Slice[]
+    + createSlice(sliceData) : Slice
+}
+
+class ProductCoOccurrences <<product>> {
+    + id : UUID <<PK>>
+    + product_a_id : UUID <<FK>>
+    + product_b_id : UUID <<FK>>
+    + co_occurrence_count : Integer
+    + last_updated : Timestamp
+    --
+    + updateCoOccurrence(productAId, productBId) : void
+    + getRecommendedProducts(productId) : Product[]
+}
+
+class InventoryTransactions <<product>> {
+    + id : UUID <<PK>>
+    + product_id : UUID <<FK>>
+    + transaction_type : String
+    + quantity : Integer
+    + reason : String
+    + performed_by : UUID <<FK>>
+    + created_at : Timestamp
+    --
+    + logTransaction(productId, type, quantity) : void
+    + getProductTransactions(productId) : Transaction[]
+}
+
+' ============================================
+' ORDER MANAGEMENT TABLES
+' ============================================
+
+class Orders <<order>> {
+    + id : UUID <<PK>>
+    + user_id : UUID <<FK>>
+    + order_number : String <<UNIQUE>>
+    + delivery_address_id : UUID <<FK>>
+    + total_amount : Decimal
+    + status : Enum
+    + payment_method : String
+    + payment_status : Enum
+    + fulfillment_type : Enum
+    + order_notes : String
+    + customer_notes : String
+    + admin_notes : String
+    + proof_of_payment_url : String
+    + proof_of_delivery_url : String
+    + payment_verified : Boolean
+    + payment_verified_at : Timestamp
+    + payment_verified_by : UUID <<FK>>
+    + estimated_delivery_time : Timestamp
+    + actual_delivery_time : Timestamp
+    + pickup_ready_at : Timestamp
+    + picked_up_at : Timestamp
+    + pickup_verified_at : Timestamp
+    + pickup_verified_by : UUID <<FK>>
+    + pickup_location_snapshot : String
+    + pickup_notes : String
+    + created_at : Timestamp
+    + updated_at : Timestamp
+    --
+    + createOrder(orderData) : Order
+    + getOrderById(orderId) : Order
+    + getUserOrders(userId, filters) : Order[]
+    + updateOrderStatus(orderId, status) : void
+    + cancelOrder(orderId, reason) : void
+    + verifyPayment(orderId, verifiedBy) : void
+    + verifyCODPayment(orderId, verifiedBy) : void
+    + markOrderDelivered(orderId, userId) : Result
+    + getOrderStats() : OrderStats
+}
+
+class OrderItems <<order>> {
+    + id : UUID <<PK>>
+    + order_id : UUID <<FK>>
+    + product_id : UUID <<FK>>
+    + pizza_option_id : UUID <<FK>>
+    + slice_id : UUID <<FK>>
+    + quantity : Integer
+    + unit_price : Decimal
+    + selected_size : String
+    + customization_details : JSONB
+    + created_at : Timestamp
+    --
+    + createOrderItems(orderId, items) : OrderItem[]
+    + getOrderItems(orderId) : OrderItem[]
+    + updateOrderItem(itemId, updates) : OrderItem
+}
+
+class OrderItemToppings <<order>> {
+    + id : UUID <<PK>>
+    + order_item_id : UUID <<FK>>
+    + topping_id : UUID <<FK>>
+    --
+    + addToppingToItem(orderItemId, toppingId) : void
+    + getItemToppings(orderItemId) : Topping[]
+}
+
+class OrderStatusHistory <<order>> {
+    + id : UUID <<PK>>
+    + order_id : UUID <<FK>>
+    + status : String
+    + changed_by : UUID <<FK>>
+    + notes : String
+    + created_at : Timestamp
+    --
+    + addStatusHistory(orderId, status) : void
+    + getStatusHistory(orderId) : StatusHistory[]
+}
+
+class OrderNotes <<order>> {
+    + id : UUID <<PK>>
+    + order_id : UUID <<FK>>
+    + note : String
+    + added_by : UUID <<FK>>
+    + note_type : String
+    + created_at : Timestamp
+    --
+    + addOrderNote(orderId, note) : OrderNote
+    + getOrderNotes(orderId) : OrderNote[]
+}
+
+' ============================================
+' PAYMENT & DELIVERY TABLES
+' ============================================
+
+class PaymentTransactions <<payment>> {
+    + id : UUID <<PK>>
+    + order_id : UUID <<FK>>
+    + amount : Decimal
+    + payment_method : String
+    + status : Enum
+    + transaction_reference : String
+    + proof_of_payment_url : String
+    + qr_code_url : String
+    + qr_code_data : String
+    + qr_code_expires_at : Timestamp
+    + verified_by : UUID <<FK>>
+    + verified_at : Timestamp
+    + created_at : Timestamp
+    + updated_at : Timestamp
+    --
+    + createPaymentTransaction(orderId, data) : PaymentTransaction
+    + updatePaymentStatus(transactionId, status) : void
+    + verifyPayment(transactionId, verifiedBy) : void
+    + generateQRCode(orderId, amount) : QRCodeData
+}
+
+class Riders <<payment>> {
+    + id : UUID <<PK>>
+    + user_id : UUID <<FK>>
+    + vehicle_number : String
+    + is_available : Boolean
+    + current_location : JSONB
+    + created_at : Timestamp
+    + updated_at : Timestamp
+    --
+    + getRiderProfile(userId) : Rider
+    + createRiderProfile(userId) : Rider
+    + updateRiderAvailability(riderId, isAvailable) : void
+    + getRiderStats(riderId) : RiderStats
+    + getRiderEarnings(riderId) : EarningsData
+}
+
+class DeliveryAssignments <<payment>> {
+    + id : UUID <<PK>>
+    + order_id : UUID <<FK>>
+    + rider_id : UUID <<FK>>
+    + status : Enum
+    + assigned_at : Timestamp
+    + picked_up_at : Timestamp
+    + delivered_at : Timestamp
+    + notes : String
+    --
+    + createAssignment(orderId, riderId) : DeliveryAssignment
+    + getRiderAssignments(riderId) : DeliveryAssignment[]
+    + updateAssignmentStatus(assignmentId, status) : void
+    + markPickedUp(assignmentId, riderId) : void
+    + markDelivered(assignmentId, riderId) : void
+    + autoAssignOrder(orderId) : Boolean
+}
+
+' ============================================
+' SYSTEM TABLES
+' ============================================
+
+class Notifications <<system>> {
+    + id : UUID <<PK>>
+    + user_id : UUID <<FK>>
+    + title : String
+    + message : String
+    + type : String
+    + is_read : Boolean
+    + related_order_id : UUID <<FK>>
+    + created_at : Timestamp
+    --
+    + sendNotification(notificationData) : Notification
+    + sendBulkNotification(userIds, data) : void
+    + getUserNotifications(userId) : Notification[]
+    + markAsRead(notificationId) : void
+    + getUnreadCount(userId) : Integer
+}
+
+class ImageMetadata <<system>> {
+    + id : UUID <<PK>>
+    + order_id : UUID <<FK>>
+    + type : Enum
+    + url : String
+    + thumbnail_url : String
+    + uploaded_by : UUID <<FK>>
+    + uploaded_at : Timestamp
+    + metadata : JSONB
+    + verified : Boolean
+    + verified_by : UUID <<FK>>
+    + verified_at : Timestamp
+    + created_at : Timestamp
+    + updated_at : Timestamp
+    --
+    + uploadPaymentProof(orderId, imageUri) : ImageMetadata
+    + uploadDeliveryProof(orderId, imageUri) : ImageMetadata
+    + uploadAvatar(userId, imageUri) : ImageMetadata
+    + getOrderImages(orderId) : ImageMetadata[]
+    + verifyImage(imageId, verifiedBy) : void
+}
+
+' ============================================
+' RELATIONSHIPS - USER MANAGEMENT
+' ============================================
+
+Profiles ||--o{ Addresses : "user_id"
+Profiles ||--o{ SavedProducts : "user_id"
+Profiles ||--o{ UserPreferences : "user_id"
+Profiles ||--o{ UserInteractions : "user_id"
+Profiles ||--o{ Orders : "user_id"
+Profiles ||--o{ Notifications : "user_id"
+Profiles ||--|| Riders : "user_id"
+Profiles ||--o{ InventoryTransactions : "performed_by"
+Profiles ||--o{ OrderStatusHistory : "changed_by"
+Profiles ||--o{ OrderNotes : "added_by"
+Profiles ||--o{ PaymentTransactions : "verified_by"
+Profiles ||--o{ Orders : "payment_verified_by"
+Profiles ||--o{ Orders : "pickup_verified_by"
+Profiles ||--o{ ImageMetadata : "uploaded_by"
+Profiles ||--o{ ImageMetadata : "verified_by"
+
+' ============================================
+' RELATIONSHIPS - PRODUCT MANAGEMENT
+' ============================================
+
+Categories ||--o{ Products : "category_id"
+Products ||--|| ProductStock : "product_id"
+Products ||--o{ PizzaOptions : "product_id"
+Products ||--o{ OrderItems : "product_id"
+Products ||--o{ SavedProducts : "product_id"
+Products ||--o{ UserInteractions : "product_id"
+Products ||--o{ ProductCoOccurrences : "product_a_id"
+Products ||--o{ ProductCoOccurrences : "product_b_id"
+Products ||--o{ InventoryTransactions : "product_id"
+
+Crusts ||--o{ PizzaOptions : "crust_id"
+PizzaOptions ||--o{ PizzaToppingOptions : "pizza_option_id"
+PizzaOptions ||--o{ OrderItems : "pizza_option_id"
+Toppings ||--o{ PizzaToppingOptions : "topping_id"
+Toppings ||--o{ OrderItemToppings : "topping_id"
+Slices ||--o{ OrderItems : "slice_id"
+
+' ============================================
+' RELATIONSHIPS - ORDER MANAGEMENT
+' ============================================
+
+Orders ||--o{ OrderItems : "order_id"
+Orders ||--o{ DeliveryAssignments : "order_id"
+Orders ||--o{ PaymentTransactions : "order_id"
+Orders ||--o{ OrderStatusHistory : "order_id"
+Orders ||--o{ OrderNotes : "order_id"
+Orders ||--o{ ImageMetadata : "order_id"
+Orders ||--o{ Notifications : "related_order_id"
+
+OrderItems ||--o{ OrderItemToppings : "order_item_id"
+OrderItems }o--|| PizzaOptions : "pizza_option_id"
+OrderItems }o--|| Slices : "slice_id"
+
+' ============================================
+' RELATIONSHIPS - DELIVERY
+' ============================================
+
+Riders ||--o{ DeliveryAssignments : "rider_id"
+
+' ============================================
+' CROSS-PACKAGE RELATIONSHIPS
+' ============================================
+
+Addresses ||--o{ Orders : "delivery_address_id"
+
+' ============================================
+' LAYOUT HINTS - Help PlantUML organize better
+' ============================================
+
+' Group related classes together visually
+Profiles -[hidden]down- Addresses
+Profiles -[hidden]down- SavedProducts
+Profiles -[hidden]down- UserPreferences
+Profiles -[hidden]down- UserInteractions
+
+Categories -[hidden]down- Products
+Products -[hidden]right- ProductStock
+Products -[hidden]down- PizzaOptions
+
+Orders -[hidden]down- OrderItems
+Orders -[hidden]right- PaymentTransactions
+Orders -[hidden]right- DeliveryAssignments
+
+Riders -[hidden]down- DeliveryAssignments
+
+' Note: Classes are color-coded by category using stereotypes:
+' <<user>> = User Management (Blue)
+' <<product>> = Product Management (Green)
+' <<order>> = Order Management (Orange)
+' <<payment>> = Payment & Delivery (Purple)
+' <<system>> = System (Gray)
+
+@enduml
+

@@ -109,7 +109,7 @@ export const OrderCard: React.FC<OrderCardProps> = ({
   variant = 'default'
 }) => {
   const { colors } = useTheme();
-  const { isTablet, isSmallDevice } = useResponsive();
+  const { isTablet, isSmallDevice, isLargeDevice } = useResponsive();
   
   const displayStatus = formatOrderStatus(order.status, isSmallDevice);
   const statusColor = getStatusColor(order.status, colors);
@@ -179,19 +179,31 @@ export const OrderCard: React.FC<OrderCardProps> = ({
     </TouchableOpacity>
   );
 
+  const shouldStackFooter = !isLargeDevice;
+
   const renderDetailed = () => (
     <TouchableOpacity 
       style={[styles.orderCard, styles.detailedCard, { backgroundColor: colors.card, borderColor: colors.border }]}
       onPress={onPress}
     >
-      <ResponsiveView style={styles.detailedHeader}>
+      <ResponsiveView style={[
+        styles.detailedHeader,
+        isSmallDevice && styles.detailedHeaderStacked
+      ]}>
         <Image 
           source={{ uri: orderImage }} 
           style={styles.orderImage}
           resizeMode="cover"
         />
         <ResponsiveView style={styles.detailedInfo}>
-          <ResponsiveText size="lg" weight="semiBold" color={colors.text} numberOfLines={2}>
+          <ResponsiveText 
+            size="lg" 
+            weight="semiBold" 
+            color={colors.text} 
+            numberOfLines={2}
+            ellipsizeMode="tail"
+            style={styles.orderTitle}
+          >
             {displayOrderNumber} • {productName}
           </ResponsiveText>
           <ResponsiveView style={[
@@ -221,7 +233,13 @@ export const OrderCard: React.FC<OrderCardProps> = ({
       {showCustomerInfo && (
         <ResponsiveView style={styles.customerInfo}>
           <MaterialIcons name="person" size={16} color={colors.textSecondary} />
-          <ResponsiveText size="sm" color={colors.textSecondary}>
+          <ResponsiveText 
+            size="sm" 
+            color={colors.textSecondary}
+            numberOfLines={2}
+            ellipsizeMode="tail"
+            style={styles.customerText}
+          >
             {(order as any).customer?.full_name || order.user?.full_name || 'Unknown Customer'}
           </ResponsiveText>
         </ResponsiveView>
@@ -259,7 +277,13 @@ export const OrderCard: React.FC<OrderCardProps> = ({
       {showDeliveryInfo && (
         <ResponsiveView style={styles.deliveryInfo}>
           <MaterialIcons name="location-on" size={16} color={colors.textSecondary} />
-          <ResponsiveText size="sm" color={colors.textSecondary} numberOfLines={2}>
+          <ResponsiveText 
+            size="sm" 
+            color={colors.textSecondary} 
+            numberOfLines={3}
+            ellipsizeMode="tail"
+            style={styles.deliveryText}
+          >
             {(order as any).fulfillment_type === 'pickup' 
               ? ((order as any).pickup_location_snapshot || 'Kitchen One - Main Branch')
               : (order.delivery_address?.full_address || 'No address provided')
@@ -274,7 +298,11 @@ export const OrderCard: React.FC<OrderCardProps> = ({
           return (
             <ResponsiveView key={index} style={styles.orderItem}>
               <ResponsiveView style={styles.orderItemLeft}>
-                <ResponsiveText size="sm" color={colors.textSecondary}>
+                <ResponsiveText 
+                  size="sm" 
+                  color={colors.textSecondary}
+                  style={styles.orderItemText}
+                >
                   {orderItem.quantity}x {orderItem.product_name}
                   {customizationDisplay && ` • ${customizationDisplay}`}
                 </ResponsiveText>
@@ -294,22 +322,51 @@ export const OrderCard: React.FC<OrderCardProps> = ({
         )}
       </ResponsiveView>
 
-      <ResponsiveView style={styles.orderFooter}>
-        <ResponsiveView style={styles.timeInfo}>
+      <ResponsiveView style={[
+        styles.orderFooter,
+        shouldStackFooter && styles.orderFooterStacked
+      ]}>
+        <ResponsiveView style={[
+          styles.timeInfo,
+          shouldStackFooter && styles.timeInfoStacked
+        ]}>
           <MaterialIcons name="access-time" size={16} color={colors.textSecondary} />
           {order.status === 'delivered' && deliveredTime ? (
-            <ResponsiveText size="sm" color={colors.textSecondary}>
+            <ResponsiveText 
+              size="sm" 
+              color={colors.textSecondary}
+              style={styles.timeText}
+              numberOfLines={2}
+              ellipsizeMode="tail"
+            >
               Delivered at • {deliveredTime}
             </ResponsiveText>
           ) : (
-            <ResponsiveText size="sm" color={colors.textSecondary}>
+            <ResponsiveText 
+              size="sm" 
+              color={colors.textSecondary}
+              style={styles.timeText}
+              numberOfLines={2}
+              ellipsizeMode="tail"
+            >
               Placed at • {orderTime}
             </ResponsiveText>
           )}
         </ResponsiveView>
-        <ResponsiveView style={styles.totalContainer}>
-          <ResponsiveText size="sm" color={colors.textSecondary}>Total:</ResponsiveText>
-          <ResponsiveText size="lg" color={colors.primary} weight="semiBold">
+        <ResponsiveView style={[
+          styles.totalContainer,
+          shouldStackFooter && styles.totalContainerStacked
+        ]}>
+          <ResponsiveText size="sm" color={colors.textSecondary} style={styles.totalLabel}>Total:</ResponsiveText>
+          <ResponsiveText 
+            size="lg" 
+            color={colors.primary} 
+            weight="semiBold"
+            numberOfLines={1}
+            adjustsFontSizeToFit
+            minimumFontScale={0.85}
+            style={styles.totalAmountText}
+          >
             ₱{(order.total_amount || 0).toFixed(2)}
           </ResponsiveText>
         </ResponsiveView>
@@ -333,7 +390,14 @@ export const OrderCard: React.FC<OrderCardProps> = ({
                 Loading...
               </ResponsiveText>
             ) : (
-              <ResponsiveText size="sm" color={colors.background} weight="semiBold">
+              <ResponsiveText 
+                size="sm" 
+                color={colors.background} 
+                weight="semiBold"
+                numberOfLines={1}
+                ellipsizeMode="tail"
+                style={styles.actionButtonText}
+              >
                 {actionButtonTitle}
               </ResponsiveText>
             )}
@@ -352,7 +416,7 @@ export const OrderCard: React.FC<OrderCardProps> = ({
       }}
     >
       <ResponsiveView style={styles.orderHeader}>
-        <ResponsiveView style={styles.restaurantInfo}>
+          <ResponsiveView style={styles.restaurantInfo}>
           <Image 
             source={{ uri: orderImage }} 
             style={[
@@ -375,6 +439,8 @@ export const OrderCard: React.FC<OrderCardProps> = ({
               weight="semiBold" 
               color={colors.text}
               numberOfLines={2}
+                ellipsizeMode="tail"
+                style={styles.orderTitle}
             >
               {productName}
             </ResponsiveText>
@@ -445,7 +511,12 @@ export const OrderCard: React.FC<OrderCardProps> = ({
             activeOpacity={0.7}
           >
             <ResponsiveView style={styles.orderItemLeft}>
-              <ResponsiveText size="sm" color={colors.textSecondary} numberOfLines={1}>
+              <ResponsiveText 
+                size="sm" 
+                color={colors.textSecondary} 
+                numberOfLines={1}
+                style={styles.orderItemText}
+              >
                 {orderItem.quantity}x {orderItem.product_name}
                 {(() => {
                   const customizationDisplay = getCompactCustomizationDisplay(orderItem);
@@ -471,22 +542,51 @@ export const OrderCard: React.FC<OrderCardProps> = ({
         )}
       </ResponsiveView>
 
-      <ResponsiveView style={styles.orderFooter}>
-        <ResponsiveView style={styles.timeInfo}>
+      <ResponsiveView style={[
+        styles.orderFooter,
+        shouldStackFooter && styles.orderFooterStacked
+      ]}>
+        <ResponsiveView style={[
+          styles.timeInfo,
+          shouldStackFooter && styles.timeInfoStacked
+        ]}>
           <MaterialIcons name="access-time" size={16} color={colors.textSecondary} />
           {order.status === 'delivered' && deliveredTime ? (
-            <ResponsiveText size="sm" color={colors.textSecondary}>
+            <ResponsiveText 
+              size="sm" 
+              color={colors.textSecondary}
+              style={styles.timeText}
+              numberOfLines={2}
+              ellipsizeMode="tail"
+            >
               Delivered at • {deliveredTime}
             </ResponsiveText>
           ) : (
-            <ResponsiveText size="sm" color={colors.textSecondary}>
+            <ResponsiveText 
+              size="sm" 
+              color={colors.textSecondary}
+              style={styles.timeText}
+              numberOfLines={2}
+              ellipsizeMode="tail"
+            >
               Placed at • {orderTime}
             </ResponsiveText>
           )}
         </ResponsiveView>
-        <ResponsiveView style={styles.totalContainer}>
-          <ResponsiveText size="sm" color={colors.textSecondary}>Total:</ResponsiveText>
-          <ResponsiveText size="md" color={colors.primary} weight="semiBold">
+        <ResponsiveView style={[
+          styles.totalContainer,
+          shouldStackFooter && styles.totalContainerStacked
+        ]}>
+          <ResponsiveText size="sm" color={colors.textSecondary} style={styles.totalLabel}>Total:</ResponsiveText>
+          <ResponsiveText 
+            size="md" 
+            color={colors.primary} 
+            weight="semiBold"
+            numberOfLines={1}
+            adjustsFontSizeToFit
+            minimumFontScale={0.85}
+            style={styles.totalAmountText}
+          >
             ₱{(order.total_amount || 0).toFixed(2)}
           </ResponsiveText>
         </ResponsiveView>
@@ -562,6 +662,7 @@ const styles = StyleSheet.create({
     marginTop: Layout.spacing.xs,
     maxWidth: '100%',
     flexShrink: 1,
+    minWidth: 0,
   },
   statusBadgeSmall: {
     paddingHorizontal: Layout.spacing.xs,
@@ -584,6 +685,7 @@ const styles = StyleSheet.create({
   orderItemLeft: {
     flex: 1,
     marginRight: Layout.spacing.sm,
+    minWidth: 0,
   },
   orderItemRight: {
     flexDirection: 'row',
@@ -605,15 +707,28 @@ const styles = StyleSheet.create({
     paddingTop: Layout.spacing.sm,
     borderTopWidth: 1,
     borderTopColor: 'rgba(0,0,0,0.1)',
+    flexWrap: 'wrap',
+  },
+  orderFooterStacked: {
+    alignItems: 'flex-start',
   },
   timeInfo: {
     flexDirection: 'row',
     alignItems: 'center',
+    flexShrink: 1,
+    minWidth: 0,
+    marginRight: Layout.spacing.sm,
+  },
+  timeInfoStacked: {
+    marginRight: 0,
+    marginBottom: Layout.spacing.xs,
   },
   totalContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: Layout.spacing.xs,
+  },
+  totalContainerStacked: {
+    alignSelf: 'flex-start',
   },
   // Compact variant styles
   compactHeader: {
@@ -637,19 +752,25 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: Layout.spacing.sm,
   },
+  detailedHeaderStacked: {
+    alignItems: 'flex-start',
+  },
   detailedInfo: {
     flex: 1,
     marginLeft: Layout.spacing.sm,
+    minWidth: 0,
   },
   customerInfo: {
     flexDirection: 'row',
     alignItems: 'center',
     marginBottom: Layout.spacing.xs,
+    flexWrap: 'wrap',
   },
   deliveryInfo: {
     flexDirection: 'row',
     alignItems: 'flex-start',
     marginBottom: Layout.spacing.sm,
+    flexWrap: 'wrap',
   },
   actionContainer: {
     marginTop: Layout.spacing.sm,
@@ -679,5 +800,36 @@ const styles = StyleSheet.create({
   },
   fulfillmentBadgeText: {
     marginLeft: 4,
+  },
+  orderTitle: {
+    flexShrink: 1,
+    minWidth: 0,
+  },
+  customerText: {
+    marginLeft: Layout.spacing.xs,
+    flexShrink: 1,
+    minWidth: 0,
+  },
+  deliveryText: {
+    flex: 1,
+    marginLeft: Layout.spacing.xs,
+    minWidth: 0,
+  },
+  orderItemText: {
+    flexShrink: 1,
+    minWidth: 0,
+  },
+  timeText: {
+    flexShrink: 1,
+    minWidth: 0,
+  },
+  totalLabel: {
+    marginRight: Layout.spacing.xs,
+  },
+  totalAmountText: {
+    maxWidth: '100%',
+  },
+  actionButtonText: {
+    maxWidth: '100%',
   },
 });

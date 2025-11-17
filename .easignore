@@ -1,0 +1,62 @@
+# EAS Build Ignore File
+# This file excludes unnecessary files from EAS builds to speed up builds and reduce APK size
+
+# Documentation and Guide Files
+*.md
+README.md
+**/*.md
+
+# SQL Files and Database Scripts
+*.sql
+**/*.sql
+database/
+supabase/migrations/
+# Note: supabase/functions/ are edge functions (server-side), not needed in mobile app
+
+# Text Files (commit messages, notes)
+*.txt
+COMMIT_MESSAGE.txt
+GIT_COMMIT_MESSAGE.txt
+
+# Diagram and Planning Files
+*.puml
+newClassDiagramForKitchenOne.json
+
+# Test Files
+test-*.js
+test-*.sql
+**/__tests__/
+
+# Temporary and Debug Files
+tatus
+tatus --short
+*.orig.*
+
+# Development Scripts
+fix-*.js
+fix-*.sql
+
+# IDE and Editor Files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS Files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Build artifacts (already in .gitignore but good to be explicit)
+.expo/
+dist/
+web-build/
+android/
+ios/
+

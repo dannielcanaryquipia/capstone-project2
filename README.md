@@ -9,6 +9,7 @@
 - [Tech Stack](#-tech-stack)
 - [Architecture & Logic](#-architecture--logic)
 - [Database Schema](#-database-schema)
+- [API Documentation](#-api-documentation)
 - [Services & Business Logic](#-services--business-logic)
 - [Getting Started](#-getting-started)
 - [Project Structure](#-project-structure)
@@ -498,6 +499,58 @@ All business logic is separated into service modules:
 - **Optimistic Updates**: Immediate UI updates with server sync
 - **Refresh Coordination**: Prevents excessive API calls with debouncing (300ms)
 
+### Key Algorithms
+
+#### 1. Fisher-Yates Shuffle Algorithm
+
+**Purpose**: Used for randomizing product recommendations to provide a varied and engaging user experience.
+
+**Implementation**:
+- **Location**: `services/recommendation.service.ts`
+- **Usage**: Randomly shuffles product recommendations to prevent showing the same order on each load.
+- **Code Example**:
+  ```typescript
+  private static fisherYatesShuffle<T>(array: T[]): T[] {
+    const shuffled = [...array];
+    for (let i = shuffled.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+    }
+    return shuffled;
+  }
+  ```
+- **Performance**: O(n) time complexity, O(n) space complexity (for the copy of the array)
+
+#### 2. LIFO (Last-In-First-Out) in Notifications
+
+**Purpose**: Ensures the most recent notifications are always shown first, providing a better user experience.
+
+**Implementation**:
+- **Location**: `hooks/useNotifications.ts` and `contexts/NotificationContext.tsx`
+- **Usage**: 
+  - New notifications are added to the beginning of the array
+  - The notifications list is always sorted by `created_at` in descending order
+  - Real-time updates maintain the LIFO order
+
+**Code Example**:
+```typescript
+// In useNotifications.ts
+const [notifications, setNotifications] = useState<Notification[]>([]);
+
+// When adding a new notification
+setNotifications(prev => {
+  const newNotification = payload.new as Notification;
+  return [newNotification, ...prev].sort((a, b) => 
+    new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+  );
+});
+```
+
+**Benefits**:
+- Most relevant (recent) notifications are always at the top
+- Consistent with user expectations for notification ordering
+- Efficient for the common case of viewing recent notifications
+
 ### Authentication Flow
 1. User signs in → Supabase Auth
 2. Session stored → AsyncStorage + Zustand
@@ -670,30 +723,319 @@ When an order becomes `ready_for_pickup`, the system automatically assigns it to
   - `pickup_ready_at`, `picked_up_at`, `pickup_verified_at`
   - `pickup_location_snapshot`, `pickup_notes`
   - `created_at`, `updated_at`
+  
+#### Order Components
 - **`order_items`** - Individual items within orders with customization
-  - `id`, `order_id`, `product_id`, `pizza_option_id`, `quantity`
-  - `unit_price`, `customization_details`, `selected_size`
-- **`delivery_assignments`** - Rider-order assignments with status tracking
-  - `id`, `order_id`, `rider_id`, `status`
-  - `assigned_at`, `picked_up_at`, `delivered_at`, `notes`
+  ```sql
+  CREATE TABLE public.order_items (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    order_id uuid NOT NULL REFERENCES public.orders(id),
+    product_id uuid NOT NULL REFERENCES public.products(id),
+    pizza_option_id uuid REFERENCES public.pizza_options(id),
+    quantity integer NOT NULL CHECK (quantity > 0),
+    unit_price numeric NOT NULL CHECK (unit_price >= 0),
+    customization_details jsonb,
+    selected_size text,
+    created_at timestamp with time zone DEFAULT now(),
+    slice_id uuid REFERENCES public.slices(id)
+  );
+  ```
+
+- **`order_item_toppings`** - Custom toppings for order items
+  ```sql
+  CREATE TABLE public.order_item_toppings (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    order_item_id uuid NOT NULL REFERENCES public.order_items(id),
+    topping_id uuid NOT NULL REFERENCES public.toppings(id)
+  );
+  ```
+
+- **`order_status_history`** - Audit trail of order status changes
+  ```sql
+  CREATE TABLE public.order_status_history (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    order_id uuid NOT NULL REFERENCES public.orders(id),
+    status text NOT NULL,
+    changed_by uuid REFERENCES auth.users(id),
+    notes text,
+    created_at timestamp with time zone DEFAULT now()
+  );
+  ```
+
+- **`order_notes`** - Additional order instructions and notes
+  ```sql
+  CREATE TABLE public.order_notes (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    order_id uuid NOT NULL REFERENCES public.orders(id),
+    note text NOT NULL,
+    added_by uuid NOT NULL REFERENCES auth.users(id),
+    note_type text DEFAULT 'general',
+    created_at timestamp with time zone DEFAULT now()
+  );
+  ```
 
 #### Payment & Transactions
 - **`payment_transactions`** - Payment records with verification status
-  - `id`, `order_id`, `payment_method`, `amount`, `status`
-  - `proof_url`, `verified_at`, `verified_by`, `notes`
+  ```sql
+  CREATE TABLE public.payment_transactions (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    order_id uuid NOT NULL REFERENCES public.orders(id),
+    amount numeric NOT NULL,
+    payment_method text NOT NULL,
+    transaction_reference text,
+    proof_of_payment_url text,
+    verified_by uuid REFERENCES public.profiles(id),
+    verified_at timestamp with time zone,
+    created_at timestamp with time zone DEFAULT now(),
+    updated_at timestamp with time zone DEFAULT now(),
+    qr_code_url text,
+    qr_code_data text,
+    qr_code_expires_at timestamp with time zone,
+    status USER-DEFINED NOT NULL DEFAULT 'pending'::payment_status
+  );
+  ```
 
 #### Delivery Management
 - **`riders`** - Rider profiles with availability and statistics
-  - `id`, `user_id`, `is_available`, `total_deliveries`
-  - `total_earnings`, `created_at`, `updated_at`
+  ```sql
+  CREATE TABLE public.riders (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id uuid NOT NULL REFERENCES public.profiles(id),
+    vehicle_number text,
+    is_available boolean DEFAULT true,
+    current_location jsonb,
+    created_at timestamp with time zone DEFAULT now(),
+    updated_at timestamp with time zone DEFAULT now()
+  );
+  ```
+
+- **`delivery_assignments`** - Rider-order assignments with status tracking
+  ```sql
+  CREATE TABLE public.delivery_assignments (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    order_id uuid NOT NULL REFERENCES public.orders(id),
+    rider_id uuid REFERENCES public.riders(id),
+    assigned_at timestamp with time zone DEFAULT now(),
+    picked_up_at timestamp with time zone,
+    delivered_at timestamp with time zone,
+    status USER-DEFINED DEFAULT 'Assigned'::delivery_status,
+    notes text
+  );
+  ```
+
+#### Product Management
+- **`products`** - Core product information
+  ```sql
+  CREATE TABLE public.products (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    name text NOT NULL,
+    description text,
+    category_id uuid REFERENCES public.categories(id),
+    base_price numeric NOT NULL CHECK (base_price >= 0),
+    image_url text,
+    gallery_image_urls text[],
+    is_available boolean DEFAULT true,
+    is_recommended boolean DEFAULT false,
+    created_at timestamp with time zone DEFAULT now(),
+    updated_at timestamp with time zone DEFAULT now(),
+    preparation_time_minutes integer DEFAULT 30,
+    is_featured boolean DEFAULT false
+  );
+  ```
+
+- **`categories`** - Product categories
+  ```sql
+  CREATE TABLE public.categories (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    name text NOT NULL UNIQUE,
+    description text,
+    created_at timestamp with time zone DEFAULT now()
+  );
+  ```
+
+- **`crusts`** - Pizza crust options
+  ```sql
+  CREATE TABLE public.crusts (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    name text NOT NULL
+  );
+  ```
+
+- **`toppings`** - Available pizza toppings
+  ```sql
+  CREATE TABLE public.toppings (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    name text NOT NULL
+  );
+  ```
+
+- **`slices`** - Pre-configured slice options
+  ```sql
+  CREATE TABLE public.slices (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    name varchar NOT NULL UNIQUE,
+    description text,
+    is_active boolean DEFAULT true,
+    created_at timestamp with time zone DEFAULT now(),
+    updated_at timestamp with time zone DEFAULT now()
+  );
+  ```
+
+- **`pizza_options`** - Configurable pizza combinations
+  ```sql
+  CREATE TABLE public.pizza_options (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    product_id uuid REFERENCES public.products(id),
+    size text NOT NULL,
+    price numeric NOT NULL,
+    crust_id uuid NOT NULL REFERENCES public.crusts(id)
+  );
+  ```
+
+- **`pizza_topping_options`** - Available toppings for pizza options
+  ```sql
+  CREATE TABLE public.pizza_topping_options (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    pizza_option_id uuid REFERENCES public.pizza_options(id),
+    topping_id uuid REFERENCES public.toppings(id)
+  );
+  ```
+
+- **`product_stock`** - Inventory tracking
+  ```sql
+  CREATE TABLE public.product_stock (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    product_id uuid NOT NULL UNIQUE REFERENCES public.products(id),
+    quantity integer NOT NULL DEFAULT 0 CHECK (quantity >= 0),
+    last_updated_at timestamp with time zone DEFAULT now(),
+    low_stock_threshold integer DEFAULT 10
+  );
+  ```
+
+- **`inventory_transactions`** - Inventory change history
+  ```sql
+  CREATE TABLE public.inventory_transactions (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    product_id uuid NOT NULL REFERENCES public.products(id),
+    transaction_type text NOT NULL,
+    quantity integer NOT NULL,
+    reason text,
+    performed_by uuid NOT NULL REFERENCES public.profiles(id),
+    created_at timestamp with time zone DEFAULT now()
+  );
+  ```
+
+- **`product_co_occurrences`** - Tracks frequently purchased together items
+  ```sql
+  CREATE TABLE public.product_co_occurrences (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    product_a_id uuid REFERENCES public.products(id),
+    product_b_id uuid REFERENCES public.products(id),
+    co_occurrence_count integer DEFAULT 0,
+    last_updated timestamp with time zone DEFAULT now()
+  );
+  ```
+
+#### User Management
+- **`profiles`** - Extended user profiles
+  ```sql
+  CREATE TABLE public.profiles (
+    id uuid PRIMARY KEY REFERENCES auth.users(id),
+    username text NOT NULL UNIQUE,
+    full_name text,
+    phone_number text,
+    role text NOT NULL DEFAULT 'customer',
+    avatar_url text,
+    created_at timestamp with time zone DEFAULT now(),
+    email_verified boolean DEFAULT false,
+    phone_verified boolean DEFAULT false,
+    last_login timestamp with time zone,
+    preferences jsonb,
+    is_blocked boolean DEFAULT false,
+    updated_at timestamp with time zone DEFAULT now()
+  );
+  ```
+
+- **`addresses`** - User delivery addresses
+  ```sql
+  CREATE TABLE public.addresses (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id uuid NOT NULL REFERENCES auth.users(id),
+    label text,
+    full_address text NOT NULL,
+    is_default boolean DEFAULT false,
+    created_at timestamp with time zone DEFAULT now()
+  );
+  ```
+
+- **`saved_products`** - User's favorite products
+  ```sql
+  CREATE TABLE public.saved_products (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id uuid NOT NULL REFERENCES public.profiles(id),
+    product_id uuid NOT NULL REFERENCES public.products(id),
+    created_at timestamp with time zone DEFAULT now()
+  );
+  ```
+
+- **`user_preferences`** - User-specific settings
+  ```sql
+  CREATE TABLE public.user_preferences (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id uuid NOT NULL REFERENCES public.profiles(id),
+    preference_key text NOT NULL,
+    preference_value jsonb,
+    created_at timestamp with time zone DEFAULT now(),
+    updated_at timestamp with time zone DEFAULT now()
+  );
+  ```
 
 #### System Tables
 - **`notifications`** - User notifications for real-time updates
-  - `id`, `user_id`, `type`, `title`, `message`, `data`
-  - `is_read`, `created_at`
+  ```sql
+  CREATE TABLE public.notifications (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id uuid NOT NULL REFERENCES public.profiles(id),
+    title text NOT NULL,
+    message text NOT NULL,
+    type text NOT NULL,
+    is_read boolean DEFAULT false,
+    related_order_id uuid REFERENCES public.orders(id),
+    created_at timestamp with time zone DEFAULT now()
+  );
+  ```
+
 - **`image_metadata`** - Image upload metadata and references
-  - `id`, `user_id`, `bucket_name`, `file_path`, `file_size`
-  - `mime_type`, `created_at`
+  ```sql
+  CREATE TABLE public.image_metadata (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    order_id uuid NOT NULL REFERENCES public.orders(id),
+    type text NOT NULL CHECK (type = ANY (ARRAY['payment_proof', 'delivery_proof'])),
+    url text NOT NULL,
+    thumbnail_url text,
+    uploaded_by uuid NOT NULL REFERENCES public.profiles(id),
+    uploaded_at timestamp with time zone DEFAULT now(),
+    metadata jsonb DEFAULT '{}'::jsonb,
+    verified boolean DEFAULT false,
+    verified_by uuid REFERENCES public.profiles(id),
+    verified_at timestamp with time zone,
+    created_at timestamp with time zone DEFAULT now(),
+    updated_at timestamp with time zone DEFAULT now()
+  );
+  ```
+
+- **`user_interactions`** - Tracks user behavior and preferences
+  ```sql
+  CREATE TABLE public.user_interactions (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id uuid REFERENCES public.profiles(id),
+    product_id uuid REFERENCES public.products(id),
+    interaction_type text NOT NULL CHECK (interaction_type = ANY (ARRAY['view', 'click', 'add_to_cart', 'purchase', 'favorite'])),
+    created_at timestamp with time zone DEFAULT now(),
+    session_id text,
+    metadata jsonb DEFAULT '{}'::jsonb
+  );
+  ```
 
 ### Database Functions
 
@@ -703,6 +1045,298 @@ When an order becomes `ready_for_pickup`, the system automatically assigns it to
 - **`auto_assign_order(order_id)`** - Automatic order assignment function
 
 ### Database Enums
+
+---
+
+## 📡 API Documentation
+
+### Authentication
+
+#### Register New User
+- **Endpoint**: `POST /auth/register`
+- **Description**: Create a new user account
+- **Request Body**:
+  ```json
+  {
+    "email": "user@example.com",
+    "password": "securePassword123",
+    "fullName": "John Doe",
+    "phoneNumber": "+1234567890"
+  }
+  ```
+- **Success Response**: `201 Created`
+  ```json
+  {
+    "message": "User registered successfully",
+    "user": {
+      "id": "user-uuid",
+      "email": "user@example.com",
+      "role": "customer"
+    }
+  }
+  ```
+
+#### User Login
+- **Endpoint**: `POST /auth/login`
+- **Description**: Authenticate user and get access token
+- **Request Body**:
+  ```json
+  {
+    "email": "user@example.com",
+    "password": "securePassword123"
+  }
+  ```
+- **Success Response**: `200 OK`
+  ```json
+  {
+    "accessToken": "jwt-access-token",
+    "refreshToken": "jwt-refresh-token",
+    "user": {
+      "id": "user-uuid",
+      "email": "user@example.com",
+      "role": "customer"
+    }
+  }
+  ```
+
+#### Refresh Access Token
+- **Endpoint**: `POST /auth/refresh`
+- **Headers**:
+  - `Authorization: Bearer {refreshToken}`
+- **Success Response**: `200 OK`
+  ```json
+  {
+    "accessToken": "new-jwt-access-token"
+  }
+  ```
+
+### Products
+
+#### List All Products
+- **Endpoint**: `GET /products`
+- **Query Parameters**:
+  - `category` (optional): Filter by category ID
+  - `featured` (optional): `true` to get featured products only
+  - `limit` (optional): Number of items per page
+  - `page` (optional): Page number for pagination
+- **Success Response**: `200 OK`
+  ```json
+  {
+    "data": [
+      {
+        "id": "product-uuid",
+        "name": "Margherita Pizza",
+        "description": "Classic pizza with tomato and mozzarella",
+        "price": 12.99,
+        "imageUrl": "https://example.com/images/margherita.jpg",
+        "isAvailable": true,
+        "category": {
+          "id": "category-uuid",
+          "name": "Pizzas"
+        }
+      }
+    ],
+    "pagination": {
+      "total": 1,
+      "page": 1,
+      "limit": 10,
+      "totalPages": 1
+    }
+  }
+  ```
+
+#### Get Product Details
+- **Endpoint**: `GET /products/:id`
+- **Success Response**: `200 OK`
+  ```json
+  {
+    "id": "product-uuid",
+    "name": "Margherita Pizza",
+    "description": "Classic pizza with tomato and mozzarella",
+    "price": 12.99,
+    "imageUrl": "https://example.com/images/margherita.jpg",
+    "isAvailable": true,
+    "category": {
+      "id": "category-uuid",
+      "name": "Pizzas"
+    },
+    "options": [
+      {
+        "id": "option-uuid",
+        "size": "Medium",
+        "price": 12.99,
+        "crust": {
+          "id": "crust-uuid",
+          "name": "Thin Crust"
+        },
+        "availableToppings": [
+          {
+            "id": "topping-uuid",
+            "name": "Mushrooms",
+            "price": 1.50
+          }
+        ]
+      }
+    ]
+  }
+  ```
+
+### Orders
+
+#### Create New Order
+- **Endpoint**: `POST /orders`
+- **Headers**:
+  - `Authorization: Bearer {accessToken}`
+- **Request Body**:
+  ```json
+  {
+    "items": [
+      {
+        "productId": "product-uuid",
+        "quantity": 1,
+        "pizzaOptionId": "option-uuid",
+        "selectedToppings": ["topping-uuid-1", "topping-uuid-2"],
+        "specialInstructions": "Extra cheese, please"
+      }
+    ],
+    "deliveryAddress": {
+      "label": "Home",
+      "fullAddress": "123 Main St, City, Country"
+    },
+    "paymentMethod": "cod",
+    "fulfillmentType": "delivery"
+  }
+  ```
+- **Success Response**: `201 Created`
+  ```json
+  {
+    "orderId": "order-uuid",
+    "status": "pending",
+    "estimatedDeliveryTime": "2025-12-18T14:30:00.000Z"
+  }
+  ```
+
+#### Get Order Details
+- **Endpoint**: `GET /orders/:id`
+- **Headers**:
+  - `Authorization: Bearer {accessToken}`
+- **Success Response**: `200 OK`
+  ```json
+  {
+    "id": "order-uuid",
+    "status": "preparing",
+    "createdAt": "2025-12-18T12:00:00.000Z",
+    "updatedAt": "2025-12-18T12:05:00.000Z",
+    "items": [
+      {
+        "id": "item-uuid",
+        "product": {
+          "id": "product-uuid",
+          "name": "Margherita Pizza",
+          "imageUrl": "https://example.com/images/margherita.jpg"
+        },
+        "quantity": 1,
+        "unitPrice": 12.99,
+        "selectedToppings": [
+          {
+            "id": "topping-uuid-1",
+            "name": "Mushrooms",
+            "price": 1.50
+          }
+        ],
+        "specialInstructions": "Extra cheese, please"
+      }
+    ],
+    "totalAmount": 14.49,
+    "deliveryAddress": {
+      "label": "Home",
+      "fullAddress": "123 Main St, City, Country"
+    },
+    "paymentMethod": "cod",
+    "fulfillmentType": "delivery",
+    "estimatedDeliveryTime": "2025-12-18T14:30:00.000Z",
+    "statusHistory": [
+      {
+        "status": "pending",
+        "timestamp": "2025-12-18T12:00:00.000Z"
+      },
+      {
+        "status": "preparing",
+        "timestamp": "2025-12-18T12:05:00.000Z"
+      }
+    ]
+  }
+  ```
+
+### Payments
+
+#### Initiate Payment
+- **Endpoint**: `POST /payments/initiate`
+- **Headers**:
+  - `Authorization: Bearer {accessToken}`
+- **Request Body**:
+  ```json
+  {
+    "orderId": "order-uuid",
+    "paymentMethod": "gcash",
+    "amount": 14.49
+  }
+  ```
+- **Success Response**: `200 OK`
+  ```json
+  {
+    "paymentId": "payment-uuid",
+    "status": "pending",
+    "qrCodeUrl": "https://example.com/qr/payment-uuid",
+    "expiresAt": "2025-12-18T12:15:00.000Z"
+  }
+  ```
+
+#### Verify Payment
+- **Endpoint**: `POST /payments/verify`
+- **Headers**:
+  - `Authorization: Bearer {accessToken}`
+- **Request Body**:
+  ```json
+  {
+    "paymentId": "payment-uuid",
+    "proofOfPayment": "data:image/jpeg;base64,..."
+  }
+  ```
+- **Success Response**: `200 OK`
+  ```json
+  {
+    "paymentId": "payment-uuid",
+    "status": "verified",
+    "verifiedAt": "2025-12-18T12:10:00.000Z"
+  }
+  ```
+
+### Error Responses
+
+All API errors follow a consistent format:
+
+```json
+{
+  "error": {
+    "code": "ERROR_CODE",
+    "message": "Human-readable error message",
+    "details": {
+      "field1": "Additional error details"
+    }
+  }
+}
+```
+
+#### Common Error Codes
+- `AUTH_REQUIRED`: User not authenticated
+- `INVALID_CREDENTIALS`: Invalid email or password
+- `INVALID_TOKEN`: Invalid or expired token
+- `VALIDATION_ERROR`: Request validation failed
+- `NOT_FOUND`: Requested resource not found
+- `INSUFFICIENT_PERMISSIONS`: User lacks required permissions
+- `PAYMENT_REQUIRED`: Payment required to complete the action
+- `INTERNAL_SERVER_ERROR`: Unexpected server error
 
 #### Status Enums
 - **`order_status`**: `pending`, `preparing`, `ready_for_pickup`, `out_for_delivery`, `delivered`, `cancelled`
@@ -780,19 +1414,19 @@ When an order becomes `ready_for_pickup`, the system automatically assigns it to
 - **`debug.service.ts`** - Debug utilities (development only)
 - **`debug-data.service.ts`** - Debug data utilities
 
-### Service Architecture
+## 🏗️ Architecture & Logic
 
-Each service follows a consistent pattern:
-- **Type Safety**: Full TypeScript integration
-- **Error Handling**: Consistent error handling across all services
-- **Real-time Support**: Integration with Supabase Realtime
-- **Validation**: Input validation and sanitization
-- **Logging**: Error logging and debugging support
+### Client-Server Architecture
 
----
+The application follows a client-server architecture with a clear separation of concerns:
 
-## 🚀 Getting Started
+- **Frontend (Client)**: React Native mobile app with Expo
+- **Backend (Server)**: Supabase (PostgreSQL, Authentication, Storage, Realtime)
+- **API Layer**: RESTful endpoints with JWT authentication
+- **Real-time Updates**: WebSockets for live order tracking and notifications
+- **Edge Functions**: Serverless functions for business logic and integrations
 
+### Key Algorithms
 ### Prerequisites
 
 - **Node.js**: v18.17.0 (LTS) or higher
